@@ -19,8 +19,8 @@ RUN npm run build
 # Install serve to run the production build
 RUN npm install -g serve
 
-# Expose ports 80 and 443
-EXPOSE 80 443
+# Expose only port 443
+EXPOSE 443
 
-# Command to run the built app on port 80
-CMD ["serve", "-s", "build", "-l", "80"]
+# Command to run the built app on port 443
+CMD ["sh", "-c", "PORT=443 serve -s build"]
