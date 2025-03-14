@@ -36,44 +36,43 @@ function Filters({ onFilterChange }) {
       });
   }, []);
 
-// 2. Load years from `water_quality_data.csv` for date range logic
-useEffect(() => {
-  fetch("/water_quality_data.csv")
-    .then(response => response.text())
-    .then(csvText => {
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => {
-          processYearData(result.data);
-        }
+  // 2. Load years from `water_quality_data.csv` for date range logic
+  useEffect(() => {
+    // Moved processYearData inside the effect to avoid missing dependency issues
+    const processYearData = (data) => {
+      // Parse years, filter out invalid values
+      const years = data.map(row => parseInt(row.Year)).filter(y => !isNaN(y));
+      if (years.length === 0) return;
+      
+      // Remove duplicates and sort the years
+      const uniqueYears = [...new Set(years)].sort((a, b) => a - b);
+      const min = uniqueYears[0];
+      const max = uniqueYears[uniqueYears.length - 1];
+      
+      setAvailableYears(uniqueYears);
+      setStartYear(min);
+      setEndYear(max);
+
+      // Update parent filters with default date range
+      onFilterChange(prev => ({
+        ...prev,
+        startDate: new Date(min, 0, 1),
+        endDate: new Date(max, 11, 31),
+      }));
+    };
+
+    fetch("/water_quality_data.csv")
+      .then(response => response.text())
+      .then(csvText => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (result) => {
+            processYearData(result.data);
+          }
+        });
       });
-    });
-}, []);
-
-// Process year range from water_quality_data.csv
-const processYearData = (data) => {
-  // Parse years, filter out invalid values
-  const years = data.map(row => parseInt(row.Year)).filter(y => !isNaN(y));
-  if (years.length === 0) return;
-  
-  // Remove duplicates by converting to a Set and back to an array, then sort
-  const uniqueYears = [...new Set(years)].sort((a, b) => a - b);
-  const min = uniqueYears[0];
-  const max = uniqueYears[uniqueYears.length - 1];
-  
-  setAvailableYears(uniqueYears);
-  setStartYear(min);
-  setEndYear(max);
-
-  // Update parent filters with default date range
-  onFilterChange(prev => ({
-    ...prev,
-    startDate: new Date(min, 0, 1),
-    endDate: new Date(max, 11, 31),
-  }));
-};
-
+  }, [onFilterChange]);
 
   // Handle site search
   const filteredSites = sites.filter(site =>
