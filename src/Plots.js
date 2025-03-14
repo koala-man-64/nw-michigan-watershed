@@ -36,6 +36,63 @@ function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
     setLoading(true);
     console.log("Fetching water quality data...");
 
+    // Moved processData inside the effect to avoid dependency issues.
+    const processData = (data) => {
+      const formattedData = {};
+
+      selectedParameters.forEach((parameter) => {
+        const config = chartConfig[parameter];
+        if (!config) return;
+
+        // Filter rows based on selected sites and date range
+        let filteredData = data.filter(row =>
+          row.Parameter === parameter &&
+          selectedSites.includes(row.Location) &&
+          parseInt(row.Year) >= startDate.getFullYear() &&
+          parseInt(row.Year) <= endDate.getFullYear()
+        );
+
+        filteredData.sort((a, b) => parseInt(a.Year) - parseInt(b.Year)); // Sort by year
+
+        if (filteredData.length === 0) {
+          formattedData[parameter] = { labels: [], datasets: [] };
+        } else if (config.type === "line") {
+          formattedData[parameter] = {
+            labels: [...new Set(filteredData.map(row => row.Year))],
+            datasets: selectedSites
+              .map((site, idx) => {
+                const siteData = filteredData.filter(row => row.Location === site);
+                return {
+                  label: site,
+                  data: siteData.map(row => parseFloat(row.Value)),
+                  borderColor: defaultColors[idx % defaultColors.length],
+                  backgroundColor: defaultColors[idx % defaultColors.length],
+                  fill: false,
+                  tension: 0.1
+                };
+              })
+              .filter(dataset => dataset.data.length > 0)
+          };
+        } else if (config.type === "bar") {
+          const uniqueLocations = [...new Set(filteredData.map(row => row.Location))];
+          formattedData[parameter] = {
+            labels: uniqueLocations,
+            datasets: [
+              {
+                label: parameter,
+                data: filteredData.map(row => parseFloat(row.Value)),
+                backgroundColor: uniqueLocations.map((_, idx) => defaultColors[idx % defaultColors.length])
+              }
+            ]
+          };
+        }
+      });
+
+      console.log("Formatted Chart Data:", formattedData);
+      setChartData(formattedData);
+      setLoading(false);
+    };
+
     fetch("/water_quality_data.csv")
       .then((response) => response.text())
       .then((csvText) => {
@@ -54,62 +111,6 @@ function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
       });
   }, [selectedParameters, selectedSites, startDate, endDate]);
 
-  const processData = (data) => {
-    const formattedData = {};
-
-    selectedParameters.forEach((parameter) => {
-      const config = chartConfig[parameter];
-      if (!config) return;
-
-      // Filter rows based on selected sites and date range
-      let filteredData = data.filter(row =>
-        row.Parameter === parameter &&
-        selectedSites.includes(row.Location) &&
-        parseInt(row.Year) >= startDate.getFullYear() &&
-        parseInt(row.Year) <= endDate.getFullYear()
-      );
-
-      filteredData.sort((a, b) => parseInt(a.Year) - parseInt(b.Year)); // Sort by year
-
-      if (filteredData.length === 0) {
-        formattedData[parameter] = { labels: [], datasets: [] };
-      } else if (config.type === "line") {
-        formattedData[parameter] = {
-          labels: [...new Set(filteredData.map(row => row.Year))],
-          datasets: selectedSites
-            .map((site, idx) => {
-              const siteData = filteredData.filter(row => row.Location === site);
-              return {
-                label: site,
-                data: siteData.map(row => parseFloat(row.Value)),
-                borderColor: defaultColors[idx % defaultColors.length],
-                backgroundColor: defaultColors[idx % defaultColors.length],
-                fill: false,
-                tension: 0.1
-              };
-            })
-            .filter(dataset => dataset.data.length > 0)
-        };
-      } else if (config.type === "bar") {
-        const uniqueLocations = [...new Set(filteredData.map(row => row.Location))];
-        formattedData[parameter] = {
-          labels: uniqueLocations,
-          datasets: [
-            {
-              label: parameter,
-              data: filteredData.map(row => parseFloat(row.Value)),
-              backgroundColor: uniqueLocations.map((_, idx) => defaultColors[idx % defaultColors.length])
-            }
-          ]
-        };
-      }
-    });
-
-    console.log("Formatted Chart Data:", formattedData);
-    setChartData(formattedData);
-    setLoading(false);
-  };
-
   return (
     <div className="plots-container">
       {selectedParameters.length === 0 ? (
@@ -127,7 +128,7 @@ function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
                     data={chartData[param]}
                     options={{
                       responsive: true,
-                      maintainAspectRatio: selectedParameters.length === 1,
+                      maintainAspectRatio: false, // Always disable to prevent stretching
                       scales: {
                         y: {
                           title: { display: true, text: chartConfig[param]?.yLabel }
@@ -140,7 +141,7 @@ function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
                     data={chartData[param]}
                     options={{
                       responsive: true,
-                      maintainAspectRatio: selectedParameters.length === 1,
+                      maintainAspectRatio: false, // Always disable to prevent stretching
                       scales: {
                         y: {
                           title: { display: true, text: chartConfig[param]?.yLabel }
