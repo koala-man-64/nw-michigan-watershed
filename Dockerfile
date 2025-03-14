@@ -1,26 +1,20 @@
-# Use an official Node.js runtime as a parent image
-FROM node:18-alpine
+# Use official Nginx image
+FROM nginx:alpine
 
-# Set the working directory in the container
-WORKDIR /app
+# Set the working directory
+WORKDIR /usr/share/nginx/html
 
-# Copy package.json and package-lock.json (if available)
-COPY package*.json ./
+# Copy the React build output
+COPY build /usr/share/nginx/html
 
-# Install dependencies
-RUN npm install
+# Copy SSL certificates
+COPY nginx/ssl /etc/nginx/ssl
 
-# Copy the rest of the source code
-COPY . .
+# Copy the custom Nginx configuration
+COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Build the React app
-RUN npm run build
-
-# Install serve to run the production build
-RUN npm install -g serve
-
-# Expose only port 443
+# Expose only HTTPS (443)
 EXPOSE 443
 
-# Command to run the built app on port 443
-CMD ["sh", "-c", "PORT=443 serve -s build"]
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
