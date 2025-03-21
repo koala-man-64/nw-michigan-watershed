@@ -58,6 +58,6 @@ jobs:
       - name: Deploy to Azure Function App
         uses: Azure/functions-action@v1
         with:
-          app-name: '<YOUR_FUNCTION_APP_NAME>'  # 🔁 Replace this with your actual Function App name
+          app-name: '<YOUR_FUNCTION_APP_NAME>'  # 🔁 Replace with your actual Function App name
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           package: 'functions'

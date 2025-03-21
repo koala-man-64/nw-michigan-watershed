@@ -27,7 +27,7 @@ jobs:
 
       - name: Set output directory
         id: set-output
-        run: echo "output-dir=build" >> $GITHUB_OUTPUT
+        run: echo "output-dir=dashboard/build" >> $GITHUB_OUTPUT
 
       - name: Install Node.js
         uses: actions/setup-node@v3
@@ -35,16 +35,20 @@ jobs:
           node-version: '18'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          cd dashboard
+          npm ci
 
       - name: Build project
-        run: npm run build
+        run: |
+          cd dashboard
+          npm run build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: webapp-build
-          path: build
+          path: dashboard/build
 
   deploy_job:
     name: Deploy to Azure Static Web Apps
@@ -57,7 +61,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: webapp-build
-          path: build
+          path: dashboard/build
 
       - name: Deploy
         uses: Azure/static-web-apps-deploy@v1
@@ -65,5 +69,5 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_BLUE_MOSS_00540341E }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "/"
-          output_location: "build"
+          app_location: "dashboard"
+          output_location: "dashboard/build"
