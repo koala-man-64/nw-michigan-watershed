@@ -1,0 +1,69 @@
+name: Azure Static Web App Build and Deploy
+
+on:
+  push:
+    branches:
+      - main  # Automatically triggers the build on push to main
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (optional)'
+        required: false
+        default: 'production'
+
+jobs:
+  build_job:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    outputs:
+      output-dir: ${{ steps.set-output.outputs.output-dir }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Set output directory
+        id: set-output
+        run: echo "output-dir=build" >> $GITHUB_OUTPUT
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: webapp-build
+          path: build
+
+  deploy_job:
+    name: Deploy to Azure Static Web Apps
+    runs-on: ubuntu-latest
+    needs: build_job
+    if: github.event_name == 'workflow_dispatch'  # Only run on manual trigger
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: webapp-build
+          path: build
+
+      - name: Deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_BLUE_MOSS_00540341E }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "/"
+          output_location: "build"

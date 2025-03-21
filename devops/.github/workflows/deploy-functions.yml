@@ -1,0 +1,63 @@
+name: Azure Function App Build and Deploy
+
+on:
+  push:
+    branches:
+      - main  # Auto-build on push to main
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (optional)'
+        required: false
+        default: 'production'
+
+jobs:
+  build_job:
+    name: Build Azure Function App
+    runs-on: ubuntu-latest
+    outputs:
+      output-dir: ${{ steps.set-output.outputs.output-dir }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set output directory
+        id: set-output
+        run: echo "output-dir=functions" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          cd functions
+          pip install -r requirements.txt
+
+      - name: Upload Function App artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: functionapp-build
+          path: functions
+
+  deploy_job:
+    name: Deploy Azure Function App
+    runs-on: ubuntu-latest
+    needs: build_job
+    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: functionapp-build
+          path: functions
+
+      - name: Deploy to Azure Function App
+        uses: Azure/functions-action@v1
+        with:
+          app-name: '<YOUR_FUNCTION_APP_NAME>'  # 🔁 Replace this with your actual Function App name
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          package: 'functions'
