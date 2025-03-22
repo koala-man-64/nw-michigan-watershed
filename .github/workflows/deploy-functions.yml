@@ -1,63 +1,69 @@
+# This is a GitHub Actions workflow for building and deploying an Azure Function App.
+
 name: Azure Function App Build and Deploy
 
+# The workflow triggers on:
 on:
   push:
     branches:
-      - main  # Auto-build on push to main
-
+      - main  # Automatically run the workflow when code is pushed to the main branch
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment (optional)'
+        description: 'Environment (optional)'  # Optional input when manually triggering the workflow
         required: false
         default: 'production'
 
+# Define the first job in the workflow: building the Azure Function App
 jobs:
   build_job:
     name: Build Azure Function App
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Run this job on the latest Ubuntu VM hosted by GitHub
+
     outputs:
-      output-dir: ${{ steps.set-output.outputs.output-dir }}
+      output-dir: ${{ steps.set-output.outputs.output-dir }}  # Capture the output directory for later jobs
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3  # Step to pull down the code from your repository
 
       - name: Set output directory
         id: set-output
-        run: echo "output-dir=functions" >> $GITHUB_OUTPUT
+        run: echo "output-dir=functions" >> $GITHUB_OUTPUT  # Store the functions folder path for later use
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v4  # Set up a Python environment
         with:
-          python-version: '3.9'
+          python-version: '3.9'  # Specify Python version 3.9
 
       - name: Install dependencies
         run: |
-          cd functions
-          pip install -r requirements.txt
+          cd functions  # Change into the functions directory
+          pip install -r requirements.txt  # Install required Python packages for the Function App
 
       - name: Upload Function App artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3  # Upload the build output so it can be used in the deploy job
         with:
-          name: functionapp-build
-          path: functions
+          name: functionapp-build  # Name of the artifact
+          path: functions  # Path to the function app build files
 
+  # Define the second job: deployment to Azure (only runs when manually triggered)
   deploy_job:
     name: Deploy Azure Function App
-    runs-on: ubuntu-latest
-    needs: build_job
-    if: github.event_name == 'workflow_dispatch'  # Manual trigger only
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+    needs: build_job  # Ensure build_job finishes successfully before running this
+    if: github.event_name == 'workflow_dispatch'  # Only run if the workflow was manually triggered
 
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v3  # Fetch the artifact uploaded in the build job
         with:
-          name: functionapp-build
-          path: functions
+          name: functionapp-build  # Artifact name must match
+          path: functions  # Extract to the functions directory
 
       - name: Deploy to Azure Function App
-        uses: Azure/functions-action@v1
+        uses: Azure/functions-action@v1  # GitHub Action to deploy the Azure Function App
         with:
-          app-name: '<YOUR_FUNCTION_APP_NAME>'  # 🔁 Replace with your actual Function App name
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          package: 'functions'
+          app-name: 'fa-nwmiws'  # 🔁 Change this to your actual Azure Function App name
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}  # Securely use the publish profile stored in GitHub secrets
+          package: 'functions'  # The folder containing the function app to deploy
