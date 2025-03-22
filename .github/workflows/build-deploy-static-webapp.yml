@@ -124,6 +124,9 @@ jobs:
           cd dashboard  # Move into the project directory again
           npm run build  # Run the custom build script defined in package.json
 
+      - name: Print structure
+        run: ls -l
+
       - name: Upload artifact
         uses: actions/upload-artifact@v3  # Upload build output so the deploy job can access it
         with:
