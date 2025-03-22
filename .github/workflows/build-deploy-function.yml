@@ -38,7 +38,7 @@ jobs:
           pip install -r requirements.txt  # Install required Python packages.
       
       - name: Upload Function App artifact
-        uses: actions/upload-artifact@v3  # Upload the entire "functions" folder.
+        uses: actions/upload-artifact@v4  # Upload the entire "functions" folder.
         with:
           name: functionapp-build  # Artifact name.
           path: functions       # Path relative to repo root.
