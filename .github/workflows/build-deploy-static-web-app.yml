@@ -5,9 +5,9 @@ on:
     branches:
       - main
       - dev
-    paths:
-      - 'dashboard/**'   
-      - '.github/**'
+    # paths:
+    #   - 'dashboard/**'   
+    #   - '.github/**'
   workflow_dispatch:
     inputs:
       environment:

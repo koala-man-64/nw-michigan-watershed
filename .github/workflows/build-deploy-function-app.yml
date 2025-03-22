@@ -5,8 +5,8 @@ on:
     branches:
       - main
       - dev
-    paths:
-      - 'functions/**'
+    # paths:
+    #   - 'functions/**'
   workflow_dispatch:
     inputs:
       environment:
