@@ -1,13 +1,9 @@
 name: Azure Function App Build and Deploy
 
-# Trigger on pushes to main and dev; allow manual triggers for additional control.
 on:
   push:
     branches:
-      - main
-      - dev
-    paths:
-      - 'functions/**'  
+      - main  # Auto-build on push to main
   workflow_dispatch:
     inputs:
       environment:
@@ -20,61 +16,56 @@ jobs:
     name: Build Azure Function App
     runs-on: ubuntu-latest
     outputs:
-      output-dir: ${{ steps.set-output.outputs.output-dir }}  # Export the build folder path for use in later jobs.
+      output-dir: ${{ steps.set-output.outputs.output-dir }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # Check out your repo code.
-      
+        uses: actions/checkout@v3
+
       - name: Set output directory
         id: set-output
-        run: echo "output-dir=functions" >> $GITHUB_OUTPUT  # Define and export the build output directory.
-      
+        run: echo "output-dir=functions" >> $GITHUB_OUTPUT
+
       - name: Setup Python
-        uses: actions/setup-python@v4  # Set up Python environment.
+        uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      
+
       - name: Install dependencies
         run: |
           cd functions
-          pip install -r requirements.txt  # Install required Python packages.
-      
+          pip install -r requirements.txt
+
+      - name: List functions folder (for debug)
+        run: ls -la functions
+
       - name: Upload Function App artifact
-        uses: actions/upload-artifact@v4  # Upload the entire "functions" folder.
+        uses: actions/upload-artifact@v3
         with:
-          name: functionapp-build  # Artifact name.
-          path: functions       # Path relative to repo root.
+          name: functionapp-build
+          path: functions
 
   deploy_job:
-    name: Deploy to Azure Function App (Dev/Prod)
+    name: Deploy Azure Function App
     runs-on: ubuntu-latest
-    needs: build_job  # Wait until the build job completes.
-    # Deploy automatically on push to dev, or run manually on main.
-    if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
+    needs: build_job
+    if: github.event_name == 'workflow_dispatch'  # Only run on manual trigger
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3  # Download the previously uploaded artifact.
+        uses: actions/download-artifact@v3
         with:
-          name: functionapp-build  # Must match the upload name exactly.
-          path: functions         # Extract artifact to this folder.
-      
+          name: functionapp-build
+          path: build-output
+
+      - name: List downloaded artifact (for debug)
+        run: ls -la build-output
+
       - name: Login to Azure using service principal
-        uses: azure/login@v1  # Authenticate with Azure.
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Set target function app name
-        id: set-app
-        run: |
-          # Determine the target function app name based on branch.
-          if [[ "${{ github.ref_name }}" == "dev" ]]; then
-            echo "app_name=fa-nwmiws-dev" >> $GITHUB_OUTPUT
-          else
-            echo "app_name=fa-nwmiws" >> $GITHUB_OUTPUT
-          fi
-      
+
       - name: Deploy to Azure Function App
-        uses: Azure/functions-action@v1  # Deploy using the Azure Functions GitHub Action.
+        uses: Azure/functions-action@v1
         with:
-          app-name: ${{ steps.set-app.outputs.app_name }}  # Use the dynamic app name.
-          package: functions  # The folder to deploy.
+          app-name: 'fa-nwmiws'  # Replace with your Function App name if needed
+          package: build-output
