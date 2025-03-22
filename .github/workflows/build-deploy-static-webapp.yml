@@ -75,7 +75,6 @@
 
 
 
-
 name: Azure Static Web App Build and Deploy
 
 on:
@@ -139,7 +138,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: webapp-build
-          path: dashboard/build
+          path: build-output  # download to a neutral path
 
       - name: Login to Azure
         uses: azure/login@v1
@@ -154,4 +153,4 @@ jobs:
           az staticwebapp upload \
             --name nwmiws \
             --resource-group ppa-rg \
-            --source dashboard/build
+            --source build-output
