@@ -130,7 +130,7 @@ jobs:
           tree -L 3 || find .  # Use tree if available, fallback to find
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3  # Upload build output so the deploy job can access it
+        uses: actions/upload-artifact@v4  # Upload build output so the deploy job can access it
         with:
           name: webapp-build  # The name of the artifact to upload
           path: ../../dashboard/build  # Folder to upload (the build output)
