@@ -1,0 +1,31 @@
+Year,Location,Parameter,Value
+2000,Platte Lake,Total Phosphorous,12.0
+2005,Platte Lake,Total Phosphorous,10.0
+2010,Platte Lake,Total Phosphorous,7.0
+2015,Platte Lake,Total Phosphorous,8.0
+2020,Platte Lake,Total Phosphorous,7.0
+2025,Platte Lake,Total Phosphorous,8.0
+2000,Big Glen Lake,Total Phosphorous,6.0
+2005,Big Glen Lake,Total Phosphorous,5.5
+2010,Big Glen Lake,Total Phosphorous,6.5
+2015,Big Glen Lake,Total Phosphorous,7.0
+2020,Big Glen Lake,Total Phosphorous,9.0
+2025,Big Glen Lake,Total Phosphorous,8.0
+2000,Lake Ann,Total Phosphorous,20.0
+2005,Lake Ann,Total Phosphorous,25.0
+2010,Lake Ann,Total Phosphorous,20.0
+2015,Lake Ann,Total Phosphorous,17.0
+2020,Lake Ann,Total Phosphorous,15.0
+2025,Lake Ann,Total Phosphorous,15.0
+2000,Crystal Lake,Total Phosphorous,38.0
+2005,Crystal Lake,Total Phosphorous,35.0
+2010,Crystal Lake,Total Phosphorous,32.0
+2015,Crystal Lake,Total Phosphorous,35.0
+2020,Crystal Lake,Total Phosphorous,32.0
+2025,Crystal Lake,Total Phosphorous,31.0
+2025,Platte Lake,Secchi,25
+2025,Crystal Lake,Secchi,50
+2025,Long Lake,Secchi,40
+2025,Little Traverse,Secchi,22
+2025,Lake Ann,Secchi,20
+2025,Big Glen Lake,Secchi,40
