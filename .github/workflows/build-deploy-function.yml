@@ -39,7 +39,7 @@ jobs:
         run: ls -la functions
 
       - name: Upload Function App artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: functionapp-build
           path: functions/build
