@@ -1,4 +1,4 @@
-# Use official Nginx image
+# Use official Nginx image(s)
 FROM nginx:alpine
 
 # Set the working directory
