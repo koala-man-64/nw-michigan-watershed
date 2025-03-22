@@ -133,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4  # Upload build output so the deploy job can access it
         with:
           name: webapp-build  # The name of the artifact to upload
-          path: ../../dashboard/build  # Folder to upload (the build output)
+          path: dashboard/build  # Folder to upload (the build output)
 
   deploy_job:
     name: Deploy to Azure Static Web App via CLI  # Name of the deployment job
