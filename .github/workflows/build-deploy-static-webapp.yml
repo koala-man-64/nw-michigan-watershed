@@ -75,82 +75,86 @@
 
 
 
+# Name of the GitHub Actions workflow
 name: Azure Static Web App Build and Deploy
 
+# Define when this workflow should run
 on:
   push:
     branches:
-      - main  # Automatically triggers the build on push to main
+      - main  # Trigger automatically when pushing to the 'main' branch
 
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual triggering of the workflow
     inputs:
       environment:
-        description: 'Environment (optional)'
+        description: 'Environment (optional)'  # Optional input to manually select an environment
         required: false
         default: 'production'
 
 jobs:
   build_job:
-    name: Build Web App
-    runs-on: ubuntu-latest
+    name: Build Web App  # Human-friendly name for this job
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner for executing steps
     outputs:
-      output-dir: ${{ steps.set-output.outputs.output-dir }}
+      output-dir: ${{ steps.set-output.outputs.output-dir }}  # Capture the build directory path as an output for later jobs
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3  # Checkout the code from the repository
         with:
-          submodules: true
-          lfs: false
+          submodules: true  # If using Git submodules, fetch them
+          lfs: false  # Disable Git LFS if not needed
 
       - name: Set output directory
         id: set-output
-        run: echo "output-dir=dashboard/build" >> $GITHUB_OUTPUT
+        run: echo "output-dir=dashboard/build" >> $GITHUB_OUTPUT  # Set and export the path to the build output directory
 
       - name: Install Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v3  # Install Node.js runtime
         with:
-          node-version: '18'
+          node-version: '18'  # Specify the Node.js version to use
 
       - name: Install dependencies
         run: |
-          cd dashboard
-          npm ci
+          cd dashboard  # Change directory to the app folder
+          npm ci  # Install dependencies using the lockfile (clean install)
 
       - name: Build project
         run: |
-          cd dashboard
-          npm run build
+          cd dashboard  # Move into the project directory again
+          npm run build  # Run the custom build script defined in package.json
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3  # Upload build output so the deploy job can access it
         with:
-          name: webapp-build
-          path: dashboard/build
+          name: webapp-build  # The name of the artifact to upload
+          path: ../dashboard/build  # Folder to upload (the build output)
 
   deploy_job:
-    name: Deploy to Azure Static Web App via CLI
-    runs-on: ubuntu-latest
-    needs: build_job
-    if: github.event_name == 'workflow_dispatch'
+    name: Deploy to Azure Static Web App via CLI  # Name of the deployment job
+    runs-on: ubuntu-latest  # Run this job on an Ubuntu runner
+    needs: build_job  # Wait for the build job to complete first
+    if: github.event_name == 'workflow_dispatch'  # Only run this job when manually triggered
 
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v3  # Download the previously uploaded artifact
         with:
-          name: webapp-build
-          path: build-output  # download to a neutral path
+          name: webapp-build  # Must match the upload name exactly
+          path: build-output  # Directory where the artifact will be extracted
 
       - name: Login to Azure
-        uses: azure/login@v1
+        uses: azure/login@v1  # Use the Azure login action to authenticate
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}  # Pass in the service principal credentials stored in GitHub secrets
 
       - name: Install Azure CLI Static Web Apps extension
-        run: az extension add --name webapp
+        run: az extension add --name webapp  # Add the Azure CLI extension required to deploy static web apps
 
+        # Use the Azure CLI to upload the build output
       - name: Deploy to Azure Static Web App
         run: |
-          az staticwebapp upload \
-            --name nwmiws \
-            --resource-group ppa-rg \
-            --source build-output
+          az staticwebapp upload \  
+            --name nwmiws \  
+            --resource-group ppa-rg \  
+            --source build-output 
