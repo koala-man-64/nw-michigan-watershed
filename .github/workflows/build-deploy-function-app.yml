@@ -24,10 +24,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3  # Check out your repo code.
+        with:
+          submodules: true   # Fetch submodules if any
+          lfs: false         # Disable Git LFS if not needed
       
       - name: Set output directory
         id: set-output
-        run: echo "output-dir=functions" >> $GITHUB_OUTPUT  # Define and export the build output directory.
+        run: echo "output-dir=functions/build" >> $GITHUB_OUTPUT  # Define and export the build output directory.
       
       - name: Setup Python
         uses: actions/setup-python@v4  # Set up Python environment.
@@ -43,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v4  # Upload the entire "functions" folder.
         with:
           name: functionapp-build  # Artifact name.
-          path: functions       # Path relative to repo root.
+          path: functions/build       # Path relative to repo root.
 
   deploy_job:
     name: Deploy to Azure Function App (Dev/Prod)
@@ -56,7 +59,7 @@ jobs:
         uses: actions/download-artifact@v3  # Download the previously uploaded artifact.
         with:
           name: functionapp-build  # Must match the upload name exactly.
-          path: functions         # Extract artifact to this folder.
+          path: build-output         # Extract artifact to this folder.
       
       - name: Login to Azure using service principal
         uses: azure/login@v1  # Authenticate with Azure.
