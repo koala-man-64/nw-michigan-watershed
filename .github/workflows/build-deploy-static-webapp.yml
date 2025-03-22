@@ -124,8 +124,10 @@ jobs:
           cd dashboard  # Move into the project directory again
           npm run build  # Run the custom build script defined in package.json
 
-      - name: Print structure
-        run: ls -l
+      - name: Print folder structure
+        run: |
+          echo "📁 Project folder structure:"
+          tree -L 3 || find .  # Use tree if available, fallback to find
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3  # Upload build output so the deploy job can access it
