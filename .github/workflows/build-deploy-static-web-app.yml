@@ -66,8 +66,6 @@ jobs:
           echo "::group::🛠 Building web project"
           cd client
           set -x       
-          sudo npm config set user 0
-          sudo npm config set unsafe-perm true   
           npm run build
           echo "::endgroup::"
 
