@@ -74,7 +74,6 @@ jobs:
     name: Deploy to Azure Static Web App
     runs-on: ubuntu-latest
     needs: build_job
-    # You can decide to run on different events or branches as needed.
     if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
     steps:
       - name: Download build artifact
@@ -92,14 +91,13 @@ jobs:
         run: |
           echo "::group::🧩 Installing Azure CLI extension"
           set -x
-          az extension add --name webapp
+          az extension add --name staticwebapp
           echo "::endgroup::"
 
       - name: Set target app details
         id: set-app
         run: |
           echo "::group::📛 Setting Static Web App details"
-          # Using values from your agreeable configuration file:
           echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
           echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
           echo "::endgroup::"
@@ -115,3 +113,4 @@ jobs:
             --resource-group "$RG" \
             --source build-output
           echo "::endgroup::"
+        
