@@ -48,6 +48,7 @@ jobs:
           npm install
           npm install react@latest react-dom@latest
           npm install react-scripts
+          npm install react-router-dom
 
       - name: Update permissions
         run: sudo chmod +x client/node_modules/.bin/react-scripts
