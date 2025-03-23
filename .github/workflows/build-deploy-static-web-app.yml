@@ -51,6 +51,8 @@ jobs:
           npm install react-router-dom
           npm install web-vitals
           npm install papaparse
+          npm install leaflet
+
 
       - name: Update permissions
         run: sudo chmod +x client/node_modules/.bin/react-scripts
