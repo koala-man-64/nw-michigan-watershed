@@ -105,22 +105,20 @@ jobs:
           az extension add --name staticwebapp --upgrade
           echo "::endgroup::"
 
-      - name: Set target app details
-        id: set-app
-        run: |
-          echo "::group::📛 Setting Static Web App details"
-          echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
-          echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
-          echo "::endgroup::"
-
       - name: Deploy Artifact to Static Web App
         env:
-          REPO_TOKEN: ${{ secrets.PAT }}
+          REPO_TOKEN: ${{ secrets.PAT }}  # Ensure this PAT has admin rights on the repo
         run: |
           echo "::group::🚀 Deploying Artifact to Static Web App"
-          APP_NAME="nwmiws-dev"
+          # Determine target app name based on branch: main -> nwmiws, dev -> nwmiws-dev
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            APP_NAME="nwmiws"
+          else
+            APP_NAME="nwmiws-dev"
+          fi
           RG="ppa-rg"
-          # Check if the Static Web App already exists
+          echo "Deploying to app: $APP_NAME in resource group: $RG"
+          # Check if the Static Web App exists
           if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
             echo "Static Web App exists. Uploading deployment artifact..."
             az staticwebapp deployment upload \
@@ -146,3 +144,4 @@ jobs:
               --src build-output
           fi
           echo "::endgroup::"
+        
