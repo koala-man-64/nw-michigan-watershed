@@ -115,7 +115,7 @@ jobs:
 
       - name: Deploy Artifact to Static Web App
         env:
-          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_TOKEN: ${{ secrets.PAT }}
         run: |
           echo "::group::🚀 Deploying Artifact to Static Web App"
           APP_NAME="agreeable-pebble-063e41e1e"
