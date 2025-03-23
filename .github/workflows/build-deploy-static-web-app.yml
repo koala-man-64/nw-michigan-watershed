@@ -46,9 +46,8 @@ jobs:
           cd client
           set -x          
           npm install
-
-      - name: Install react-scripts (if needed)
-        run: npm install react-scripts --save
+          npm install react@latest react-dom@latest
+          npm install react-scripts
 
       - name: Update permissions
         run: sudo chmod +x node_modules/.bin/react-scripts
