@@ -65,7 +65,7 @@ jobs:
           echo "::group::🛠 Building web project"
           cd client
           set -x          
-          npm run build
+          sudo npm run build
           echo "::endgroup::"
 
       - name: Print folder structure
