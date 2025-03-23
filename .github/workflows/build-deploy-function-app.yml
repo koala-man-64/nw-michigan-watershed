@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "::group::📦 Installing dependencies"
           set -x
-          cd functions
+          cd api
           pwd
           ls -al
           pip install -r requirements.txt
