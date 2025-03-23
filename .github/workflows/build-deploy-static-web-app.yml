@@ -49,8 +49,8 @@ jobs:
           npm install react@latest react-dom@latest
           npm install react-scripts
 
-      - name: Update permissions
-        run: sudo chmod +x node_modules/.bin/react-scripts
+      # - name: Update permissions
+      #   run: sudo chmod +x node_modules/.bin/react-scripts
 
       - name: Build project
         run: |
