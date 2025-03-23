@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: functionapp-build
-          path: functions
+          path: api
 
   deploy_job:
     name: Deploy to Azure Function App (Dev/Prod)

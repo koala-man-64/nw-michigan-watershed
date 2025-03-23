@@ -110,6 +110,7 @@ jobs:
           LOCATION="eastus2"
           SKU="Free"
           APP_LOCATION="dashboard"
+          API_LOCATION="functions"
           OUTPUT_LOCATION="build"
           # Check if the SWA exists
           if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
@@ -118,6 +119,7 @@ jobs:
               --name "$APP_NAME" \
               --resource-group "$RG" \
               --app-location "$APP_LOCATION" \
+              --api-location "$API_LOCATION" \
               --output-location "$OUTPUT_LOCATION"
           else
             echo "Static Web App does not exist. Creating it..."
@@ -129,7 +131,7 @@ jobs:
               --location "$LOCATION" \
               --sku "$SKU" \
               --app-location "$APP_LOCATION" \
-              --api-location "" \
+              --api-location "$API_LOCATION" \
               --branch dev \
               --source "https://github.com/dummy/dummy-repo"
           fi
