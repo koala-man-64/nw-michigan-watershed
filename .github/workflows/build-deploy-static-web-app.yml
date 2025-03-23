@@ -114,6 +114,8 @@ jobs:
           echo "::endgroup::"
 
       - name: Deploy Artifact to Static Web App
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "::group::🚀 Deploying Artifact to Static Web App"
           APP_NAME="agreeable-pebble-063e41e1e"
@@ -127,7 +129,6 @@ jobs:
               --src build-output
           else
             echo "Static Web App does not exist. Creating it first..."
-            # The create command requires a source; we use a dummy repo URL.
             az staticwebapp create \
               --name "$APP_NAME" \
               --resource-group "$RG" \
@@ -136,7 +137,8 @@ jobs:
               --app-location "client" \
               --api-location "api" \
               --branch dev \
-              --source "https://github.com/koala-man-64/nw-michigan-watershed"
+              --source "https://github.com/koala-man-64/nw-michigan-watershed" \
+              --token "$REPO_TOKEN"
             echo "Uploading deployment artifact..."
             az staticwebapp deployment upload \
               --name "$APP_NAME" \
@@ -144,4 +146,3 @@ jobs:
               --src build-output
           fi
           echo "::endgroup::"
-        
