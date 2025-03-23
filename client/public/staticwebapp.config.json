@@ -8,6 +8,9 @@
         "route": "/about",
         "rewrite": "/index.html"
       }
-    ]
+    ],
+    "platform": {
+      "apiRuntime": "node:16"
+    }
   }
   
