@@ -19,8 +19,6 @@ function SetMapBounds({ bounds }) {
     if (bounds && bounds.isValid()) {
       map.fitBounds(bounds, { padding: [20, 20] });
     }
-    // Run only once at mount time
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, bounds]);
   return null;
 }
