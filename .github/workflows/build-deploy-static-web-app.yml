@@ -53,7 +53,7 @@ jobs:
           npm install papaparse
           npm install leaflet
           npm install react-leaflet
-
+          npm install react-chartjs-2 chart.js
 
       - name: Update permissions
         run: sudo chmod +x client/node_modules/.bin/react-scripts
