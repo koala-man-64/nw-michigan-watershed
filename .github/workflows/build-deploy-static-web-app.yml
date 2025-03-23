@@ -106,28 +106,6 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: Check if Static Web App exists; create if not
-        run: |
-          echo "::group::🔍 Checking or creating Static Web App"
-          set -x
-          APP_NAME="${{ steps.set-app.outputs.app_name }}"
-          RG="ppa-rg"
-          LOCATION="eastus2"
-          SKU="Free"
-          if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
-            echo "Static Web App '$APP_NAME' exists."
-          else
-            echo "Static Web App '$APP_NAME' does not exist. Creating it..."
-            az staticwebapp create \
-              --name "$APP_NAME" \
-              --resource-group "$RG" \
-              --location "$LOCATION" \
-              --sku "$SKU" \
-              --source build-output \
-              --branch "${{ github.ref_name }}"
-          fi
-          echo "::endgroup::"
-
       - name: Deploy to Azure Static Web App
         run: |
           echo "::group::🚀 Deploying Static Web App"
