@@ -114,11 +114,11 @@ jobs:
               --sku Free \
               --app-location dashboard \
               --api-location "" \
-              --branch dev \
-              --source build-output
+              --branch dev
           else
             echo "Static Web App 'agreeable-pebble-063e41e1e' already exists."
           fi
           echo "::endgroup::"
+        
              
         
