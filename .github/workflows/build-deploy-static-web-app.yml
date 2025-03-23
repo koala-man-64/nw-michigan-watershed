@@ -58,7 +58,9 @@ jobs:
           npm install eslint-plugin-react-hooks
 
       - name: Update permissions
-        run: sudo chmod +x client/node_modules/.bin/react-scripts
+        run: |
+          sudo chmod +x client/node_modules/.bin/react-scripts
+          chmod +x node_modules/.bin/react-scripts
 
       - name: Build project
         run: |
