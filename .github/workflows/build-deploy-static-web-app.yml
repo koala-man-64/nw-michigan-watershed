@@ -54,6 +54,8 @@ jobs:
           npm install leaflet
           npm install react-leaflet
           npm install react-chartjs-2 chart.js
+          npm install @azure/storage-blob
+
 
       - name: Update permissions
         run: sudo chmod +x client/node_modules/.bin/react-scripts
