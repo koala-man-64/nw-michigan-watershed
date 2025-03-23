@@ -108,15 +108,10 @@ jobs:
           set -x
           APP_NAME="${{ steps.set-app.outputs.app_name }}"
           RG="${{ steps.set-app.outputs.resource_group }}"
-          # Try "upload" first:
-          az staticwebapp deploy \
+          az staticwebapp deployment upload \
             --name "$APP_NAME" \
             --resource-group "$RG" \
-            --source build-output || 
-          # If "upload" is not available, fallback to "deploy"
-          az staticwebapp deploy \
-            --name "$APP_NAME" \
-            --resource-group "$RG" \
-            --source build-output
+            --src build-output
           echo "::endgroup::"
+  
         
