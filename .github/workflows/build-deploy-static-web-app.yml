@@ -50,7 +50,7 @@ jobs:
           npm install react-scripts
           npm install react-router-dom
           npm install web-vitals
-
+          npm install papaparse
 
       - name: Update permissions
         run: sudo chmod +x client/node_modules/.bin/react-scripts
