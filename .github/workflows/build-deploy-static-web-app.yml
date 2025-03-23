@@ -109,7 +109,7 @@ jobs:
           APP_NAME="${{ steps.set-app.outputs.app_name }}"
           RG="${{ steps.set-app.outputs.resource_group }}"
           # Try "upload" first:
-          az staticwebapp upload \
+          az staticwebapp deploy \
             --name "$APP_NAME" \
             --resource-group "$RG" \
             --source build-output || 
