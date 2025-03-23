@@ -118,7 +118,7 @@ jobs:
           REPO_TOKEN: ${{ secrets.PAT }}
         run: |
           echo "::group::🚀 Deploying Artifact to Static Web App"
-          APP_NAME="agreeable-pebble-063e41e1e"
+          APP_NAME="nwmiws-dev"
           RG="ppa-rg"
           # Check if the Static Web App already exists
           if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
