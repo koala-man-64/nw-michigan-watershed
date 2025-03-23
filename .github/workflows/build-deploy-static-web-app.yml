@@ -132,15 +132,10 @@ jobs:
                 --sku Free \
                 --app-location "client" \
                 --api-location "api" \
-                --branch dev \
+                --branch "${{ github.ref_name }}" \
                 --source "https://github.com/koala-man-64/nw-michigan-watershed" \
                 --token "$REPO_TOKEN"
 
-              echo "Uploading deployment artifact..."
-              az staticwebapp deployment upload \
-                --name "$APP_NAME" \
-                --resource-group "$RG" \
-                --src build-output
 
               echo "::endgroup::"
         
