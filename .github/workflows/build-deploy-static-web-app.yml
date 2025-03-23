@@ -59,8 +59,7 @@ jobs:
 
       - name: Update permissions
         run: |
-          sudo chmod +x client/node_modules/.bin/react-scripts
-          chmod +x node_modules/.bin/react-scripts
+          chmod +x client/node_modules/.bin/react-scripts
 
       - name: Build project
         run: |
