@@ -102,15 +102,35 @@ jobs:
           echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
           echo "::endgroup::"
       
-      - name: Deploy to Azure Static Web App
+      - name: Create or Update Static Web App
         run: |
-          echo "::group::🚀 Deploying Static Web App"
-          set -x
-          az staticwebapp deployment upload \
-            --name agreeable-pebble-063e41e1e \
-            --resource-group ppa-rg \
-            --src build-output
+          echo "::group::🔍 Create or Update Static Web App"
+          APP_NAME="agreeable-pebble-063e41e1e"
+          RG="ppa-rg"
+          LOCATION="eastus2"
+          SKU="Free"
+          APP_LOCATION="dashboard"
+          OUTPUT_LOCATION="build"
+          # Check if the SWA exists
+          if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
+            echo "Static Web App exists. Updating it..."
+            az staticwebapp update \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --app-location "$APP_LOCATION" \
+              --output-location "$OUTPUT_LOCATION"
+          else
+            echo "Static Web App does not exist. Creating it..."
+            # The create command requires a --source parameter.
+            # We supply a dummy repository URL so that the app is created.
+            az staticwebapp create \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --location "$LOCATION" \
+              --sku "$SKU" \
+              --app-location "$APP_LOCATION" \
+              --api-location "" \
+              --branch dev \
+              --source "https://github.com/dummy/dummy-repo"
+          fi
           echo "::endgroup::"
-        
-             
-        
