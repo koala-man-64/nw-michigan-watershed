@@ -71,9 +71,10 @@ jobs:
           path: dashboard/build
 
   deploy_job:
-    name: Deploy to Azure Static Web App (Dev/Prod)
+    name: Deploy to Azure Static Web App
     runs-on: ubuntu-latest
     needs: build_job
+    # You can decide to run on different events or branches as needed.
     if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
     steps:
       - name: Download build artifact
@@ -94,16 +95,13 @@ jobs:
           az extension add --name webapp
           echo "::endgroup::"
 
-      - name: Set target app name
+      - name: Set target app details
         id: set-app
         run: |
-          echo "::group::📛 Setting Static Web App name"
-          set -x
-          if [[ "${{ github.ref_name }}" == "dev" ]]; then
-            echo "app_name=nwmiws-dev" >> $GITHUB_OUTPUT
-          else
-            echo "app_name=nwmiws" >> $GITHUB_OUTPUT
-          fi
+          echo "::group::📛 Setting Static Web App details"
+          # Using values from your agreeable configuration file:
+          echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
+          echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
           echo "::endgroup::"
 
       - name: Deploy to Azure Static Web App
@@ -111,7 +109,7 @@ jobs:
           echo "::group::🚀 Deploying Static Web App"
           set -x
           APP_NAME="${{ steps.set-app.outputs.app_name }}"
-          RG="ppa-rg"
+          RG="${{ steps.set-app.outputs.resource_group }}"
           az staticwebapp upload \
             --name "$APP_NAME" \
             --resource-group "$RG" \
