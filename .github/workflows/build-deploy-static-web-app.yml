@@ -110,8 +110,8 @@ jobs:
           RG="ppa-rg"
           LOCATION="eastus2"
           SKU="Free"
-          APP_LOCATION="dashboard"
-          API_LOCATION="functions"
+          APP_LOCATION="client"
+          API_LOCATION="api"
           OUTPUT_LOCATION="build"
           # Check if the SWA exists
           if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
