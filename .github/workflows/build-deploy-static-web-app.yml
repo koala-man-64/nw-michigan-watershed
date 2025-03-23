@@ -52,6 +52,7 @@ jobs:
           npm install web-vitals
           npm install papaparse
           npm install leaflet
+          npm install react-leaflet
 
 
       - name: Update permissions
