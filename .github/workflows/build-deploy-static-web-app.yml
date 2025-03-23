@@ -112,38 +112,36 @@ jobs:
           echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
           echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
           echo "::endgroup::"
-      
-      - name: Create or Update Static Web App
+
+      - name: Deploy Artifact to Static Web App
         run: |
-          echo "::group::🔍 Create or Update Static Web App"
+          echo "::group::🚀 Deploying Artifact to Static Web App"
           APP_NAME="agreeable-pebble-063e41e1e"
           RG="ppa-rg"
-          LOCATION="eastus2"
-          SKU="Free"
-          APP_LOCATION="client"
-          API_LOCATION="api"
-          OUTPUT_LOCATION="build"
-          # Check if the SWA exists
+          # Check if the Static Web App already exists
           if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
-            echo "Static Web App exists. Updating it..."
-            az staticwebapp update \
+            echo "Static Web App exists. Uploading deployment artifact..."
+            az staticwebapp deployment upload \
               --name "$APP_NAME" \
               --resource-group "$RG" \
-              --app-location "$APP_LOCATION" \
-              --api-location "$API_LOCATION" \
-              --output-location "$OUTPUT_LOCATION"
+              --src build-output
           else
-            echo "Static Web App does not exist. Creating it..."
-            # The create command requires a --source parameter.
-            # We supply a dummy repository URL so that the app is created.
+            echo "Static Web App does not exist. Creating it first..."
+            # The create command requires a source; we use a dummy repo URL.
             az staticwebapp create \
               --name "$APP_NAME" \
               --resource-group "$RG" \
-              --location "$LOCATION" \
-              --sku "$SKU" \
-              --app-location "$APP_LOCATION" \
-              --api-location "$API_LOCATION" \
+              --location eastus2 \
+              --sku Free \
+              --app-location "client" \
+              --api-location "api" \
               --branch dev \
               --source "https://github.com/dummy/dummy-repo"
+            echo "Uploading deployment artifact..."
+            az staticwebapp deployment upload \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --src build-output
           fi
           echo "::endgroup::"
+        
