@@ -1,138 +1,46 @@
-name: Azure Static Web App Build and Deploy
+name: Azure Static Web Apps CI/CD
 
 on:
   push:
     branches:
-      - main
       - dev
-    # paths:
-    #   - 'dashboard/**'   
-    #   - '.github/**'
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Environment (optional)'
-        required: false
-        default: 'production'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - dev
 
 jobs:
-  build_job:
-    name: Build Web App
+  build_and_deploy_job:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    outputs:
-      output-dir: ${{ steps.set-output.outputs.output-dir }}
+    name: Build and Deploy Job
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           submodules: true
           lfs: false
-
-      - name: Set output directory
-        id: set-output
-        run: |
-          echo "::group::📂 Setting build output directory"
-          set -x
-          echo "output-dir=dashboard/build" >> $GITHUB_OUTPUT
-          echo "::endgroup::"
-
-      - name: Install Node.js
-        uses: actions/setup-node@v3
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
         with:
-          node-version: '18'
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AGREEABLE_PEBBLE_063E41E1E }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
+          action: "upload"
+          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
+          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
+          app_location: "./client" # App source code path
+          api_location: "./api" # Api source code path - optional
+          output_location: "build" # Built app content directory - optional
+          ###### End of Repository/Build Configurations ######
 
-      - name: Install dependencies
-        run: |
-          echo "::group::📦 Installing Node dependencies"
-          set -x
-          cd dashboard
-          npm ci
-          echo "::endgroup::"
-
-      - name: Build project
-        run: |
-          echo "::group::🛠 Building web project"
-          set -x
-          cd dashboard
-          npm run build
-          echo "::endgroup::"
-
-      - name: Print folder structure
-        run: |
-          echo "::group::📁 Project folder structure"
-          set -x
-          tree -L 3 || find .
-          echo "::endgroup::"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: webapp-build
-          path: dashboard/build
-
-  deploy_job:
-    name: Deploy to Azure Static Web App
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    needs: build_job
-    if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
+    name: Close Pull Request Job
     steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
         with:
-          name: webapp-build
-          path: build-output
-
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Upgrade Azure CLI Static Web Apps extension
-        run: |
-          echo "::group::🧩 Upgrading Azure CLI Static Web Apps extension"
-          set -x
-          az extension add --name staticwebapp --upgrade
-          echo "::endgroup::"
-
-      - name: Set target app details
-        id: set-app
-        run: |
-          echo "::group::📛 Setting Static Web App details"
-          echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
-          echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
-          echo "::endgroup::"
-      
-      - name: Create or Update Static Web App
-        run: |
-          echo "::group::🔍 Create or Update Static Web App"
-          APP_NAME="agreeable-pebble-063e41e1e"
-          RG="ppa-rg"
-          LOCATION="eastus2"
-          SKU="Free"
-          APP_LOCATION="dashboard"
-          API_LOCATION="functions"
-          OUTPUT_LOCATION="build"
-          # Check if the SWA exists
-          if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
-            echo "Static Web App exists. Updating it..."
-            az staticwebapp update \
-              --name "$APP_NAME" \
-              --resource-group "$RG" \
-              --app-location "$APP_LOCATION" \
-              --api-location "$API_LOCATION" \
-              --output-location "$OUTPUT_LOCATION"
-          else
-            echo "Static Web App does not exist. Creating it..."
-            # The create command requires a --source parameter.
-            # We supply a dummy repository URL so that the app is created.
-            az staticwebapp create \
-              --name "$APP_NAME" \
-              --resource-group "$RG" \
-              --location "$LOCATION" \
-              --sku "$SKU" \
-              --app-location "$APP_LOCATION" \
-              --api-location "$API_LOCATION" \
-              --branch dev \
-              --source "https://github.com/dummy/dummy-repo"
-          fi
-          echo "::endgroup::"
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AGREEABLE_PEBBLE_063E41E1E }}
+          action: "close"
