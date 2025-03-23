@@ -1,0 +1,141 @@
+name: Azure Static Web App Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    # paths:
+    #   - 'dashboard/**'   
+    #   - '.github/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (optional)'
+        required: false
+        default: 'production'
+
+jobs:
+  build_job:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    outputs:
+      output-dir: ${{ steps.set-output.outputs.output-dir }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Set output directory
+        id: set-output
+        run: |
+          echo "::group::📂 Setting build output directory"
+          set -x
+          echo "output-dir=dashboard/build" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          echo "::group::📦 Installing Node dependencies"
+          set -x
+          cd dashboard
+          npm ci
+          echo "::endgroup::"
+
+      - name: Build project
+        run: |
+          echo "::group::🛠 Building web project"
+          set -x
+          cd dashboard
+          npm run build
+          echo "::endgroup::"
+
+      - name: Print folder structure
+        run: |
+          echo "::group::📁 Project folder structure"
+          set -x
+          tree -L 3 || find .
+          echo "::endgroup::"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webapp-build
+          path: dashboard/build
+
+  deploy_job:
+    name: Deploy to Azure Static Web App (Dev/Prod)
+    runs-on: ubuntu-latest
+    needs: build_job
+    if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: webapp-build
+          path: build-output
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Install Azure CLI Static Web Apps extension
+        run: |
+          echo "::group::🧩 Installing Azure CLI extension"
+          set -x
+          az extension add --name webapp
+          echo "::endgroup::"
+
+      - name: Set target app name
+        id: set-app
+        run: |
+          echo "::group::📛 Setting Static Web App name"
+          set -x
+          if [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "app_name=nwmiws-dev" >> $GITHUB_OUTPUT
+          else
+            echo "app_name=nwmiws" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+
+      - name: Check if Static Web App exists; create if not
+        run: |
+          echo "::group::🔍 Checking or creating Static Web App"
+          set -x
+          APP_NAME="${{ steps.set-app.outputs.app_name }}"
+          RG="ppa-rg"
+          LOCATION="eastus2"
+          SKU="Free"
+          if az staticwebapp show --name "$APP_NAME" --resource-group "$RG" > /dev/null 2>&1; then
+            echo "Static Web App '$APP_NAME' exists."
+          else
+            echo "Static Web App '$APP_NAME' does not exist. Creating it..."
+            az staticwebapp create \
+              --name "$APP_NAME" \
+              --resource-group "$RG" \
+              --location "$LOCATION" \
+              --sku "$SKU" \
+              --source build-output \
+              --branch "${{ github.ref_name }}"
+          fi
+          echo "::endgroup::"
+
+      - name: Deploy to Azure Static Web App
+        run: |
+          echo "::group::🚀 Deploying Static Web App"
+          set -x
+          APP_NAME="${{ steps.set-app.outputs.app_name }}"
+          RG="ppa-rg"
+          az staticwebapp upload \
+            --name "$APP_NAME" \
+            --resource-group "$RG" \
+            --source build-output
+          echo "::endgroup::"

@@ -1,0 +1,82 @@
+name: Azure Function App Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    # paths:
+    #   - 'functions/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (optional)'
+        required: false
+        default: 'production'
+
+jobs:
+  build_job:
+    name: Build Azure Function App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          echo "::group::📦 Installing dependencies"
+          set -x
+          cd functions
+          pwd
+          ls -al
+          pip install -r requirements.txt
+          echo "::endgroup::"
+
+      - name: Upload Function App artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: functionapp-build
+          path: functions
+
+  deploy_job:
+    name: Deploy to Azure Function App (Dev/Prod)
+    runs-on: ubuntu-latest
+    needs: build_job
+    if: ${{ (github.ref_name == 'dev' && github.event_name == 'push') || (github.ref_name == 'main' && github.event_name == 'workflow_dispatch') }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: functionapp-build
+          path: build-output
+
+      - name: Login to Azure using service principal
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set target function app name
+        id: set-app
+        run: |
+          echo "::group::🧭 Determining app name"
+          set -x
+          if [[ "${{ github.ref_name }}" == "dev" ]]; then
+            echo "app_name=fa-nwmiws-dev" >> $GITHUB_OUTPUT
+          else
+            echo "app_name=fa-nwmiws" >> $GITHUB_OUTPUT
+          fi
+          echo "::endgroup::"
+
+      - name: Deploy to Azure Function App
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.set-app.outputs.app_name }}
+          package: build-output/functions
