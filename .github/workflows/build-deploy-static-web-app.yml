@@ -101,24 +101,24 @@ jobs:
           echo "app_name=agreeable-pebble-063e41e1e" >> $GITHUB_OUTPUT
           echo "resource_group=ppa-rg" >> $GITHUB_OUTPUT
           echo "::endgroup::"
-
-          - name: Create Static Web App if not exists
-          run: |
-            echo "::group::🔍 Checking if Static Web App exists"
-            if ! az staticwebapp show --name agreeable-pebble-063e41e1e --resource-group ppa-rg > /dev/null 2>&1; then
-              echo "Static Web App 'agreeable-pebble-063e41e1e' does not exist. Creating it..."
-              az staticwebapp create \
-                --name agreeable-pebble-063e41e1e \
-                --resource-group ppa-rg \
-                --location eastus2 \
-                --sku Free \
-                --app-location dashboard \
-                --api-location "" \
-                --branch dev \
-                --source build-output
-            else
-              echo "Static Web App 'agreeable-pebble-063e41e1e' already exists."
-            fi
-            echo "::endgroup::"
+      
+      - name: Create Static Web App if not exists
+        run: |
+          echo "::group::🔍 Checking if Static Web App exists"
+          if ! az staticwebapp show --name agreeable-pebble-063e41e1e --resource-group ppa-rg > /dev/null 2>&1; then
+            echo "Static Web App 'agreeable-pebble-063e41e1e' does not exist. Creating it..."
+            az staticwebapp create \
+              --name agreeable-pebble-063e41e1e \
+              --resource-group ppa-rg \
+              --location eastus2 \
+              --sku Free \
+              --app-location dashboard \
+              --api-location "" \
+              --branch dev \
+              --source build-output
+          else
+            echo "Static Web App 'agreeable-pebble-063e41e1e' already exists."
+          fi
+          echo "::endgroup::"
              
         
