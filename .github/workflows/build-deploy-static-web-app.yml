@@ -136,7 +136,7 @@ jobs:
               --app-location "client" \
               --api-location "api" \
               --branch dev \
-              --source "https://github.com/dummy/dummy-repo"
+              --source "https://github.com/koala-man-64/nw-michigan-watershed"
             echo "Uploading deployment artifact..."
             az staticwebapp deployment upload \
               --name "$APP_NAME" \
