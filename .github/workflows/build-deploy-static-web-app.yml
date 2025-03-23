@@ -66,8 +66,10 @@ jobs:
         run: |
           echo "::group::🛠 Building web project"
           cd client
-          set -x          
-          sudo npm run build
+          set -x       
+          npm config set user 0
+          npm config set unsafe-perm true   
+          npm run build
           echo "::endgroup::"
 
       - name: Print folder structure
