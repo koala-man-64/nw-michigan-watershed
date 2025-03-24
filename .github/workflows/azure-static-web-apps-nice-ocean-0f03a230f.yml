@@ -25,19 +25,19 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Clean and Install dependencies
+      - name: Clean and Install dependencies for Client
         working-directory: ./client
         run: |
           rm -rf node_modules package-lock.json
           npm install
 
-      - name: Build app
+      - name: Build Client App
         working-directory: ./client
         run: |
           chmod +x ./node_modules/.bin/react-scripts
           npm run build
 
-      - name: Fix permissions (optional, usually only needed on self-hosted runners)
+      - name: Fix permissions (optional, for Linux self-hosted runners)
         if: runner.os == 'Linux'
         run: chmod +x client/node_modules/.bin/react-scripts
 
@@ -51,7 +51,7 @@ jobs:
           ###### Repository/Build Configurations ######
           app_location: "./client"
           api_location: "./api"
-          output_location: "build"   # Relative to the app_location folder
+          output_location: "build"  # This is relative to the app_location (./client/build)
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
