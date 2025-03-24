@@ -34,7 +34,8 @@ jobs:
       - name: Build app
         working-directory: ./client
         run: |
-          chmod +x ./node_modules/.bin/react-scripts
+          sudo chmod +x client/node_modules/.bin/react-scripts  
+          sudo chmod +x ./node_modules/.bin/react-scripts
           npm run build
 
       - name: Fix permissions (optional, usually only needed on self-hosted runners)
