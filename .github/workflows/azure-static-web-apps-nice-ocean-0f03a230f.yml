@@ -35,7 +35,7 @@ jobs:
         working-directory: ./client
         run: |
           sudo chmod +x ./node_modules/.bin/react-scripts
-          npm run build
+          sudo npm run build
 
       - name: Fix permissions (optional, usually only needed on self-hosted runners)
         if: runner.os == 'Linux'
