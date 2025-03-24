@@ -49,8 +49,8 @@ jobs:
           repo_token: ${{ secrets.PAT }}  # PAT with proper admin permissions on the repository
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "./client"
-          api_location: "./api"
+          app_location: "client"
+          api_location: "api"
           output_location: "build"  # This is relative to the app_location (./client/build)
           ###### End of Repository/Build Configurations ######
 
