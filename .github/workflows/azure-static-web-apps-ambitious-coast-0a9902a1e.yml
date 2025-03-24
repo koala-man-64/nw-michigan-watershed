@@ -19,6 +19,28 @@ jobs:
         with:
           submodules: true
           lfs: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Clean and Install dependencies for Client
+        working-directory: ./client
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+
+      - name: Build Client App
+        working-directory: ./client
+        run: |
+          chmod +x ./node_modules/.bin/react-scripts
+          npm run build
+
+      - name: Fix permissions (optional, for Linux self-hosted runners)
+        if: runner.os == 'Linux'
+        run: chmod +x client/node_modules/.bin/react-scripts
+        
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
