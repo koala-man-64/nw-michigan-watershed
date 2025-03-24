@@ -34,7 +34,6 @@ jobs:
       - name: Build app
         working-directory: ./client
         run: |
-          sudo chmod +x client/node_modules/.bin/react-scripts  
           sudo chmod +x ./node_modules/.bin/react-scripts
           npm run build
 
