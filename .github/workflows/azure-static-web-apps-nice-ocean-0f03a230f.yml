@@ -28,8 +28,6 @@ jobs:
       - name: Install dependencies
         working-directory: ./client
         run: |
-          rmdir /s /q node_modules
-          del /f /q package-lock.json
           npm install react@18.2.0 react-dom@18.2.0
           npm install
 
