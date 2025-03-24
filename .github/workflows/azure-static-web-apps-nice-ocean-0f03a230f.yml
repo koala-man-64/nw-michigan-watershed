@@ -51,7 +51,7 @@ jobs:
           ###### Repository/Build Configurations ######
           app_location: "./client"
           api_location: "./api"
-          output_location: "client/build"
+          output_location: "build"   # Relative to the app_location folder
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
