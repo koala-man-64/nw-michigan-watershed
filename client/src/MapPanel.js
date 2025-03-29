@@ -12,7 +12,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-// Component to set initial bounds when map is created
+const onMarkerClick = (siteName) => {
+  setSelectedSites(prev =>
+    prev.includes(siteName)
+      ? prev.filter(name => name !== siteName)
+      : [...prev, siteName]
+  );
+};
+
+// Component to set map bounds when the map is created
 function SetMapBounds({ bounds }) {
   const map = useMap();
   useEffect(() => {
@@ -23,15 +31,16 @@ function SetMapBounds({ bounds }) {
   return null;
 }
 
-function MapPanel({ selectedSites }) {
+function MapPanel({ selectedSites, selectedParameters, onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
+  const [waterData, setWaterData] = useState([]);
 
   // Azure Blob Storage configuration variables
-  const storageAccountName = "ppastorageaccount159";
-  const sasToken = "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwd&se=2045-03-20T12:52:05Z&st=2025-03-13T04:52:05Z&spr=https,http&sig=7lAkSTM%2F7Gd4RCmeLiUXqAfNsWYrZx65sJnnrFDAxpo%3D";
+  const storageAccountName = "nwmiwsstorageaccount";
+  const sasToken = "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T12:14:21Z&st=2025-03-28T04:14:21Z&spr=https&sig=c2vDu7jiNSYQ2FTY5Dr9VEB7G%2BR8wVEHnveaXwNFE5k%3D";
   const containerName = "nwmiws";
   
-  // Load all locations from locations.csv in Azure Blob Storage on mount.
+  // 1. Load locations from locations.csv
   useEffect(() => {
     const url = `https://${storageAccountName}.blob.core.windows.net/${containerName}/locations.csv?${sasToken}`;
     fetch(url)
@@ -41,11 +50,14 @@ function MapPanel({ selectedSites }) {
           header: true,
           skipEmptyLines: true,
           complete: (result) => {
-            // Assume CSV has columns: id, name, latitude, longitude (adjust field names if needed)
+            // Assume CSV has columns: name, latitude, longitude
             const locations = result.data.map(row => ({
               name: row.name || row.Location, 
               lat: parseFloat(row.latitude) || parseFloat(row.Latitude),
-              lng: parseFloat(row.longitude) || parseFloat(row.Longitude)
+              lng: parseFloat(row.longitude) || parseFloat(row.Longitude),
+              // Dummy metadata (can be expanded later)
+              id: row.id || 'N/A',
+              description: row.description || 'No description available.'
             })).filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
             setAllLocations(locations);
           }
@@ -56,17 +68,35 @@ function MapPanel({ selectedSites }) {
       });
   }, [storageAccountName, containerName, sasToken]);
 
-  // Filter locations that are selected (based on name)
-  const selectedLocations = allLocations.filter(loc => selectedSites.includes(loc.name));
+  // 2. Load water quality data from water_quality_data.csv
+  useEffect(() => {
+    const waterUrl = `https://${storageAccountName}.blob.core.windows.net/${containerName}/water_quality_data.csv?${sasToken}`;
+    fetch(waterUrl)
+      .then(response => response.text())
+      .then(csvText => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (result) => {
+            // The CSV should have columns such as: Location, Parameter, Year, Value, etc.
+            setWaterData(result.data);
+          }
+        });
+      })
+      .catch(error => {
+        console.error("Error loading water quality CSV:", error);
+      });
+  }, [storageAccountName, containerName, sasToken]);
 
-  // Calculate bounds based on selected locations if available.
+  // Determine bounds only when NO lakes are selected.
+  // If no lakes are selected, use bounds from all locations.
   let bounds = null;
-  if (selectedLocations.length > 0) {
-    bounds = L.latLngBounds(selectedLocations.map(loc => [loc.lat, loc.lng]));
+  if ((!selectedSites || selectedSites.length === 0) && allLocations.length > 0) {
+    bounds = L.latLngBounds(allLocations.map(loc => [loc.lat, loc.lng]));
   }
 
-  // Default center and zoom when no datapoints are selected.
-  const defaultCenter = [42.5, -86.0]; // adjust as needed
+  // Default center and zoom when no bounds can be calculated.
+  const defaultCenter = [42.5, -86.0]; // Adjust as needed
   const defaultZoom = 8;
 
   return (
@@ -80,13 +110,37 @@ function MapPanel({ selectedSites }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
       />
-      {/* Fit bounds only when selected locations exist */}
       {bounds && <SetMapBounds bounds={bounds} />}
-      {selectedLocations.map((loc, index) => (
-        <Marker key={index} position={[loc.lat, loc.lng]}>
-          <Popup>{loc.name}</Popup>
-        </Marker>
-      ))}
+
+      {allLocations.map((loc, index) => {
+        const isSelected = selectedSites.includes(loc.name);
+        // Process water quality info as needed...
+        return (
+          <Marker
+            key={index}
+            position={[loc.lat, loc.lng]}
+            opacity={isSelected ? 1.0 : 0.5}
+            eventHandlers={{
+              click: () => {
+                if (onMarkerClick) {
+                  onMarkerClick(loc.name);
+                }
+              },
+              mouseover: (e) => e.target.openPopup(),
+              mouseout: (e) => e.target.closePopup(),
+            }}
+          >
+            <Popup>
+              <div>
+                <h3>{loc.name}</h3>
+                <p><strong>ID:</strong> {loc.id}</p>
+                <p><strong>Description:</strong> {loc.description}</p>
+                {isSelected}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
     </MapContainer>
   );
 }

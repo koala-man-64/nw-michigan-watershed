@@ -8,29 +8,6 @@ import MapPanel from "./MapPanel";
 import Data from "./Data"; // Data page component
 
 
-// function App() {
-//   const [message, setMessage] = useState('');
-
-//   useEffect(() => {
-//     // Replace '/api/function_app' with your actual function endpoint if different.
-//     fetch('/api/hello')
-//       .then((response) => response.text())
-//       .then((data) => {
-//         console.log(data);
-//         setMessage(data);
-//       })
-//       .catch((error) => console.error('Error fetching message:', error));
-//   }, []);
-
-//   return (
-//     <div className="App">
-//       <h1>Azure Function says:</h1>
-//       <p>{message || 'Loading...'}</p>
-//     </div>
-//   );
-// }
-
-
 function App() {
   const [filters, setFilters] = useState({
     selectedSites: [], // Selected lakes from the filters
@@ -39,6 +16,15 @@ function App() {
     endDate: new Date(),
   });
 
+  // Handler to toggle marker selection on click
+  const handleMarkerClick = (siteName) => {
+    setFilters(prevFilters => ({
+      ...prevFilters,
+      selectedSites: prevFilters.selectedSites.includes(siteName)
+        ? prevFilters.selectedSites.filter(name => name !== siteName)
+        : [...prevFilters.selectedSites, siteName]
+    }));
+  };
   return (
     <Router>
       <div className="dashboard">
@@ -72,7 +58,10 @@ function App() {
                   />
                 </main>
                 <section className="map">
-                  <MapPanel selectedSites={filters.selectedSites} />
+                  <MapPanel 
+                    selectedSites={filters.selectedSites} 
+                    onMarkerClick={handleMarkerClick} 
+                  />
                 </section>
               </div>
             }
