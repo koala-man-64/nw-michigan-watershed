@@ -9,6 +9,7 @@
 ./github/workflows/azure-static-web-apps-agreeable-pebble-063e41e1e.yml
 ./github/workflows/build-deploy-function-app.yml
 
+**/__pycache__/
 
 /.pnp
 .pnp.js
