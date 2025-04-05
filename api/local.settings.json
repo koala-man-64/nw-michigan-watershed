@@ -1,7 +1,19 @@
 {
   "IsEncrypted": true,
   "Values": {
-    "FUNCTIONS_WORKER_RUNTIME": "CfDJ8AvWHgBmuTFHosoPhFGmNnEYQCdyV/4YsEgiN6uSqaA97yxt6xVzJhX94wn3tj9HAbd3ZImCPueykOfOtzRmYOutO5oqx27lD1R5l4yilmqeKpYJsN3n9JP2t9PNRgj8YA=="
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",    
+    "LOCAL_DEVELOPMENT": "true",
+    "SQL_CONNECTION_STRING": "Server=tcp:nwmiws.database.windows.net,1433;Initial Catalog=db_nwmiws;Persist Security Info=False;User ID=nwmiws_owner;Password=michiganWATERSHED231;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
   },
   "ConnectionStrings": {}
+}
+
+{
+  "IsEncrypted": false,
+  "Values": {
+
+
+    
+  }
 }
