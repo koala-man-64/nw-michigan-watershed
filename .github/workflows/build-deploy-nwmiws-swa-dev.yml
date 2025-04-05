@@ -20,6 +20,10 @@ jobs:
           submodules: true
           lfs: false
 
+      # Set environment variable from GitHub secret
+      - name: Set SQL Connection String from Secret
+        run: echo "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" >> $GITHUB_ENV
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
