@@ -7,7 +7,7 @@ client/build
 # .github files
 ./github/workflows/azure-static-web-apps-agreeable-pebble-063e41e1e.yml
 ./github/workflows/build-deploy-function-app.yml
-
+node_modules/
 
 /.pnp
 .pnp.js
