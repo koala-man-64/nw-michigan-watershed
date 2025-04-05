@@ -2,21 +2,26 @@ import os
 import pyodbc
 import azure.functions as func
 import logging
+import json
 import debug_attach
 
 def get_connection_string():
     # Check if we are in a local development environment.
-    if os.environ.get("LOCAL_DEVELOPMENT", "false").lower() == "true":
-        # Read from a local file (ensure this file is ignored by Git)
-        with open("local_connection_string.txt", "r") as f:
-            connection_string = f.read().strip()
+    if os.environ.get("LOCAL_DEVELOPMENT", "true").lower() == "true":
+        # Read connection string from local.settings.json
+        with open("local.settings.json", "r") as f:
+            local_settings = json.load(f)
+        # Expect the connection string to be set in the "Values" section.
+        connection_string = local_settings.get("Values", {}).get("SQL_CONNECTION_STRING")
+        if not connection_string:
+            raise ValueError("SQL_CONNECTION_STRING not found in local.settings.json. Please add it to the Values section.")
     else:
-        # In production, the connection string is expected to be injected by your deployment pipeline
-        # using a GitHub secret (or stored in the Azure Function App settings)
+        # In production, the connection string is expected to be injected via your deployment pipeline or Azure Function App settings.
         connection_string = os.environ["SQL_CONNECTION_STRING"]
     return connection_string
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
+    get_connection_string()
     logging.info("Received a log event request.")
     try:
         req_body = req.get_json()
@@ -37,9 +42,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         cursor = conn.cursor()
 
         insert_sql = """
-            INSERT INTO Logs (eventType, targetTag, targetId, targetClasses, timestamp)
+            INSERT INTO dbo.LogEvent (eventType, targetTag, targetId, targetClasses, timestamp)
             VALUES (?, ?, ?, ?, ?)
         """
+        
         cursor.execute(insert_sql, (eventType, targetTag, targetId, targetClasses, timestamp))
         conn.commit()
         cursor.close()
