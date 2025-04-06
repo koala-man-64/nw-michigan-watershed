@@ -20,9 +20,12 @@ jobs:
           submodules: true
           lfs: false
 
-      # Set environment variable from GitHub secret
+      # Set environment variables from GitHub secrets
       - name: Set SQL Connection String from Secret
         run: echo "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" >> $GITHUB_ENV
+
+      - name: Set JWT Secret Key from Secret
+        run: echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> $GITHUB_ENV
 
       - name: Set up Node.js
         uses: actions/setup-node@v3

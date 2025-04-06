@@ -87,9 +87,14 @@ function Header() {
 function App() {
   // Global click event listener added here
   useEffect(() => {
+    // Inside a component event handler:
     const handleClick = (event) => {
-      logClickEvent(event);
+      const text = event.target.textContent;
+      if (text && text.trim() !== "") {
+        logClickEvent(event);
+      }
     };
+    
     document.addEventListener('click', handleClick);
 
     // Cleanup the listener when App unmounts
