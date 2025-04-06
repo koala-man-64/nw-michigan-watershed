@@ -22,43 +22,43 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     clientIp       = req_body.get("clientIp") or ""
     clientUrl      = req_body.get("clientUrl") or ""
 
-    # try:
-    #     connection_string = cf.get_connection_string()
-    #     conn = pyodbc.connect(connection_string)
-    #     cursor = conn.cursor()
+    try:
+        connection_string = cf.get_connection_string()
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
 
-    #     # Make sure your table has a column for TargetText.
-    #     insert_sql = """
-    #         INSERT INTO dbo.LogEvent (
-    #             EventType,
-    #             TargetTag,
-    #             TargetID,
-    #             TargetClasses,
-    #             TargetText,
-    #             ClientIp,
-    #             ClientUrl,
-    #             Timestamp
-    #         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    #     """
+        # Make sure your table has a column for TargetText.
+        insert_sql = """
+            INSERT INTO dbo.LogEvent (
+                EventType,
+                TargetTag,
+                TargetID,
+                TargetClasses,
+                TargetText,
+                ClientIp,
+                ClientUrl,
+                Timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
 
-    #     cursor.execute(insert_sql, (
-    #         eventType,
-    #         targetTag,
-    #         targetId,
-    #         targetClasses,
-    #         targetText,
-    #         clientIp,
-    #         clientUrl,
-    #         timestamp
-    #     ))
+        cursor.execute(insert_sql, (
+            eventType,
+            targetTag,
+            targetId,
+            targetClasses,
+            targetText,
+            clientIp,
+            clientUrl,
+            timestamp
+        ))
 
-    #     conn.commit()
-    #     cursor.close()
-    #     conn.close()
-    # except Exception as e:
-    #     logging.error("Error inserting log data into SQL: %s", e)
-    #     logging.error("Stack trace:", exc_info=True)
-    #     return func.HttpResponse(str(e), status_code=500)
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logging.error("Error inserting log data into SQL: %s", e)
+        logging.error("Stack trace:", exc_info=True)
+        return func.HttpResponse(str(e), status_code=500)
 
 
     return func.HttpResponse("Log data received and inserted.", status_code=200)
