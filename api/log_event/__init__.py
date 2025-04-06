@@ -1,8 +1,7 @@
-import pyodbc
 import azure.functions as func
 import logging
 import common as c
-
+import pymssql
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received a log event request.")
@@ -13,21 +12,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse("Invalid JSON", status_code=400)
 
     # Retrieve each value, defaulting to an empty string if None
-    eventType      = req_body.get("eventType") or ""
-    targetTag      = req_body.get("targetTag") or ""
-    targetId       = req_body.get("targetId") or ""
-    targetClasses  = req_body.get("targetClasses") or ""
-    targetText     = req_body.get("targetText") or ""
-    timestamp      = req_body.get("timestamp") or ""
-    clientIp       = req_body.get("clientIp") or ""
-    clientUrl      = req_body.get("clientUrl") or ""
+    eventType     = req_body.get("eventType") or ""
+    targetTag     = req_body.get("targetTag") or ""
+    targetId      = req_body.get("targetId") or ""
+    targetClasses = req_body.get("targetClasses") or ""
+    targetText    = req_body.get("targetText") or ""
+    timestamp     = req_body.get("timestamp") or ""
+    clientIp      = req_body.get("clientIp") or ""
+    clientUrl     = req_body.get("clientUrl") or ""
 
     try:
-        connection_string = c.get_connection_string()
-        conn = pyodbc.connect(connection_string)
+        # Retrieve connection parameters from your common module.
+        # Ensure that c.get_connection_params() returns a dictionary with keys like:
+        # server, user, password, database, and optionally port.
+        connection_params = c.get_connection_params()
+        conn = pymssql.connect(**connection_params)
         cursor = conn.cursor()
 
-        # Make sure your table has a column for TargetText.
         insert_sql = """
             INSERT INTO dbo.LogEvent (
                 EventType,
@@ -38,7 +39,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 ClientIp,
                 ClientUrl,
                 Timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
 
         cursor.execute(insert_sql, (
@@ -59,6 +60,5 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         logging.error("Error inserting log data into SQL: %s", e)
         logging.error("Stack trace:", exc_info=True)
         return func.HttpResponse(str(e), status_code=500)
-
 
     return func.HttpResponse("Log data received and inserted.", status_code=200)
