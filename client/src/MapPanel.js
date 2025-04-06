@@ -12,13 +12,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-const onMarkerClick = (siteName) => {
-  setSelectedSites(prev =>
-    prev.includes(siteName)
-      ? prev.filter(name => name !== siteName)
-      : [...prev, siteName]
-  );
-};
+const salmonIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
 // Component to set map bounds when the map is created
 function SetMapBounds({ bounds }) {
@@ -55,8 +56,9 @@ function MapPanel({ selectedSites, selectedParameters, onMarkerClick }) {
               name: row.name || row.Location, 
               lat: parseFloat(row.latitude) || parseFloat(row.Latitude),
               lng: parseFloat(row.longitude) || parseFloat(row.Longitude),
-              // Dummy metadata (can be expanded later)
-              id: row.id || 'N/A',
+              avg_depth: parseInt(row.avg_depth_ft).toLocaleString() + ' ft',
+              max_depth: parseInt(row.max_depth_ft).toLocaleString() + ' ft',
+              size: parseInt(row.surface_area_acres).toLocaleString()  + ' acres',
               description: row.description || 'No description available.'
             })).filter(loc => !isNaN(loc.lat) && !isNaN(loc.lng));
             setAllLocations(locations);
@@ -120,6 +122,7 @@ function MapPanel({ selectedSites, selectedParameters, onMarkerClick }) {
             key={index}
             position={[loc.lat, loc.lng]}
             opacity={isSelected ? 1.0 : 0.5}
+            icon={salmonIcon}
             eventHandlers={{
               click: () => {
                 if (onMarkerClick) {
@@ -133,7 +136,9 @@ function MapPanel({ selectedSites, selectedParameters, onMarkerClick }) {
             <Popup>
               <div>
                 <h3>{loc.name}</h3>
-                <p><strong>ID:</strong> {loc.id}</p>
+                <p><strong>Size:</strong> {loc.size}</p>
+                <p><strong>Max Depth:</strong> {loc.max_depth}</p>
+                <p><strong>Average Depth:</strong> {loc.avg_depth}</p>
                 <p><strong>Description:</strong> {loc.description}</p>
                 {isSelected}
               </div>

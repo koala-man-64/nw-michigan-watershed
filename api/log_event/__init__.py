@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import os
 import pyodbc
 import azure.functions as func
@@ -23,11 +24,26 @@ def get_connection_string():
 def main(req: func.HttpRequest) -> func.HttpResponse:
     get_connection_string()
     logging.info("Received a log event request.")
+=======
+import logging
+import json
+import os
+import pyodbc
+import azure.functions as func
+
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('Received a log event request.')
+
+>>>>>>> origin/main
     try:
         req_body = req.get_json()
     except ValueError:
         return func.HttpResponse("Invalid JSON", status_code=400)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> origin/main
     # Extract properties from the request body
     eventType    = req_body.get("eventType")
     targetTag    = req_body.get("targetTag")
@@ -35,6 +51,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     targetClasses= req_body.get("targetClasses")
     timestamp    = req_body.get("timestamp")
 
+<<<<<<< HEAD
     # Retrieve the connection string using our helper function.
     try:
         connection_string = get_connection_string()
@@ -48,6 +65,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         
         cursor.execute(insert_sql, (eventType, targetTag, targetId, targetClasses, timestamp))
         conn.commit()
+=======
+    # Connect to Azure SQL Database using the connection string from environment variables
+    try:
+        connection_string = os.environ["SQL_CONNECTION_STRING"]
+        conn = pyodbc.connect(connection_string)
+        cursor = conn.cursor()
+
+        # Insert the log data into the Logs table.
+        # Ensure your table "Logs" has columns: eventType, targetTag, targetId, targetClasses, timestamp.
+        insert_sql = """
+            INSERT INTO Logs (eventType, targetTag, targetId, targetClasses, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        cursor.execute(insert_sql, (eventType, targetTag, targetId, targetClasses, timestamp))
+        conn.commit()
+
+>>>>>>> origin/main
         cursor.close()
         conn.close()
     except Exception as e:

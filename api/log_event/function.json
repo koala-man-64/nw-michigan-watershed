@@ -5,8 +5,13 @@
         "type": "httpTrigger",
         "direction": "in",
         "name": "req",
+<<<<<<< HEAD
         "route": "log_event", 
         "methods": [ "post" ]
+=======
+        "methods": [ "post" ],
+        "route": "log_event"
+>>>>>>> origin/main
       },
       {
         "type": "http",

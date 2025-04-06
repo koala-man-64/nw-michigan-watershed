@@ -235,6 +235,18 @@ body {
   background-color: #c9302c;
 }
 
+.menu-link,
+.menu-button {
+  font-size: 16px;
+  font-weight: 400;
+  color: white;
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+
 /* ========================================= */
 /* ============ Map and Plot Panels ======== */
 /* ========================================= */
@@ -323,4 +335,51 @@ body {
   flex-direction: column;
   height: auto;
   overflow: hidden;
+}
+
+
+/* ========================================= */
+/* ============ Login Page ================= */
+/* ========================================= */
+
+.login-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 80vh;
+}
+
+.login-container input {
+  width: 280px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.login-container button {
+  width: 280px;
+  padding: 12px;
+  background-color: #37474F;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.login-container button:hover {
+  background-color: #263238;
+}
+
+.error {
+  color: #D32F2F;
+  margin-top: 10px;
+  font-weight: 500;
 }
