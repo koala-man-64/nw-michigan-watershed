@@ -11,9 +11,10 @@ on:
 
 jobs:
   build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
+    retries: 3  # Automatically retry the entire job up to 3 times if it fails
     name: Build and Deploy Job
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     steps:
       - uses: actions/checkout@v3
         with:
@@ -55,8 +56,12 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_COAST_0A9902A1E }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          app_location: "client" #_
+          ###### Repository/Build Configurations ######
+          app_location: "client"
+          api_location: "api"
+          output_location: "build"  # This is relative to the app_location (./client/build)
+          ###### End of Repository/Build Configurations ######
+
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest

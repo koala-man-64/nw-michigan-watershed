@@ -11,14 +11,10 @@ on:
 
 jobs:
   build_and_deploy_job:
-    # Define a matrix with a single variable "attempt" that takes values 1, 2, and 3.
-    strategy:
-      matrix:
-        attempt: [1, 2, 3]
-      max-parallel: 1  # Run sequentially
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Job (Attempt ${{ matrix.attempt }})
+    retries: 3  # Automatically retry the entire job up to 3 times if it fails
+    name: Build and Deploy Job
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     steps:
       - uses: actions/checkout@v3
         with:
@@ -53,10 +49,8 @@ jobs:
         if: runner.os == 'Linux'
         run: chmod +x client/node_modules/.bin/react-scripts
 
-      # This step only runs on the first attempt or if the previous attempt failed.
       - name: Build And Deploy
         id: builddeploy
-        if: ${{ matrix.attempt == 1 || failure() }}
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
