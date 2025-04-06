@@ -5,9 +5,7 @@ import json
 import jwt
 import datetime
 import azure.functions as func
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from common_functions import common_functions as cf
+import common
 
 # Retrieve the secret key from environment variables.
 # In local development, this is usually provided by local.settings.json.

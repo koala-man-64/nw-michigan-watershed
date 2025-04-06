@@ -14,19 +14,19 @@ def get_connection_string():
         with open("local.settings.json", "r") as f:
             local_settings = json.load(f)
         values = local_settings.get("Values", {})
-        server   = values.get("SQL_SERVER", "tcp:nwmiws.database.windows.net,1433")
-        database = values.get("SQL_DATABASE", "db_nwmiws")
-        username = values.get("SQL_USERNAME", "nwmiws_owner")
-        password = values.get("SQL_PASSWORD", "michiganWATERSHED231")
-        # Optionally, override driver if needed:
-        driver   = values.get("SQL_DRIVER", "{ODBC Driver 17 for SQL Server}")
+        server   = values.get("SQL_SERVER")
+        database = values.get("SQL_DATABASE")
+        username = values.get("SQL_USERNAME")
+        password = values.get("SQL_PASSWORD")
+        driver   = "{ODBC Driver 17 for SQL Server}"
+        
     else:
         # In production, assume these are set as environment variables.
         server   = os.environ["SQL_SERVER"]
         database = os.environ["SQL_DATABASE"]
         username = os.environ["SQL_USERNAME"]
         password = os.environ["SQL_PASSWORD"]
-        driver   = os.environ.get("SQL_DRIVER", "{ODBC Driver 17 for SQL Server}")
+        driver   = "{ODBC Driver 17 for SQL Server}"
     
     connection_string = (
         f"DRIVER={driver};"

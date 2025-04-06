@@ -1,10 +1,7 @@
 import pyodbc
 import azure.functions as func
 import logging
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from common_functions import common_functions as cf
+import common
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
