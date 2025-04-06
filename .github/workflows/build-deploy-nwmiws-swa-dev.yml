@@ -48,18 +48,42 @@ jobs:
         if: runner.os == 'Linux'
         run: chmod +x client/node_modules/.bin/react-scripts
 
-      - name: Build And Deploy
-        id: builddeploy
+      # Step to filter changed paths
+      - name: Filter Changed Paths
+        id: filter_paths
+        uses: dorny/paths-filter@v2
+        with:
+          filters: |
+            api:
+              - 'api/**'
+            client:
+              - 'client/**'
+
+      # Conditional deployment: if only /api changed (and not client), deploy API only.
+      - name: Deploy API Only
+        if: steps.filter_paths.outputs.api == 'true' && steps.filter_paths.outputs.client != 'true'
+        id: deploy_api
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
-          repo_token: ${{ secrets.PAT }}  # PAT with proper admin permissions on the repository
+          repo_token: ${{ secrets.PAT }}
           action: "upload"
-          ###### Repository/Build Configurations ######
+          api_location: "api"
+          # Skip building the client app if no changes were detected
+          skip_app_build: true
+
+      # Full deployment: if client changed or both changed
+      - name: Deploy Full App and API
+        if: steps.filter_paths.outputs.client == 'true'
+        id: deploy_full
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
+          repo_token: ${{ secrets.PAT }}
+          action: "upload"
           app_location: "client"
           api_location: "api"
-          output_location: "build"  # This is relative to the app_location (./client/build)
-          ###### End of Repository/Build Configurations ######
+          output_location: "build"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -72,4 +96,4 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
           action: "close"
-          app_location: "client"  # Added required parameter
+          app_location: "client"  # Required parameter
