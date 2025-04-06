@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.27.0",
+    "axios": "^1.8.4",
     "chart.js": "^4.4.8",
     "leaflet": "^1.9.4",
     "papaparse": "^5.5.2",
