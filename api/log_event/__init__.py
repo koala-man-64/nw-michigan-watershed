@@ -1,7 +1,7 @@
 import pyodbc
 import azure.functions as func
 import logging
-import common
+import common as c
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -23,7 +23,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     clientUrl      = req_body.get("clientUrl") or ""
 
     try:
-        connection_string = cf.get_connection_string()
+        connection_string = c.get_connection_string()
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
 
