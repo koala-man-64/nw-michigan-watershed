@@ -37,7 +37,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 TargetClasses,
                 TargetText,
                 ClientIp,
-                ClientUrffffl,
+                ClientUrl,
                 Timestamp
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
