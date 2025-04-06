@@ -37,7 +37,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 TargetClasses,
                 TargetText,
                 ClientIp,
-                ClientUrl,
+                ClientUrffffl,
                 Timestamp
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
@@ -58,6 +58,6 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         conn.close()
     except Exception as e:
         logging.error("Error inserting log data into SQL: %s", e)
-        return func.HttpResponse("Error inserting log data", status_code=500)
+        return func.HttpResponse(e.args[1], status_code=500)
 
     return func.HttpResponse("Log data received and inserted.", status_code=200)
