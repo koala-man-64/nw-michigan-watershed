@@ -58,6 +58,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         conn.close()
     except Exception as e:
         logging.error("Error inserting log data into SQL: %s", e)
-        return func.HttpResponse(e.args[1], status_code=500)
+        logging.error("Stack trace:", exc_info=True)
+        return func.HttpResponse(str(e), status_code=500)
+
 
     return func.HttpResponse("Log data received and inserted.", status_code=200)
