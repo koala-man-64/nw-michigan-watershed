@@ -35,8 +35,11 @@ export async function logClickEvent(event) {
     });
 
     if (!result.ok) {
-      console.error("Error logging event:", await result.text());
-    } else {
+      const errorText = await result.text();
+      console.error(
+        `Error logging event: Status ${result.status} (${result.statusText}). Response: ${errorText}`
+      );
+    }else {
       console.log("Event logged successfully.");
     }
   } catch (err) {
