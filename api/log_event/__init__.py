@@ -1,7 +1,7 @@
 import pyodbc
 import azure.functions as func
 import logging
-# from .. import common_functions as cf
+from .. import common_functions as cf
 
 
 
