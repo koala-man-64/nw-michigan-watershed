@@ -4,4 +4,4 @@
 
 azure-functions
 pymssql
-jwt
+PyJWT==2.6.0
