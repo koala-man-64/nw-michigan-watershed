@@ -1,12 +1,12 @@
 import os
 import json
 
-# if os.getenv("AzureWebJobsScriptRoot") and not os.getenv("DEBUGPY_ATTACHED"):
-#     import debugpy
-#     debugpy.listen(("0.0.0.0", 5678))
-#     print("Waiting for debugger attach...")
-#     debugpy.wait_for_client()
-#     os.environ["DEBUGPY_ATTACHED"] = "1"
+if os.getenv("AzureWebJobsScriptRoot") and not os.getenv("DEBUGPY_ATTACHED"):
+    import debugpy
+    debugpy.listen(("0.0.0.0", 5678))
+    print("Waiting for debugger attach...")
+    debugpy.wait_for_client()
+    os.environ["DEBUGPY_ATTACHED"] = "1"
 
 def get_connection_params():
     try:
