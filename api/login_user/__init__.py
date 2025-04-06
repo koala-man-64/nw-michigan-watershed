@@ -1,10 +1,10 @@
 import logging
 import os
-import pyodbc
 import json
 import jwt
 import datetime
 import azure.functions as func
+import pymssql
 import common
 
 # Retrieve the secret key from environment variables.
@@ -29,7 +29,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     if not username or not password:
         return func.HttpResponse("Missing username or password", status_code=400)
 
-    # Create a helper function to generate the JWT
+    # Helper function to generate the JWT.
     def generate_token(user: str):
         payload = {
             'username': user,
@@ -44,15 +44,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         response_body = json.dumps({"token": token})
         return func.HttpResponse(response_body, status_code=200, mimetype="application/json")
     else:
-        # Connect to the database via pyodbc
+        # Connect to the database via pymssql.
         try:
-            connection_string = cf.get_connection_string()
-            conn = pyodbc.connect(connection_string)
+            connection_params = common.get_connection_params()
+            conn = pymssql.connect(**connection_params)
             cursor = conn.cursor()
-            
-            # Query the Users table for the given username.
-            query = "SELECT Password FROM dbo.Users WHERE Username = ?"
-            cursor.execute(query, username)
+
+            # Query the Users table for the given username using %s as the placeholder.
+            query = "SELECT Password FROM dbo.Users WHERE Username = %s"
+            cursor.execute(query, (username,))
             row = cursor.fetchone()
 
             if row:
