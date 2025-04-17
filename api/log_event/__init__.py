@@ -2,6 +2,7 @@ import azure.functions as func
 import logging
 import common as c
 import pymssql
+import datetime 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received a log event request.")
@@ -17,7 +18,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     targetId      = req_body.get("targetId") or ""
     targetClasses = req_body.get("targetClasses") or ""
     targetText    = req_body.get("targetText") or ""
-    timestamp     = req_body.get("timestamp") or ""
+    timestamp     = datetime.datetime.now()
     clientIp      = req_body.get("clientIp") or ""
     clientUrl     = req_body.get("clientUrl") or ""
 
