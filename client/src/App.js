@@ -1,118 +1,103 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { BrowserRouter as Router } from "react-router-dom";
 import "./App.css";
-import Filters from "./Filters";
+import FiltersPanel from "./FiltersPanel";
+import Header from "./Header";
 import Plots from "./Plots";
 import MapPanel from "./MapPanel";
-import Data from "./Data";
-import Login from "./Login";
-import { AuthProvider, useAuth } from './AuthContext';
-// Import the logging function from our new file
-import { logClickEvent } from './utils/logUserAction';
+import { logClickEvent } from "./utils/logUserAction";
 
-function Dashboard() {
-  const [filters, setFilters] = useState({
-    selectedSites: [],
-    selectedParameters: [],
-    startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
-    endDate: new Date(),
-  });
+/**
+ * FilterMapPanel (controlled)
+ * Receives the canonical `filters` from App and notifies App via
+ * `onFiltersChange` when the user changes anything (including map clicks).
+ */
+function FilterMapPanel({ filters, onFiltersChange }) {
+  const containerRef = useRef(null);
 
+  // Toggle site in/out of filters.selectedSites when a marker is clicked
   const handleMarkerClick = (siteName) => {
-    setFilters(prevFilters => ({
-      ...prevFilters,
-      selectedSites: prevFilters.selectedSites.includes(siteName)
-        ? prevFilters.selectedSites.filter(name => name !== siteName)
-        : [...prevFilters.selectedSites, siteName]
-    }));
+    const nextSelected = filters.selectedSites.includes(siteName)
+      ? filters.selectedSites.filter((n) => n !== siteName)
+      : [...filters.selectedSites, siteName];
+
+    onFiltersChange({ selectedSites: nextSelected });
   };
 
   return (
-    <div className="container">
-      <Filters 
-        onFilterChange={setFilters} 
-        selectedSites={filters.selectedSites} 
+    <div ref={containerRef} className="filter-map-panel">
+      {/* FiltersPanel is “semi-controlled”: it mirrors the parent’s selectedSites
+         and calls onFiltersChange(...) with the full (or partial) filters object */}
+      <FiltersPanel
+        selectedSites={filters.selectedSites}
+        onFiltersChange={onFiltersChange}
       />
-      <main className="plots">
-        <Plots 
-          selectedParameters={filters.selectedParameters} 
-          selectedSites={filters.selectedSites} 
-          startDate={filters.startDate} 
-          endDate={filters.endDate} 
-        />
-      </main>
+
       <section className="map">
-        <MapPanel 
-          selectedSites={filters.selectedSites} 
-          onMarkerClick={handleMarkerClick} 
+        <MapPanel
+          selectedSites={filters.selectedSites}
+          onMarkerClick={handleMarkerClick}
         />
       </section>
     </div>
   );
 }
 
-function Header() {
-  const { isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
+function App() {
+  // Single source of truth for filters used by both sides of the layout
+  const [filters, setFilters] = useState({
+    selectedSites: [],
+    selectedParameters: [],      // reserved for future use
+    startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
+    endDate: new Date(),
 
-  // Handle logout: clear auth state and navigate to login
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // These are driven by FiltersPanel’s CSV (it will set them via onFiltersChange)
+    startYear: null,
+    endYear: null,
+    parameter: "",
+    chartType: "trend",          // 'trend' -> line, 'comparison' -> bar
+  });
+
+  // Accept either partial updates or a full filters object
+  const onFiltersChange = (partialOrFull) => {
+    setFilters((prev) => ({ ...prev, ...partialOrFull }));
   };
 
-  return (
-    <header className="header">
-      <div className="header-container" style={{ justifyContent: 'space-between' }}>
-        <div className="header-left" style={{ display: 'flex', alignItems: 'center' }}>
-          <div className="title">NW Michigan Watershed Coalition</div>
-          <div className="vertical-separator"></div>
-          <nav className="menu">
-            <Link to="/">Main</Link>
-            {isAuthenticated && <Link to="/data">Data</Link>}
-          </nav>
-        </div>
-        <div className="header-right">
-          {isAuthenticated ? (
-            <button className="menu-button" onClick={handleLogout}>Logout</button>
-          ) : (
-            <Link to="/login" className="menu-link">Login</Link>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function App() {
-  // Global click event listener added here
+  // Global click analytics
   useEffect(() => {
-    // Inside a component event handler:
     const handleClick = (event) => {
-      const text = event.target.textContent;
-      if (text && text.trim() !== "") {
-        logClickEvent(event);
-      }
+      const text = event.target.textContent?.trim();
+      if (text) logClickEvent(event);
     };
-    
-    document.addEventListener('click', handleClick);
-
-    // Cleanup the listener when App unmounts
-    return () => document.removeEventListener('click', handleClick);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, []);
 
   return (
     <Router>
-      <AuthProvider>
-        <div className="dashboard">
-          <Header />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/data" element={<Data />} />
-          </Routes>
+      <div className="app">
+        <Header />
+
+        {/* Two-column layout: left = filters+map, right = plots */}
+        <div className="main">
+          <div className="left">
+            <FilterMapPanel
+              filters={filters}
+              onFiltersChange={onFiltersChange}
+            />
+          </div>
+
+          <div className="right">
+            {/* Plots now reads the same filters from App */}
+            <Plots 
+              selectedParameters={filters.selectedParameters} 
+              selectedSites={filters.selectedSites} 
+              startDate={filters.startDate} 
+              endDate={filters.endDate} 
+            />
+          </div>
         </div>
-      </AuthProvider>
+      </div>
     </Router>
   );
 }
