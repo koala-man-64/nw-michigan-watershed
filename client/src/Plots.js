@@ -120,54 +120,56 @@ function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
   };
 
   return (
-    <div className="plots-container">
-      {selectedParameters.length === 0 ? (
-        <p className="no-plot-message">Select a parameter to display plots.</p>
-      ) : (
-        selectedParameters.map((param, index) => (
-          <div key={index} className="plot-panel">
-            <h4>{chartConfig[param]?.title || param}</h4>
-            <div className="plot-content">
-              {loading ? (
-                <p>Loading data...</p>
-              ) : chartData[param] && chartData[param].labels.length > 0 ? (
-                chartConfig[param]?.type === "line" ? (
-                  <Line
-                    data={chartData[param]}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          title: { display: true, text: chartConfig[param]?.yLabel }
+    <section className="plots">
+      <div className="plots-container">
+        {selectedParameters.length === 0 ? (
+          <p className="no-plot-message">Select a parameter to display plots.</p>
+        ) : (
+          selectedParameters.map((param, index) => (
+            <div key={index} className="plot-panel">
+              <h4>{chartConfig[param]?.title || param}</h4>
+              <div className="plot-content">
+                {loading ? (
+                  <p>Loading data...</p>
+                ) : chartData[param] && chartData[param].labels.length > 0 ? (
+                  chartConfig[param]?.type === "line" ? (
+                    <Line
+                      data={chartData[param]}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          y: {
+                            title: { display: true, text: chartConfig[param]?.yLabel }
+                          }
                         }
-                      }
-                    }}
-                  />
-                ) : chartConfig[param]?.type === "bar" ? (
-                  <Bar
-                    data={chartData[param]}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          title: { display: true, text: chartConfig[param]?.yLabel }
+                      }}
+                    />
+                  ) : chartConfig[param]?.type === "bar" ? (
+                    <Bar
+                      data={chartData[param]}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                          y: {
+                            title: { display: true, text: chartConfig[param]?.yLabel }
+                          }
                         }
-                      }
-                    }}
-                  />
+                      }}
+                    />
+                  ) : (
+                    <p>No chart available</p>
+                  )
                 ) : (
-                  <p>No chart available</p>
-                )
-              ) : (
-                <p>No Data Available</p>
-              )}
+                  <p>No Data Available</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))
-      )}
-    </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
