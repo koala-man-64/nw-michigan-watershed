@@ -20,7 +20,8 @@ body {
 
 /* Left column: stack filters over the map, and have this container fill its grid cell */
 .filter-map-panel {
-  display: flex;
+  display: grid;
+  grid-template-rows: max-content 1fr;
   flex-direction: column;
   gap: 8px;
   width: min(100%, var(--panel-max-width));
@@ -336,8 +337,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
   background: white;
-  padding: 20px;
+  padding: 8px;
   border-radius: 10px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -352,6 +354,7 @@ body {
   flex: 1;        /* Chart fills the rest of the panel */
   width: 100%;
   display: flex;
+  min-height: 0;
   justify-content: center;
   align-items: center;
   overflow: hidden;
@@ -492,21 +495,20 @@ body {
 }
 
 /* Let the second row actually be allowed to shrink/grow */
-/* .left, .right { min-width: 0; min-height: flex; } */
 .left {
-  /* max-width: 1075px;   
-  width: 100%; */
+  min-height: 0;     /* allow grid items to shrink inside .main */
+  min-width: 0;      /* prevent horizontal blowout from long content */
   justify-self: start;
 }
 
 /* 4) Right should take all available HEIGHT */
 .right {
-  align-self: stretch;             /* (default in grid, but explicit) */
-  min-height: 0;
-  display: flex;                   /* so its child can grow vertically */
+  display: flex;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;   /* children can’t push beyond */
 }
-
 
 .map .leaflet-container {
   height: 100%;
@@ -590,4 +592,38 @@ body {
 .map .leaflet-container {
   height: 100%;
   /* width: 100%; */
+}
+
+/* holds one or two plot panels */
+.plots-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;     /* scroll stays inside the right column */
+}
+
+/* each plot panel shares the space evenly */
+.plot-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* chart area fills the panel */
+.plot-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* the canvas must follow the container, not its intrinsic size */
+.plot-content canvas {
+  width: 100% !important;
+  height: 100% !important;
 }

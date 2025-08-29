@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
+import PropTypes from "prop-types";
 
 export default function SearchableMultiSelect({
   options = [],
@@ -174,3 +175,19 @@ export default function SearchableMultiSelect({
     </div>
   );
 }
+SearchableMultiSelect.propTypes = {
+  options: PropTypes.arrayOf(PropTypes.string).isRequired,
+  selected: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onChange: PropTypes.func.isRequired,
+  placeholder: PropTypes.string,
+  label: PropTypes.string,
+  maxPanelHeight: PropTypes.number,
+  className: PropTypes.string,
+};
+
+SearchableMultiSelect.defaultProps = {
+  placeholder: "Search…",
+  label: "Select",
+  maxPanelHeight: 300,
+  className: "",
+};

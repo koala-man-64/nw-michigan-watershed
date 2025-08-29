@@ -1,176 +1,431 @@
-import React, { useEffect, useState } from "react";
-import { Line, Bar } from "react-chartjs-2";
-import { Chart, registerables } from "chart.js";
+import React, { useEffect, useMemo, useState } from "react";
 import Papa from "papaparse";
+import { Chart as ReactChart } from "react-chartjs-2";
+import { Chart, registerables } from "chart.js";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faDownload,
+  faInfoCircle,
+  faLightbulb,
+  faQuestionCircle,
+} from "@fortawesome/free-solid-svg-icons";
+import PropTypes from "prop-types";
 
-// Register Chart.js components
+// Optional: load box/violin plugin without breaking if not installed
+(async () => {
+  try {
+    await import("chartjs-chart-box-and-violin-plot");
+  } catch {
+    console.warn("Box/violin plugin not installed — box plots will not render.");
+  }
+})();
+
 Chart.register(...registerables);
 
-// Default color palette: professional grey and blue tones.
-const defaultColors = ["#37474F", "#5BC0DE", "#6C757D", "#ADB5BD", "#007BFF"];
-
-// Chart Configuration
-const chartConfig = {
-  "Total Phosphorous": {
-    type: "line",
-    title: "Total Phosphorus Trend Chart",
-    yLabel: "Total P (mg/m3)"
+// Counts above bars/boxes (expects dataset.customCounts)
+const countPlugin = {
+  id: "countPlugin",
+  afterDatasetsDraw(chart) {
+    const ds = chart.data?.datasets?.[0];
+    const counts = (ds && ds.customCounts) || [];
+    const meta = chart.getDatasetMeta(0);
+    const ctx = chart.ctx;
+    ctx.save();
+    meta.data.forEach((el, i) => {
+      const c = counts[i];
+      if (c == null) return;
+      const p = el.tooltipPosition ? el.tooltipPosition() : el;
+      ctx.fillStyle = "#37474F";
+      ctx.textAlign = "center";
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText(String(c), p.x, p.y - 6);
+    });
+    ctx.restore();
   },
-  "Secchi": {
-    type: "bar",
-    title: "Secchi Comparison Chart",
-    yLabel: "Secchi (feet)"
-  }
 };
+Chart.register(countPlugin);
 
-function Plots({ selectedParameters, selectedSites, startDate, endDate }) {
-  const [chartData, setChartData] = useState({});
-  const [loading, setLoading] = useState(false);
+// Palette
+const defaultColors = [
+  "#37474F",
+  "#5BC0DE",
+  "#6C757D",
+  "#ADB5BD",
+  "#007BFF",
+  "#8E44AD",
+  "#F39C12",
+];
 
-  // Azure Blob Storage configuration (same as in Filters.js)
-  const storageAccountName = "nwmiwsstorageaccount";
-  const sasToken = "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T12:14:21Z&st=2025-03-28T04:14:21Z&spr=https&sig=c2vDu7jiNSYQ2FTY5Dr9VEB7G%2BR8wVEHnveaXwNFE5k%3D";
-  const containerName = "nwmiws";
-  
-  // Build the URL to fetch water quality data from Azure Blob Storage
-  const waterUrl = `https://${storageAccountName}.blob.core.windows.net/${containerName}/water_quality_data.csv?${sasToken}`;
+// ---------- box stats helpers ----------
+function quantile(arr, q) {
+  if (!arr || arr.length === 0) return NaN;
+  const pos = (arr.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (arr[base + 1] !== undefined) {
+    return arr[base] + rest * (arr[base + 1] - arr[base]);
+  }
+  return arr[base];
+}
+function computeBoxStats(values) {
+  if (!values || values.length === 0) return null;
+  const sorted = values.slice().sort((a, b) => a - b);
+  return {
+    min: sorted[0],
+    q1: quantile(sorted, 0.25),
+    median: quantile(sorted, 0.5),
+    q3: quantile(sorted, 0.75),
+    max: sorted[sorted.length - 1],
+  };
+}
 
-  // Fetch and process water quality data on dependency changes
+// ---------- chart builders ----------
+function buildTrendChart(rawData, cfg) {
+  const { parameter, selectedSites = [], startYear, endYear } = cfg;
+  const filtered = rawData.filter((row) => {
+    const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
+    const rowSite = row?.Site ? String(row.Site).trim() : "";
+    const yearNum = parseInt(row?.Year, 10);
+    return (
+      rowParam === parameter &&
+      selectedSites.includes(rowSite) &&
+      Number.isFinite(yearNum) &&
+      (startYear == null || yearNum >= startYear) &&
+      (endYear == null || yearNum <= endYear)
+    );
+  });
+
+  const groups = {};
+  const countByYear = {};
+  filtered.forEach((row) => {
+    const y = row.Year;
+    const avgVal = parseFloat(row.Avg);
+    const cnt = parseInt(row.Count, 10);
+    if (!Number.isFinite(avgVal)) return;
+    (groups[y] ||= []).push(avgVal);
+    countByYear[y] = (countByYear[y] || 0) + (Number.isFinite(cnt) ? cnt : 0);
+  });
+
+  const years = Object.keys(groups).sort((a, b) => +a - +b);
+  const boxData = [];
+  const counts = [];
+  years.forEach((y) => {
+    const stats = computeBoxStats(groups[y]);
+    if (stats) {
+      boxData.push(stats);
+      counts.push(countByYear[y] || 0);
+    }
+  });
+
+  return {
+    title: `${parameter} Distribution by Year`,
+    type: "boxplot",
+    data: {
+      labels: years,
+      datasets: [
+        {
+          label: parameter,
+          data: boxData,
+          backgroundColor: defaultColors[0],
+          borderColor: defaultColors[0],
+          customCounts: counts,
+        },
+      ],
+    },
+  };
+}
+
+function buildComparisonChart(rawData, cfg) {
+  const { parameter, selectedSites = [], startYear, endYear } = cfg;
+  const filtered = rawData.filter((row) => {
+    const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
+    const rowSite = row?.Site ? String(row.Site).trim() : "";
+    const yearNum = parseInt(row?.Year, 10);
+    return (
+      rowParam === parameter &&
+      selectedSites.includes(rowSite) &&
+      Number.isFinite(yearNum) &&
+      (startYear == null || yearNum >= startYear) &&
+      (endYear == null || yearNum <= endYear)
+    );
+  });
+
+  const groups = {};
+  const countsBySite = {};
+  filtered.forEach((row) => {
+    const site = row?.Site ? String(row.Site).trim() : "";
+    const avgVal = parseFloat(row.Avg);
+    const cnt = parseInt(row.Count, 10);
+    if (!site || !Number.isFinite(avgVal)) return;
+    (groups[site] ||= []).push(avgVal);
+    countsBySite[site] = (countsBySite[site] || 0) + (Number.isFinite(cnt) ? cnt : 0);
+  });
+
+  const sites = Object.keys(groups);
+  const values = sites.map((s) => {
+    const arr = groups[s];
+    return arr.reduce((sum, v) => sum + v, 0) / arr.length;
+  });
+  const counts = sites.map((s) => countsBySite[s] || 0);
+
+  return {
+    title: `${parameter} Comparison by Site`,
+    type: "bar",
+    data: {
+      labels: sites,
+      datasets: [
+        {
+          label: parameter,
+          data: values,
+          backgroundColor: sites.map((_, i) => defaultColors[i % defaultColors.length]),
+          customCounts: counts,
+        },
+      ],
+    },
+  };
+}
+
+// ---------- component ----------
+function Plots({ plotConfigs = [] }) {
+  const [rawData, setRawData] = useState(null);
+  const [infoData, setInfoData] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  // load once from /public
   useEffect(() => {
-    // If no parameters or sites are selected, clear chart data.
-    if (selectedParameters.length === 0 || selectedSites.length === 0) {
-      setChartData({});
-      return;
+    let cancelled = false;
+
+    async function fetchFromPublic(paths) {
+      for (const p of paths) {
+        const url = "/" + String(p).replace(/^\/+/, "");
+        console.debug("[Plots] fetching:", url);
+        const resp = await fetch(url, { cache: "no-store" });
+        if (resp.ok) return resp.text();
+        console.warn("[Plots] fetch failed:", url, resp.status);
+      }
+      throw new Error(`None of these files were found in /public: ${paths.join(" | ")}`);
     }
 
-    setLoading(true);
-    console.log("Fetching water quality data from Azure Blob Storage...");
-    fetch(waterUrl)
-      .then((response) => response.text())
-      .then((csvText) => {
-        Papa.parse(csvText, {
+    (async () => {
+      setLoading(true);
+      try {
+        const [csvData, csvInfo] = await Promise.all([
+          // try encoded first, then raw space
+          fetchFromPublic(["NWMIWS_Site_Data.csv"]),
+          fetchFromPublic(["info.csv"]),
+        ]);
+        if (cancelled) return;
+
+        let d = [];
+        Papa.parse(csvData, {
           header: true,
           skipEmptyLines: true,
-          complete: (result) => {
-            processData(result.data);
-          }
+          complete: ({ data }) => (d = data),
         });
-      })
-      .catch((error) => {
-        console.error("Error fetching water quality CSV:", error);
-        setLoading(false);
-      });
-  }, [selectedParameters, selectedSites, startDate, endDate, waterUrl]);
 
-  // Process CSV data to format chart data for each selected parameter.
-  const processData = (data) => {
-    const formattedData = {};
+        let i = [];
+        Papa.parse(csvInfo, {
+          header: true,
+          skipEmptyLines: true,
+          complete: ({ data }) => (i = data),
+        });
 
-    selectedParameters.forEach((parameter) => {
-      const config = chartConfig[parameter];
-      if (!config) return;
+        if (cancelled) return;
+        setRawData(d);
 
-      // Filter rows based on selected sites and date range.
-      const filteredData = data.filter((row) =>
-        row.Parameter === parameter &&
-        selectedSites.includes(row.Location) &&
-        parseInt(row.Year) >= startDate.getFullYear() &&
-        parseInt(row.Year) <= endDate.getFullYear()
-      );
-
-      filteredData.sort((a, b) => parseInt(a.Year) - parseInt(b.Year)); // Sort by year.
-
-      if (filteredData.length === 0) {
-        formattedData[parameter] = { labels: [], datasets: [] };
-      } else if (config.type === "line") {
-        formattedData[parameter] = {
-          labels: [...new Set(filteredData.map(row => row.Year))],
-          datasets: selectedSites
-            .map((site, idx) => {
-              const siteData = filteredData.filter(row => row.Location === site);
-              return {
-                label: site,
-                data: siteData.map(row => parseFloat(row.Value)),
-                borderColor: defaultColors[idx % defaultColors.length],
-                backgroundColor: defaultColors[idx % defaultColors.length],
-                fill: false,
-                tension: 0.1
-              };
-            })
-            .filter(dataset => dataset.data.length > 0)
-        };
-      } else if (config.type === "bar") {
-        const uniqueLocations = [...new Set(filteredData.map(row => row.Location))];
-        formattedData[parameter] = {
-          labels: uniqueLocations,
-          datasets: [
-            {
-              label: parameter,
-              data: filteredData.map(row => parseFloat(row.Value)),
-              backgroundColor: uniqueLocations.map((_, idx) => defaultColors[idx % defaultColors.length])
-            }
-          ]
-        };
+        const infoMap = {};
+        for (const r of i) {
+          const key = r?.Parameter ? String(r.Parameter).trim() : "";
+          if (key) infoMap[key] = r;
+        }
+        setInfoData(infoMap);
+      } catch (err) {
+        console.error("Error loading CSV files from public/:", err);
+        if (!cancelled) {
+          setRawData([]);
+          setInfoData({});
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    });
+    })();
 
-    console.log("Formatted Chart Data:", formattedData);
-    setChartData(formattedData);
-    setLoading(false);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Build individual charts (always 2 panels)
+  const cfg1 = plotConfigs[0];
+  const cfg2 = plotConfigs[1];
+
+  const chart1 = useMemo(() => {
+    if (!rawData || !cfg1) return null;
+    return cfg1.chartType === "trend"
+      ? buildTrendChart(rawData, cfg1)
+      : buildComparisonChart(rawData, cfg1);
+  }, [rawData, cfg1]);
+
+  const chart2 = useMemo(() => {
+    if (!rawData || !cfg2) return null;
+    return cfg2.chartType === "trend"
+      ? buildTrendChart(rawData, cfg2)
+      : buildComparisonChart(rawData, cfg2);
+  }, [rawData, cfg2]);
+
+  // Nudge Chart.js to resize when either chart config appears/changes
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    return () => cancelAnimationFrame(id);
+  }, [!!chart1, !!chart2, chart1?.data?.labels?.length, chart2?.data?.labels?.length]);
+
+  const handleDownload = (cfg) => {
+    if (!rawData || !cfg) return;
+    const { parameter, chartType, selectedSites = [], startYear, endYear } = cfg;
+    const rows = rawData.filter((row) => {
+      const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
+      const rowSite = row?.Site ? String(row.Site).trim() : "";
+      const yearNum = parseInt(row?.Year, 10);
+      return (
+        rowParam === parameter &&
+        selectedSites.includes(rowSite) &&
+        Number.isFinite(yearNum) &&
+        (startYear == null || yearNum >= startYear) &&
+        (endYear == null || yearNum <= endYear)
+      );
+    });
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${parameter}_${chartType}_data.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const infoFor = (param, field, fallback) => {
+    const row = param && infoData[param];
+    return (row && row[field]) || fallback;
+  };
+
+  if (loading) {
+    return (
+      <section className="plots">
+        <div className="plots-container">
+          <p>Loading data…</p>
+        </div>
+      </section>
+    );
+  }
+
+  const renderPanel = (title, chartObj, cfg, slotLabel) => {
+    if (!cfg) {
+      return (
+        <div className="plot-panel">
+          <div
+            className="plot-header"
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
+          >
+            <h4 style={{ margin: 0 }}>{slotLabel} — not set</h4>
+            <div className="plot-icons" style={{ display: "flex", gap: 12, opacity: 0.4 }}>
+              <FontAwesomeIcon icon={faDownload} title="Download raw data" />
+              <FontAwesomeIcon icon={faInfoCircle} title="Contact information" />
+              <FontAwesomeIcon icon={faLightbulb} title="Lake association information" />
+              <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
+            </div>
+          </div>
+          <div className="plot-content" style={{ alignItems: "center", justifyContent: "center" }}>
+            <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
+          </div>
+        </div>
+      );
+    }
+
+    const icons = (
+      <div className="plot-icons" style={{ display: "flex", gap: 12, cursor: "pointer" }}>
+        <FontAwesomeIcon icon={faDownload} title="Download raw data" onClick={() => handleDownload(cfg)} />
+        <FontAwesomeIcon
+          icon={faInfoCircle}
+          title="Contact information"
+          onClick={() => alert(infoFor(cfg.parameter, "ContactInfo", "No contact information available."))}
+        />
+        <FontAwesomeIcon
+          icon={faLightbulb}
+          title="Lake association information"
+          onClick={() => alert(infoFor(cfg.parameter, "AssociationInfo", "No association information available."))}
+        />
+        <FontAwesomeIcon
+          icon={faQuestionCircle}
+          title="Parameter information"
+          onClick={() => alert(infoFor(cfg.parameter, "ParameterInfo", "No parameter information available."))}
+        />
+      </div>
+    );
+
+    if (!chartObj || !chartObj.data?.labels?.length) {
+      return (
+        <div className="plot-panel">
+          <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <h4 style={{ margin: 0 }}>{slotLabel}: {cfg.parameter}</h4>
+            {icons}
+          </div>
+          <div className="plot-content" style={{ alignItems: "center", justifyContent: "center" }}>
+            <div className="no-plot-message">No data for the current filters.</div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="plot-panel">
+        <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h4 style={{ margin: 0 }}>{title}</h4>
+          {icons}
+        </div>
+        <div className="plot-content">
+          <ReactChart
+            type={chartObj.type}
+            data={chartObj.data}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: { display: true, text: cfg.parameter },
+                },
+              },
+              plugins: {},
+            }}
+          />
+        </div>
+      </div>
+    );
   };
 
   return (
     <section className="plots">
       <div className="plots-container">
-        {selectedParameters.length === 0 ? (
-          <p className="no-plot-message">Select a parameter to display plots.</p>
-        ) : (
-          selectedParameters.map((param, index) => (
-            <div key={index} className="plot-panel">
-              <h4>{chartConfig[param]?.title || param}</h4>
-              <div className="plot-content">
-                {loading ? (
-                  <p>Loading data...</p>
-                ) : chartData[param] && chartData[param].labels.length > 0 ? (
-                  chartConfig[param]?.type === "line" ? (
-                    <Line
-                      data={chartData[param]}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                          y: {
-                            title: { display: true, text: chartConfig[param]?.yLabel }
-                          }
-                        }
-                      }}
-                    />
-                  ) : chartConfig[param]?.type === "bar" ? (
-                    <Bar
-                      data={chartData[param]}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                          y: {
-                            title: { display: true, text: chartConfig[param]?.yLabel }
-                          }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <p>No chart available</p>
-                  )
-                ) : (
-                  <p>No Data Available</p>
-                )}
-              </div>
-            </div>
-          ))
-        )}
+        {renderPanel(chart1?.title, chart1, cfg1, "Plot 1")}
+        {renderPanel(chart2?.title, chart2, cfg2, "Plot 2")}
       </div>
     </section>
   );
 }
+
+Plots.propTypes = {
+  plotConfigs: PropTypes.arrayOf(
+    PropTypes.shape({
+      selectedSites: PropTypes.arrayOf(PropTypes.string).isRequired,
+      parameter: PropTypes.string.isRequired,
+      chartType: PropTypes.oneOf(["trend", "comparison"]).isRequired,
+      startYear: PropTypes.number.isRequired,
+      endYear: PropTypes.number.isRequired,
+    })
+  ).isRequired,
+};
 
 export default Plots;

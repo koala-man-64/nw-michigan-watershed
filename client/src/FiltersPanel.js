@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
-import SearchableMultiSelect from "./SearchableMultiselect";
+import SearchableMultiSelect from "./SearchableMultiselect.jsx";
+import PropTypes from "prop-types";
 
 /**
  * Azure Blob Storage constants
@@ -16,7 +17,12 @@ const SAS_TOKEN =
  * - Notifies parent via onFiltersChange ONLY from user actions
  *   and a one-time CSV initialization (after parse completes)
  */
-function FiltersPanel({ selectedSites = [], onFiltersChange = () => {} }) {
+function FiltersPanel({
+  selectedSites = [],
+  onFiltersChange = () => {},
+  onUpdatePlot1 = () => {},
+  onUpdatePlot2 = () => {},
+}) {
   // Options loaded from CSV
   const [sites, setSites] = useState([]);
   const [parameters, setParameters] = useState([]);
@@ -236,18 +242,30 @@ function FiltersPanel({ selectedSites = [], onFiltersChange = () => {} }) {
 
       {/* Optional “apply” buttons */}
       <div className="filter-group filter-buttons">
-        <button className="reset-btn" onClick={() => onFiltersChange({ ...filters })}>
+        <button
+          className="reset-btn"
+          onClick={() => onUpdatePlot1(filters)}   // pass the current local filters
+        >
           Update Plot 1
         </button>
       </div>
 
       <div className="filter-group filter-buttons">
-        <button className="reset-btn" onClick={() => onFiltersChange({ ...filters })}>
+        <button
+          className="reset-btn"
+          onClick={() => onUpdatePlot2(filters)}   // pass the current local filters
+        >
           Update Plot 2
         </button>
       </div>
     </div>
   );
 }
+FiltersPanel.propTypes = {
+  selectedSites: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onFiltersChange: PropTypes.func.isRequired,
+  onUpdatePlot1: PropTypes.func.isRequired,
+  onUpdatePlot2: PropTypes.func.isRequired,
+};
 
 export default FiltersPanel;
