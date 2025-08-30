@@ -1,19 +1,17 @@
 {
   "files": {
-    "main.css": "/static/css/main.e0054482.css",
-    "main.js": "/static/js/main.3ae14c9f.js",
-    "static/js/814.563fdb6b.chunk.js": "/static/js/814.563fdb6b.chunk.js",
+    "main.css": "/static/css/main.3031108c.css",
+    "main.js": "/static/js/main.477203a8.js",
     "static/js/900.278d5b61.chunk.js": "/static/js/900.278d5b61.chunk.js",
     "static/js/488.b51d605a.chunk.js": "/static/js/488.b51d605a.chunk.js",
     "static/media/bcd-logo-2012-darkblue_orig.png": "/static/media/bcd-logo-2012-darkblue_orig.2001b38264ec1ff52007.png",
     "index.html": "/index.html",
-    "main.e0054482.css.map": "/static/css/main.e0054482.css.map",
-    "main.3ae14c9f.js.map": "/static/js/main.3ae14c9f.js.map",
-    "814.563fdb6b.chunk.js.map": "/static/js/814.563fdb6b.chunk.js.map",
+    "main.3031108c.css.map": "/static/css/main.3031108c.css.map",
+    "main.477203a8.js.map": "/static/js/main.477203a8.js.map",
     "488.b51d605a.chunk.js.map": "/static/js/488.b51d605a.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.e0054482.css",
-    "static/js/main.3ae14c9f.js"
+    "static/css/main.3031108c.css",
+    "static/js/main.477203a8.js"
   ]
 }

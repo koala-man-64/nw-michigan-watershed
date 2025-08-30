@@ -3,6 +3,22 @@ import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
 
+const buttonCellStyle = {
+  display: "flex",
+  alignItems: "stretch", // make the grid/flex item stretch to row height
+  paddingTop: 0,
+  paddingBottom: 0,
+};
+
+const tallButtonStyle = {
+  alignSelf: "stretch",  // fill the item’s height
+  height: "100%",        // ensure the button matches the row height
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+
 /**
  * Azure Blob Storage constants
  */
@@ -14,14 +30,15 @@ const SAS_TOKEN =
 /**
  * FiltersPanel
  * - Manages local UI state for filters
- * - Notifies parent via onFiltersChange ONLY from user actions
- *   and a one-time CSV initialization (after parse completes)
+ * - Notifies parent via onFiltersChange from user actions
+ * - Fetches CSV(s) from Azure and shares parsed data up via onDataLoaded
  */
 function FiltersPanel({
   selectedSites = [],
   onFiltersChange = () => {},
   onUpdatePlot1 = () => {},
   onUpdatePlot2 = () => {},
+  onDataLoaded = () => {},  // NEW hook to lift data up
 }) {
   // Options loaded from CSV
   const [sites, setSites] = useState([]);
@@ -34,7 +51,7 @@ function FiltersPanel({
     parameter: "",
     startYear: null,
     endYear: null,
-    chartType: "trend", // 'trend' | 'comparison'
+    chartType: "trend",
   });
 
   // Guard to ensure CSV-based year initialization runs once
@@ -42,7 +59,6 @@ function FiltersPanel({
 
   /**
    * Keep local selectedSites in sync with parent prop (no parent updates here).
-   * Avoid unnecessary updates to prevent re-render churn.
    */
   useEffect(() => {
     if (!Array.isArray(selectedSites)) return;
@@ -55,65 +71,98 @@ function FiltersPanel({
   }, [selectedSites]);
 
   /**
-   * Fetch CSV once, populate options, and initialize years once.
-   * Parent update is called outside of any setState updater to avoid warnings.
+   * Fetch CSV(s) once from Azure, populate options, initialize years, and
+   * bubble up the parsed data to App via onDataLoaded.
    */
   useEffect(() => {
-    const waterQualityFileUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/NWMIWS_Site_Data_testing.csv?${SAS_TOKEN}`;
+    const dataUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/NWMIWS_Site_Data_testing_varied.csv?${SAS_TOKEN}`;
+    const infoUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/info.csv?${SAS_TOKEN}`;
 
-    const processYearData = (rows) => {
-      const yearsNum = rows
-        .map((row) => parseInt(row.Year, 10))
-        .filter((y) => Number.isFinite(y));
-      if (!yearsNum.length) return;
+    let cancelled = false;
 
-      const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
-      const min = uniqueYears[0];
-      const max = uniqueYears[uniqueYears.length - 1];
+    async function fetchText(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return res.text();
+    }
 
-      setAvailableYears(uniqueYears);
+    (async () => {
+      try {
+        const [dataCsvText, infoCsvText] = await Promise.all([
+          fetchText(dataUrl),
+          fetchText(infoUrl).catch(() => ""), // tolerate missing info.csv
+        ]);
 
-      // Initialize local + parent once
-      if (!didInitYearsRef.current) {
-        didInitYearsRef.current = true;
-        setFilters((prev) => ({
-          ...prev,
-          startYear: prev.startYear ?? min,
-          endYear: prev.endYear ?? max,
-        }));
-        onFiltersChange({ startYear: min, endYear: max });
-      }
-    };
-
-    fetch(waterQualityFileUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status} while fetching CSV`);
-        return res.text();
-      })
-      .then((csvText) => {
-        Papa.parse(csvText, {
+        // Parse main data
+        let dataRows = [];
+        Papa.parse(dataCsvText, {
           header: true,
           skipEmptyLines: true,
-          complete: (result) => {
-            const allSites = result.data.map((r) => r.Site).filter(Boolean);
-            const allParameters = result.data.map((r) => r.Parameter).filter(Boolean);
-
-            const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
-            const uniqueParameters = [...new Set(allParameters)].sort((a, b) =>
-              a.localeCompare(b)
-            );
-
-            setSites(uniqueSites);
-            setParameters(uniqueParameters);
-            processYearData(result.data);
-          },
+          complete: ({ data }) => (dataRows = data),
         });
-      })
-      .catch((err) => console.error("Error loading locations CSV:", err));
-  }, [onFiltersChange]);
+
+        // Parse info CSV (optional)
+        let infoRows = [];
+        if (infoCsvText) {
+          Papa.parse(infoCsvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: ({ data }) => (infoRows = data),
+          });
+        }
+
+        if (cancelled) return;
+
+        // Build info map keyed by Parameter
+        const infoMap = {};
+        for (const r of infoRows || []) {
+          const key = r?.Parameter ? String(r.Parameter).trim() : "";
+          if (key) infoMap[key] = r;
+        }
+
+        // Build options
+        const allSites = dataRows.map((r) => r.Site).filter(Boolean);
+        const allParameters = dataRows.map((r) => r.Parameter).filter(Boolean);
+        const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
+        const uniqueParameters = [...new Set(allParameters)].sort((a, b) => a.localeCompare(b));
+
+        // Years
+        const yearsNum = dataRows
+          .map((row) => parseInt(row.Year, 10))
+          .filter((y) => Number.isFinite(y));
+        const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
+        const min = uniqueYears[0];
+        const max = uniqueYears[uniqueYears.length - 1];
+
+        setSites(uniqueSites);
+        setParameters(uniqueParameters);
+        setAvailableYears(uniqueYears);
+
+        // Initialize local + parent years once
+        if (!didInitYearsRef.current && uniqueYears.length) {
+          didInitYearsRef.current = true;
+          setFilters((prev) => ({
+            ...prev,
+            startYear: prev.startYear ?? min,
+            endYear: prev.endYear ?? max,
+          }));
+          onFiltersChange({ startYear: min, endYear: max });
+        }
+
+        // Bubble up parsed data for Plots/App-wide state
+        onDataLoaded({ rawData: dataRows, infoData: infoMap });
+      } catch (err) {
+        console.error("Error loading CSV(s) from Azure:", err);
+        onDataLoaded({ rawData: [], infoData: {} });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onFiltersChange, onDataLoaded]);
 
   // ---------------- Handlers (user-initiated; safe to notify parent) ----------------
-
   const handleSitesChange = (updated) => {
     setFilters((prev) => ({ ...prev, selectedSites: updated }));
     onFiltersChange({ selectedSites: updated });
@@ -122,10 +171,8 @@ function FiltersPanel({
   const handleStartYearChange = (e) => {
     const newStart = parseInt(e.target.value, 10);
     if (!Number.isFinite(newStart)) return;
-
     const currentEnd = filters.endYear;
     const nextEnd = currentEnd != null && newStart <= currentEnd ? currentEnd : newStart;
-
     setFilters((prev) => ({ ...prev, startYear: newStart, endYear: nextEnd }));
     onFiltersChange({ startYear: newStart, endYear: nextEnd });
   };
@@ -133,10 +180,8 @@ function FiltersPanel({
   const handleEndYearChange = (e) => {
     const rawEnd = parseInt(e.target.value, 10);
     if (!Number.isFinite(rawEnd)) return;
-
     const start = filters.startYear;
     const nextEnd = start != null ? Math.max(rawEnd, start) : rawEnd;
-
     setFilters((prev) => ({ ...prev, endYear: nextEnd }));
     onFiltersChange({ startYear: start ?? nextEnd, endYear: nextEnd });
   };
@@ -148,7 +193,7 @@ function FiltersPanel({
   };
 
   const handleChartTypeChange = (e) => {
-    const chartType = e.target.value; // 'trend' | 'comparison'
+    const chartType = e.target.value;
     setFilters((prev) => ({ ...prev, chartType }));
     onFiltersChange({ chartType });
   };
@@ -241,23 +286,28 @@ function FiltersPanel({
       </div>
 
       {/* Optional “apply” buttons */}
-      <div className="filter-group filter-buttons">
+      <div className="filter-group filter-buttons" style={buttonCellStyle}>
         <button
+          type="button"
           className="reset-btn"
-          onClick={() => onUpdatePlot1(filters)}   // pass the current local filters
+          style={tallButtonStyle}
+          onClick={() => onUpdatePlot1(filters)}
         >
           Update Plot 1
         </button>
       </div>
 
-      <div className="filter-group filter-buttons">
+      <div className="filter-group filter-buttons" style={buttonCellStyle}>
         <button
+          type="button"
           className="reset-btn"
-          onClick={() => onUpdatePlot2(filters)}   // pass the current local filters
+          style={tallButtonStyle}
+          onClick={() => onUpdatePlot2(filters)}
         >
           Update Plot 2
         </button>
       </div>
+
     </div>
   );
 }
@@ -266,6 +316,7 @@ FiltersPanel.propTypes = {
   onFiltersChange: PropTypes.func.isRequired,
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
+  onDataLoaded: PropTypes.func,  // NEW
 };
 
 export default FiltersPanel;

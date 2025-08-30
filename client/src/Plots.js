@@ -1,85 +1,98 @@
-import React, { useEffect, useMemo, useState } from "react";
+// Plots.js (inline modal + no more browser alerts)
+import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
 import Papa from "papaparse";
 import { Chart as ReactChart } from "react-chartjs-2";
 import { Chart, registerables } from "chart.js";
+import {
+  BoxPlotController,
+  ViolinController,
+  BoxAndWiskers, // note: the lib spells it 'Wiskers'
+  Violin,
+} from "@sgratzl/chartjs-chart-boxplot";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faDownload,
   faInfoCircle,
   faLightbulb,
   faQuestionCircle,
+  faTimes,
 } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
 
-// Optional: load box/violin plugin without breaking if not installed
-(async () => {
-  try {
-    await import("chartjs-chart-box-and-violin-plot");
-  } catch {
-    console.warn("Box/violin plugin not installed — box plots will not render.");
-  }
-})();
+Chart.register(...registerables, BoxPlotController, ViolinController, BoxAndWiskers, Violin);
 
-Chart.register(...registerables);
-
-// Counts above bars/boxes (expects dataset.customCounts)
+// ====== counts anchored to top whisker (boxplot) ======
 const countPlugin = {
   id: "countPlugin",
   afterDatasetsDraw(chart) {
     const ds = chart.data?.datasets?.[0];
-    const counts = (ds && ds.customCounts) || [];
+    if (!ds) return;
+
+    const counts = ds.customCounts || [];
     const meta = chart.getDatasetMeta(0);
     const ctx = chart.ctx;
+
+    const p = chart.options?.plugins?.countPlugin || {};
+    const gapAboveWhisker = Number.isFinite(p.gapAboveWhisker) ? p.gapAboveWhisker : 14;
+    const baseOffset = Number.isFinite(p.offset) ? p.offset : 10;
+
     ctx.save();
     meta.data.forEach((el, i) => {
       const c = counts[i];
       if (c == null) return;
-      const p = el.tooltipPosition ? el.tooltipPosition() : el;
-      ctx.fillStyle = "#37474F";
+
+      const x = (el.tooltipPosition ? el.tooltipPosition().x : el.x);
+
+      let textY;
+      if (chart.config?.type === "boxplot") {
+        const raw = el.$context?.raw ?? ds.data?.[i];
+        let maxVal;
+        if (raw && typeof raw === "object") {
+          if (Number.isFinite(raw.max)) {
+            maxVal = Number(raw.max);
+          } else if (Array.isArray(raw)) {
+            const nums = raw.map(Number).filter(Number.isFinite);
+            if (nums.length) maxVal = Math.max(...nums);
+          }
+        }
+        const yScale = chart.scales[chart.options.indexAxis === "y" ? "x" : "y"];
+        const yHigh = Number.isFinite(maxVal)
+          ? yScale.getPixelForValue(maxVal)
+          : (el.tooltipPosition ? el.tooltipPosition().y : el.y);
+        textY = yHigh - gapAboveWhisker;
+      } else {
+        const ppos = el.tooltipPosition ? el.tooltipPosition() : el;
+        textY = ppos.y - baseOffset;
+      }
+
+      ctx.fillStyle = p.color || "#37474F";
       ctx.textAlign = "center";
-      ctx.font = "bold 12px sans-serif";
-      ctx.fillText(String(c), p.x, p.y - 6);
+      ctx.font = p.font || "bold 12px sans-serif";
+      ctx.fillText(String(c), x, textY);
     });
     ctx.restore();
   },
 };
 Chart.register(countPlugin);
 
-// Palette
-const defaultColors = [
-  "#37474F",
-  "#5BC0DE",
-  "#6C757D",
-  "#ADB5BD",
-  "#007BFF",
-  "#8E44AD",
-  "#F39C12",
-];
+const defaultColors = ["#37474F","#5BC0DE","#6C757D","#ADB5BD","#007BFF","#8E44AD","#F39C12"];
 
-// ---------- box stats helpers ----------
+// ====== tiny helpers ======
 function quantile(arr, q) {
   if (!arr || arr.length === 0) return NaN;
   const pos = (arr.length - 1) * q;
   const base = Math.floor(pos);
   const rest = pos - base;
-  if (arr[base + 1] !== undefined) {
-    return arr[base] + rest * (arr[base + 1] - arr[base]);
-  }
+  if (arr[base + 1] !== undefined) return arr[base] + rest * (arr[base + 1] - arr[base]);
   return arr[base];
 }
 function computeBoxStats(values) {
   if (!values || values.length === 0) return null;
   const sorted = values.slice().sort((a, b) => a - b);
-  return {
-    min: sorted[0],
-    q1: quantile(sorted, 0.25),
-    median: quantile(sorted, 0.5),
-    q3: quantile(sorted, 0.75),
-    max: sorted[sorted.length - 1],
-  };
+  return { min: sorted[0], q1: quantile(sorted, 0.25), median: quantile(sorted, 0.5), q3: quantile(sorted, 0.75), max: sorted[sorted.length - 1] };
 }
 
-// ---------- chart builders ----------
+// ====== charts ======
 function buildTrendChart(rawData, cfg) {
   const { parameter, selectedSites = [], startYear, endYear } = cfg;
   const filtered = rawData.filter((row) => {
@@ -185,101 +198,245 @@ function buildComparisonChart(rawData, cfg) {
   };
 }
 
-// ---------- component ----------
-function Plots({ plotConfigs = [] }) {
-  const [rawData, setRawData] = useState(null);
-  const [infoData, setInfoData] = useState({});
-  const [loading, setLoading] = useState(true);
+function computeYRangeForChart(chartObj) {
+  try {
+    const ds = chartObj?.data?.datasets?.[0];
+    if (!ds) return null;
 
-  // load once from /public
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchFromPublic(paths) {
-      for (const p of paths) {
-        const url = "/" + String(p).replace(/^\/+/, "");
-        console.debug("[Plots] fetching:", url);
-        const resp = await fetch(url, { cache: "no-store" });
-        if (resp.ok) return resp.text();
-        console.warn("[Plots] fetch failed:", url, resp.status);
-      }
-      throw new Error(`None of these files were found in /public: ${paths.join(" | ")}`);
+    if (chartObj.type === "boxplot") {
+      const mins = ds.data.map(d => Number(d?.min)).filter(Number.isFinite);
+      const maxs = ds.data.map(d => Number(d?.max)).filter(Number.isFinite);
+      if (!mins.length || !maxs.length) return null;
+      return { min: Math.min(...mins), max: Math.max(...maxs) };
+    } else {
+      const vals = ds.data.map(v => Number(v)).filter(Number.isFinite);
+      if (!vals.length) return null;
+      return { min: Math.min(...vals), max: Math.max(...vals) };
     }
+  } catch {
+    return null;
+  }
+}
 
-    (async () => {
-      setLoading(true);
-      try {
-        const [csvData, csvInfo] = await Promise.all([
-          // try encoded first, then raw space
-          fetchFromPublic(["NWMIWS_Site_Data.csv"]),
-          fetchFromPublic(["info.csv"]),
-        ]);
-        if (cancelled) return;
+// ====== options ======
+function makeOptions(parameterLabel, chartObj) {
+  const range = computeYRangeForChart(chartObj);
+  let yMin, yMax;
 
-        let d = [];
-        Papa.parse(csvData, {
-          header: true,
-          skipEmptyLines: true,
-          complete: ({ data }) => (d = data),
-        });
+  if (range) {
+    const rawSpan = range.max - range.min;
+    let pad = rawSpan * 0.16;
+    if (!Number.isFinite(pad) || pad === 0) {
+      pad = Math.max(Math.abs(range.max) * 0.02, 0.1);
+    }
+    yMin = range.min - pad;
+    yMax = range.max + pad;
 
-        let i = [];
-        Papa.parse(csvInfo, {
-          header: true,
-          skipEmptyLines: true,
-          complete: ({ data }) => (i = data),
-        });
+    if (range.min >= 0 && yMin < 0 && rawSpan < 0.5) yMin = 0;
+  }
 
-        if (cancelled) return;
-        setRawData(d);
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    resizeDelay: 200,
+    animation: false,
+    responsiveAnimationDuration: 0,
+    animations: { colors: false, x: { duration: 0 }, y: { duration: 0 } },
+    interaction: { mode: "nearest", intersect: true },
+    layout: { padding: { top: 12 } },
+    scales: {
+      y: {
+        beginAtZero: false,
+        min: Number.isFinite(yMin) ? yMin : undefined,
+        max: Number.isFinite(yMax) ? yMax : undefined,
+        title: { display: true, text: parameterLabel || "" },
+      },
+    },
+    plugins: {
+      legend: { display: false },          // ← hide legend
+      countPlugin: { gapAboveWhisker: 16, offset: 10 },
+    },
+  };
+}
 
-        const infoMap = {};
-        for (const r of i) {
-          const key = r?.Parameter ? String(r.Parameter).trim() : "";
-          if (key) infoMap[key] = r;
-        }
-        setInfoData(infoMap);
-      } catch (err) {
-        console.error("Error loading CSV files from public/:", err);
-        if (!cancelled) {
-          setRawData([]);
-          setInfoData({});
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+// ====== tiny modal component ======
+function LightModal({ title, body, onClose }) {
+  // close on ESC
+  React.useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-    return () => {
-      cancelled = true;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(720px, 92vw)",
+          maxHeight: "80vh",
+          background: "#fff",
+          color: "#1f2937",
+          borderRadius: 12,
+          boxShadow: "0 10px 28px rgba(0,0,0,0.25)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+          <h5 style={{ margin: 0, fontSize: 16 }}>{title}</h5>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              border: 0, background: "transparent", cursor: "pointer",
+              width: 36, height: 36, display: "grid", placeItems: "center"
+            }}
+          >
+            <FontAwesomeIcon icon={faTimes} />
+          </button>
+        </div>
+        <div style={{ padding: 16, overflow: "auto", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+          {body}
+        </div>
+      </div>
+    </div>
+  );
+}
+LightModal.propTypes = {
+  title: PropTypes.string.isRequired,
+  body: PropTypes.oneOfType([PropTypes.string, PropTypes.node]).isRequired,
+  onClose: PropTypes.func.isRequired,
+};
+
+// ====== safe chart panel ======
+function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons }) {
+  const containerRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
+    let raf1, raf2;
+    const el = containerRef.current;
+    setReady(false);
+
+    const ensureReady = () => {
+      const inDoc = el && el.ownerDocument && el.ownerDocument.body.contains(el);
+      const hasBox = el && el.clientWidth > 0 && el.clientHeight > 0;
+      if (inDoc && hasBox) setReady(true);
+      else raf2 = requestAnimationFrame(ensureReady);
     };
-  }, []);
 
-  // Build individual charts (always 2 panels)
+    raf1 = requestAnimationFrame(ensureReady);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      setReady(false);
+    };
+  }, [cfg?.parameter, cfg?.chartType, chartObj?.type, chartObj?.data?.labels?.length]);
+
+  if (!cfg) {
+    return (
+      <div className="plot-panel">
+        <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h4 style={{ margin: 0 }}>{slotLabel} — not set</h4>
+          <div className="plot-icons" style={{ display: "flex", gap: 12, opacity: 0.4 }}>
+            <FontAwesomeIcon icon={faDownload} title="Download raw data" />
+            <FontAwesomeIcon icon={faInfoCircle} title="Contact information" />
+            <FontAwesomeIcon icon={faLightbulb} title="Lake association information" />
+            <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
+          </div>
+        </div>
+        <div className="plot-content" style={{ alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+          <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!chartObj || !chartObj.data?.labels?.length) {
+    return (
+      <div className="plot-panel">
+        <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h4 style={{ margin: 0 }}>{slotLabel}: {cfg.parameter}</h4>
+          {icons}
+        </div>
+        <div className="plot-content" style={{ alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+          <div className="no-plot-message">No data for the current filters.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data?.labels?.length || 0}`;
+
+  return (
+    <div className="plot-panel">
+      <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <h4 style={{ margin: 0 }}>{title}</h4>
+        {icons}
+      </div>
+      <div className="plot-content" ref={containerRef} style={{ minHeight: 360 }}>
+        {ready ? (
+          <ReactChart
+            key={chartKey}
+            datasetIdKey={`${cfg.parameter}-${chartObj.type}`}
+            type={chartObj.type}
+            data={chartObj.data}
+            options={options}
+            updateMode="none"
+          />
+        ) : (
+          <div style={{ height: "100%" }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+ChartPanel.propTypes = {
+  title: PropTypes.string,
+  chartObj: PropTypes.object,
+  cfg: PropTypes.object,
+  slotLabel: PropTypes.string,
+  options: PropTypes.object,
+  icons: PropTypes.node,
+};
+
+// ====== component ======
+function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false }) {
+  const [modal, setModal] = useState(null);
+
   const cfg1 = plotConfigs[0];
   const cfg2 = plotConfigs[1];
 
   const chart1 = useMemo(() => {
     if (!rawData || !cfg1) return null;
-    return cfg1.chartType === "trend"
-      ? buildTrendChart(rawData, cfg1)
-      : buildComparisonChart(rawData, cfg1);
+    return cfg1.chartType === "trend" ? buildTrendChart(rawData, cfg1) : buildComparisonChart(rawData, cfg1);
   }, [rawData, cfg1]);
 
   const chart2 = useMemo(() => {
     if (!rawData || !cfg2) return null;
-    return cfg2.chartType === "trend"
-      ? buildTrendChart(rawData, cfg2)
-      : buildComparisonChart(rawData, cfg2);
+    return cfg2.chartType === "trend" ? buildTrendChart(rawData, cfg2) : buildComparisonChart(rawData, cfg2);
   }, [rawData, cfg2]);
 
-  // Nudge Chart.js to resize when either chart config appears/changes
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
-    return () => cancelAnimationFrame(id);
-  }, [!!chart1, !!chart2, chart1?.data?.labels?.length, chart2?.data?.labels?.length]);
+  const options1 = useMemo(() => makeOptions(cfg1?.parameter, chart1), [cfg1?.parameter, chart1]);
+  const options2 = useMemo(() => makeOptions(cfg2?.parameter, chart2), [cfg2?.parameter, chart2]);
 
   const handleDownload = (cfg) => {
     if (!rawData || !cfg) return;
@@ -311,7 +468,7 @@ function Plots({ plotConfigs = [] }) {
     return (row && row[field]) || fallback;
   };
 
-  if (loading) {
+  if (loading || !rawData || rawData.length === 0) {
     return (
       <section className="plots">
         <div className="plots-container">
@@ -321,98 +478,73 @@ function Plots({ plotConfigs = [] }) {
     );
   }
 
-  const renderPanel = (title, chartObj, cfg, slotLabel) => {
-    if (!cfg) {
-      return (
-        <div className="plot-panel">
-          <div
-            className="plot-header"
-            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
-          >
-            <h4 style={{ margin: 0 }}>{slotLabel} — not set</h4>
-            <div className="plot-icons" style={{ display: "flex", gap: 12, opacity: 0.4 }}>
-              <FontAwesomeIcon icon={faDownload} title="Download raw data" />
-              <FontAwesomeIcon icon={faInfoCircle} title="Contact information" />
-              <FontAwesomeIcon icon={faLightbulb} title="Lake association information" />
-              <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
-            </div>
-          </div>
-          <div className="plot-content" style={{ alignItems: "center", justifyContent: "center" }}>
-            <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
-          </div>
-        </div>
-      );
-    }
-
-    const icons = (
-      <div className="plot-icons" style={{ display: "flex", gap: 12, cursor: "pointer" }}>
-        <FontAwesomeIcon icon={faDownload} title="Download raw data" onClick={() => handleDownload(cfg)} />
-        <FontAwesomeIcon
-          icon={faInfoCircle}
-          title="Contact information"
-          onClick={() => alert(infoFor(cfg.parameter, "ContactInfo", "No contact information available."))}
-        />
-        <FontAwesomeIcon
-          icon={faLightbulb}
-          title="Lake association information"
-          onClick={() => alert(infoFor(cfg.parameter, "AssociationInfo", "No association information available."))}
-        />
-        <FontAwesomeIcon
-          icon={faQuestionCircle}
-          title="Parameter information"
-          onClick={() => alert(infoFor(cfg.parameter, "ParameterInfo", "No parameter information available."))}
-        />
-      </div>
-    );
-
-    if (!chartObj || !chartObj.data?.labels?.length) {
-      return (
-        <div className="plot-panel">
-          <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <h4 style={{ margin: 0 }}>{slotLabel}: {cfg.parameter}</h4>
-            {icons}
-          </div>
-          <div className="plot-content" style={{ alignItems: "center", justifyContent: "center" }}>
-            <div className="no-plot-message">No data for the current filters.</div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="plot-panel">
-        <div className="plot-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <h4 style={{ margin: 0 }}>{title}</h4>
-          {icons}
-        </div>
-        <div className="plot-content">
-          <ReactChart
-            type={chartObj.type}
-            data={chartObj.data}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  title: { display: true, text: cfg.parameter },
-                },
-              },
-              plugins: {},
-            }}
-          />
-        </div>
-      </div>
-    );
-  };
+  const iconsFor = (cfg) => (
+    <div className="plot-icons" style={{ display: "flex", gap: 12, cursor: "pointer" }}>
+      <FontAwesomeIcon
+        icon={faDownload}
+        title="Download raw data"
+        onClick={() => handleDownload(cfg)}
+      />
+      <FontAwesomeIcon
+        icon={faInfoCircle}
+        title="Contact information"
+        onClick={() =>
+          setModal({
+            title: "Contact Information",
+            body: infoFor(cfg?.parameter, "ContactInfo", "No contact information available."),
+          })
+        }
+      />
+      <FontAwesomeIcon
+        icon={faLightbulb}
+        title="Lake association information"
+        onClick={() =>
+          setModal({
+            title: "Lake Association Information",
+            body: infoFor(cfg?.parameter, "AssociationInfo", "No association information available."),
+          })
+        }
+      />
+      <FontAwesomeIcon
+        icon={faQuestionCircle}
+        title="Parameter information"
+        onClick={() =>
+          setModal({
+            title: "Parameter Information",
+            body: infoFor(cfg?.parameter, "ParameterInfo", "No parameter information available."),
+          })
+        }
+      />
+    </div>
+  );
 
   return (
-    <section className="plots">
-      <div className="plots-container">
-        {renderPanel(chart1?.title, chart1, cfg1, "Plot 1")}
-        {renderPanel(chart2?.title, chart2, cfg2, "Plot 2")}
-      </div>
-    </section>
+    <div className="plots-container">
+      <ChartPanel
+        title={chart1?.title}
+        chartObj={chart1}
+        cfg={cfg1}
+        slotLabel="Plot 1"
+        options={options1}
+        icons={iconsFor(cfg1)}
+      />
+      <ChartPanel
+        title={chart2?.title}
+        chartObj={chart2}
+        cfg={cfg2}
+        slotLabel="Plot 2"
+        options={options2}
+        icons={iconsFor(cfg2)}
+      />
+
+      {modal && (
+        <LightModal
+          title={modal.title}
+          body={modal.body}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -426,6 +558,9 @@ Plots.propTypes = {
       endYear: PropTypes.number.isRequired,
     })
   ).isRequired,
+  rawData: PropTypes.arrayOf(PropTypes.object),
+  infoData: PropTypes.object,
+  loading: PropTypes.bool,
 };
 
 export default Plots;

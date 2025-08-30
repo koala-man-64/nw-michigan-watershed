@@ -13,7 +13,13 @@ import PropTypes from "prop-types";
  * Receives the canonical `filters` from App and notifies App via
  * `onFiltersChange` when the user changes anything (including map clicks).
  */
-function FilterMapPanel({ filters, onFiltersChange, onUpdatePlot1, onUpdatePlot2 }) {
+function FilterMapPanel({
+  filters,
+  onFiltersChange,
+  onUpdatePlot1,
+  onUpdatePlot2,
+  onDataLoaded,           // NEW: bubbled up from FiltersPanel
+}) {
   const containerRef = useRef(null);
 
   // Toggle site in/out of filters.selectedSites when a marker is clicked
@@ -27,13 +33,13 @@ function FilterMapPanel({ filters, onFiltersChange, onUpdatePlot1, onUpdatePlot2
 
   return (
     <div ref={containerRef} className="filter-map-panel">
-      {/* FiltersPanel is “semi-controlled”: it mirrors the parent’s selectedSites
-         and calls onFiltersChange(...) with the full (or partial) filters object */}
+      {/* FiltersPanel now fetches from Azure and shares data up via onDataLoaded */}
       <FiltersPanel
         selectedSites={filters.selectedSites}
         onFiltersChange={onFiltersChange}
         onUpdatePlot1={onUpdatePlot1}
         onUpdatePlot2={onUpdatePlot2}
+        onDataLoaded={onDataLoaded}      // NEW
       />
 
       <section className="map">
@@ -56,8 +62,8 @@ FilterMapPanel.propTypes = {
   onFiltersChange: PropTypes.func.isRequired,
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
+  onDataLoaded: PropTypes.func,   // optional
 };
-
 
 function App() {
   // Single source of truth for filters used by both sides of the layout
@@ -66,52 +72,47 @@ function App() {
     selectedParameters: [],      // reserved for future use
     startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
     endDate: new Date(),
-
-    // These are driven by FiltersPanel’s CSV (it will set them via onFiltersChange)
     startYear: null,
     endYear: null,
     parameter: "",
-    chartType: "trend",          // 'trend' -> line, 'comparison' -> bar
+    chartType: "trend",
   });
 
-  // Maintain an array of up to two plot configurations.  Each
-  // configuration captures the filter settings when an update plot
-  // button is pressed.  The first element corresponds to Plot 1 and
-  // the second to Plot 2.  If the second plot is requested before
-  // any plots exist it will populate the first slot.
+  // Plot configurations captured by "Update Plot 1/2"
   const [plotConfigs, setPlotConfigs] = useState([]);
+
+  // Data shared app-wide (provided by FiltersPanel)
+  const [rawData, setRawData] = useState(null);
+  const [infoData, setInfoData] = useState({});
+  const [loading, setLoading] = useState(true);
 
   // Accept either partial updates or a full filters object
   const onFiltersChange = (partialOrFull) => {
     setFilters((prev) => ({ ...prev, ...partialOrFull }));
   };
 
-  // Handler for when the user clicks the "Update Plot 1" button in
-  // FiltersPanel.  Capture the current filter settings.  If no plots
-  // exist this creates the first plot; otherwise it replaces the
-  // first plot.
+  // Receive CSV payload from FiltersPanel
+  const handleDataLoaded = ({ rawData, infoData }) => {
+    setRawData(Array.isArray(rawData) ? rawData : []);
+    setInfoData(infoData && typeof infoData === "object" ? infoData : {});
+    setLoading(false);
+  };
+
+  // Handler for "Update Plot 1"
   const handleUpdatePlot1 = (plotFilters) => {
     setPlotConfigs((prev) => {
-      if (prev.length === 0) {
-        return [plotFilters];
-      }
+      if (prev.length === 0) return [plotFilters];
       const next = [...prev];
       next[0] = plotFilters;
       return next;
     });
   };
 
-  // Handler for "Update Plot 2".  If no plots exist this will
-  // populate the first slot.  If one exists this will append the
-  // second.  If two plots already exist it will replace the second.
+  // Handler for "Update Plot 2"
   const handleUpdatePlot2 = (plotFilters) => {
     setPlotConfigs((prev) => {
-      if (prev.length === 0) {
-        return [plotFilters];
-      }
-      if (prev.length === 1) {
-        return [...prev, plotFilters];
-      }
+      if (prev.length === 0) return [plotFilters];
+      if (prev.length === 1) return [...prev, plotFilters];
       const next = [...prev];
       next[1] = plotFilters;
       return next;
@@ -141,13 +142,17 @@ function App() {
               onFiltersChange={onFiltersChange}
               onUpdatePlot1={handleUpdatePlot1}
               onUpdatePlot2={handleUpdatePlot2}
+              onDataLoaded={handleDataLoaded}   // NEW
             />
           </div>
 
           <div className="right">
-            {/* Render the plots based on the saved plot configurations.
-               Each entry corresponds to a single chart. */}
-            <Plots plotConfigs={plotConfigs} />
+            <Plots
+              plotConfigs={plotConfigs}
+              rawData={rawData}
+              infoData={infoData}
+              loading={loading}
+            />
           </div>
         </div>
       </div>
