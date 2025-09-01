@@ -3,22 +3,6 @@ import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
 
-const buttonCellStyle = {
-  display: "flex",
-  alignItems: "stretch", // make the grid/flex item stretch to row height
-  paddingTop: 0,
-  paddingBottom: 0,
-};
-
-const tallButtonStyle = {
-  alignSelf: "stretch",  // fill the item’s height
-  height: "100%",        // ensure the button matches the row height
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-
 /**
  * Azure Blob Storage constants
  */
@@ -285,29 +269,26 @@ function FiltersPanel({
         </div>
       </div>
 
-      {/* Optional “apply” buttons */}
-      <div className="filter-group filter-buttons" style={buttonCellStyle}>
+      {/* Update Plot 1 */}
+      <div className="filter-group filter-buttons">
         <button
           type="button"
           className="reset-btn"
-          style={tallButtonStyle}
           onClick={() => onUpdatePlot1(filters)}
         >
           Update Plot 1
         </button>
       </div>
 
-      <div className="filter-group filter-buttons" style={buttonCellStyle}>
+      <div className="filter-group filter-buttons">
         <button
           type="button"
           className="reset-btn"
-          style={tallButtonStyle}
           onClick={() => onUpdatePlot2(filters)}
         >
           Update Plot 2
         </button>
       </div>
-
     </div>
   );
 }

@@ -10,6 +10,7 @@ export default function SearchableMultiSelect({
   label = "Sites",
   maxPanelHeight = 280,
   className = "",
+  siteTypeMap = {},              // NEW: map of site → "Lake" | "Stream"
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -44,8 +45,23 @@ export default function SearchableMultiSelect({
     onChange?.(next);
   };
 
+  // Quick actions
   const selectAll = () => onChange?.(Array.from(new Set([...selected, ...filtered])));
   const clearAll  = () => onChange?.([]);
+
+  // NEW: select by site type (replaces current selection)
+  const inferType = (name) => {
+    const t = (siteTypeMap?.[name] || "").toString().toLowerCase();
+    if (t === "lake" || t === "stream") return t;
+    const s = String(name).toLowerCase();
+    if (/\bstream\b|\briver\b|\bcreek\b/.test(s)) return "stream";
+    if (/\blake\b/.test(s)) return "lake";
+    return "";
+  };
+  const selectByType = (type) => {
+    const want = options.filter((n) => inferType(n) === type.toLowerCase());
+    onChange?.(want);
+  };
 
   // Keyboard navigation
   const onKeyDown = (e) => {
@@ -68,32 +84,32 @@ export default function SearchableMultiSelect({
   useLayoutEffect(() => {
     if (!open || !toggleRef.current) return;
 
-  const place = () => {
-    const r = toggleRef.current.getBoundingClientRect();
-    const pad = 8;
-    const width = Math.min(r.width, window.innerWidth - pad * 2);
-    const left  = Math.max(pad, Math.min(r.left, window.innerWidth - width - pad));
-    const maxH  = Math.min(maxPanelHeight, window.innerHeight - pad * 2);
+    const place = () => {
+      const r = toggleRef.current.getBoundingClientRect();
+      const pad = 8;
+      const width = Math.min(r.width, window.innerWidth - pad * 2);
+      const left  = Math.max(pad, Math.min(r.left, window.innerWidth - width - pad));
+      const maxH  = Math.min(maxPanelHeight, window.innerHeight - pad * 2);
 
-    // key: anchor to the TOP of the trigger so it covers it
-    setPanelStyle({
-      position: "fixed",
-      top: r.top,
-      left,
-      width,
-      maxHeight: maxH,
-      zIndex: 10000
-    });
-  };
+      // anchor to TOP of trigger so it covers it
+      setPanelStyle({
+        position: "fixed",
+        top: r.top,
+        left,
+        width,
+        maxHeight: maxH,
+        zIndex: 10000
+      });
+    };
 
-  place();
-  window.addEventListener("resize", place);
-  window.addEventListener("scroll", place, true);
-  return () => {
-    window.removeEventListener("resize", place);
-    window.removeEventListener("scroll", place, true);
-  };
-}, [open, maxPanelHeight]);
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, maxPanelHeight]);
 
   const summary =
     selected.length === 0 ? `Select ${label}` :
@@ -102,7 +118,13 @@ export default function SearchableMultiSelect({
 
   // The overlay panel is portaled to <body>, so it doesn't affect layout.
   const panel = open ? createPortal(
-    <div ref={panelRef} className="sms-panel sms-panel-overlay" style={panelStyle} role="dialog" aria-label={`${label} picker`}>
+    <div
+      ref={panelRef}
+      className="sms-panel sms-panel-overlay"
+      style={panelStyle}
+      role="dialog"
+      aria-label={`${label} picker`}
+    >
       <div className="sms-controls">
         <input
           autoFocus
@@ -112,23 +134,16 @@ export default function SearchableMultiSelect({
           value={query}
           onChange={(e) => { setQuery(e.target.value); setHoverIdx(0); }}
         />
-        <div className="sms-actions">
-        <button
-            type="button"
-            className="sms-action"
-            onClick={selectAll}
-            title="Select all"
+
+        {/* One row of actions: All, Clear, Lake, Stream */}
+        <div
+          className="sms-actions"
+          style={{ display: "flex", gap: 8, flexWrap: "nowrap", justifyContent: "flex-start" }}
         >
-            All
-        </button>
-        <button
-            type="button"
-            className="sms-action"
-            onClick={clearAll}
-            title="Clear selection"
-        >
-            Clear
-        </button>
+          <button type="button" className="sms-action" onClick={selectAll} title="Select all">All</button>
+          <button type="button" className="sms-action" onClick={clearAll} title="Clear selection">Clear</button>
+          <button type="button" className="sms-action" onClick={() => selectByType("lake")} title="Select all Lakes">All Lakes</button>
+          <button type="button" className="sms-action" onClick={() => selectByType("stream")} title="Select all Streams">All Streams</button>
         </div>
       </div>
 
@@ -175,6 +190,7 @@ export default function SearchableMultiSelect({
     </div>
   );
 }
+
 SearchableMultiSelect.propTypes = {
   options: PropTypes.arrayOf(PropTypes.string).isRequired,
   selected: PropTypes.arrayOf(PropTypes.string).isRequired,
@@ -183,6 +199,7 @@ SearchableMultiSelect.propTypes = {
   label: PropTypes.string,
   maxPanelHeight: PropTypes.number,
   className: PropTypes.string,
+  siteTypeMap: PropTypes.object,  // NEW
 };
 
 SearchableMultiSelect.defaultProps = {
@@ -190,4 +207,5 @@ SearchableMultiSelect.defaultProps = {
   label: "Select",
   maxPanelHeight: 300,
   className: "",
+  siteTypeMap: {},               // NEW
 };

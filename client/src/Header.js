@@ -16,7 +16,7 @@ export default function Header() {
     <header className="header">
       <div className="header-container">
         {/* Left section: logo and title */}
-        <div className="header-left" style={{ display: 'flex', alignItems: 'stretch' }}>
+        <div className="header-left">
           <img src={logo} alt="Logo" className="header-logo" />
           <div className="title">Benzie County Conservation District</div>
           {/* Uncomment the following lines to add navigation links:

@@ -59,21 +59,33 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
           skipEmptyLines: true,
           complete: (result) => {
             const locations = result.data
-              .map((row) => ({
-                name: row.name || row.Location,
-                lat: parseFloat(row.latitude) || parseFloat(row.Latitude),
-                lng: parseFloat(row.longitude) || parseFloat(row.Longitude),
-                avg_depth: row.avg_depth_ft
-                  ? `${parseInt(row.avg_depth_ft, 10).toLocaleString()} ft`
-                  : "N/A",
-                max_depth: row.max_depth_ft
-                  ? `${parseInt(row.max_depth_ft, 10).toLocaleString()} ft`
-                  : "N/A",
-                size: row.surface_area_acres
-                  ? `${parseInt(row.surface_area_acres, 10).toLocaleString()} acres`
-                  : "N/A",
-                description: row.description || "No description available.",
-              }))
+              .map((row) => {
+                const urlField =
+                  row.url ||
+                  row.URL ||
+                  row.link ||
+                  row.Link ||
+                  row.website ||
+                  row.Website ||
+                  ""; // placeholder handled in UI if empty
+
+                return {
+                  name: row.name || row.Location,
+                  lat: parseFloat(row.latitude) || parseFloat(row.Latitude),
+                  lng: parseFloat(row.longitude) || parseFloat(row.Longitude),
+                  avg_depth: row.avg_depth_ft
+                    ? `${parseInt(row.avg_depth_ft, 10).toLocaleString()} ft`
+                    : "N/A",
+                  max_depth: row.max_depth_ft
+                    ? `${parseInt(row.max_depth_ft, 10).toLocaleString()} ft`
+                    : "N/A",
+                  size: row.surface_area_acres
+                    ? `${parseInt(row.surface_area_acres, 10).toLocaleString()} acres`
+                    : "N/A",
+                  description: row.description || "No description available.",
+                  url: String(urlField).trim(), // NEW
+                };
+              })
               .filter((loc) => !isNaN(loc.lat) && !isNaN(loc.lng));
             setAllLocations(locations);
           },
@@ -136,6 +148,22 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                 </p>
                 <p>
                   <strong>Description:</strong> {loc.description}
+                </p>
+
+                {/* NEW: URL or placeholder */}
+                <p>
+                  <strong>Website:</strong>{" "}
+                  {loc.url ? (
+                    <a
+                      href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {loc.url}
+                    </a>
+                  ) : (
+                    <em>(add site URL)</em>
+                  )}
                 </p>
               </div>
             </Popup>

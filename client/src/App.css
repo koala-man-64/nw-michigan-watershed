@@ -2,16 +2,59 @@
 /* ============ Global Styles ============== */
 /* ========================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Poppins:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Lato:wght@300;400;700&display=swap');
+
+/*
+ * Theme variables
+ *
+ * Define a handful of CSS custom properties up front so the
+ * colour palette, typography and radii can be tweaked in one
+ * place.  These values are inspired by the Benzie Conservation
+ * District website: a deep blue header, soft neutral panels and
+ * a warm red accent for call‑to‑action buttons.  Using
+ * variables makes it easy to adjust the look and feel across
+ * all components without hunting through the stylesheet.
+ */
+:root {
+  /* Primary brand colour for the header and other dark elements */
+  --color-primary: #1f2937;      /* dark blue/graphite */
+  /* Secondary text colour used throughout the interface */
+  --color-secondary: #37474f;    /* charcoal slate */
+  /* Warm accent colour for buttons and highlights */
+  --color-accent: #c94c4c;      /* muted brick red */
+  /* Light background for the app shell */
+  --color-bg: #f8fafc;          /* very light blue/grey */
+  /* Panel backgrounds such as cards, filters and charts */
+  --color-panel-bg: #ffffff;    /* white */
+  /* Neutral border colour for subtle outlines */
+  --color-border: #e5e7eb;      /* light grey */
+  /* Radius used on cards and inputs for a soft look */
+  --radius: 10px;
+  /* Default font sizes */
+  --font-size-base: 14px;
+  --font-size-label: 14px;
+  --font-size-title: 24px;
+}
 
 html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  font-family: "Inter", sans-serif;
-  font-size: 14px;
-  background-color: #e3e6ea;
-  color: #333;
+  font-family: "Lato", system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu,
+               "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  background-color: var(--color-bg);
+  color: var(--color-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4,
+.plot-panel h4 {
+  font-family: "Lora", Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 /* ========================================= */
@@ -23,7 +66,7 @@ body {
   display: grid;
   grid-template-rows: max-content 1fr;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   width: min(100%, var(--panel-max-width));
   min-height: 0;
   height: 100%;                   /* <— key: makes the panel fill the grid cell height */
@@ -32,58 +75,67 @@ body {
 /* ====================Header===================== */
 /* Updated header styling with merged title and menu on one line */
 /* --- Header wrapper --- */
+/* Header bar at the very top of the application.  The dark
+   background uses the primary brand colour and white text for
+   high contrast.  A light drop shadow separates it from the
+   content below. */
 .header {
-  background-color: #37474F;
+  background-color: var(--color-primary);
   color: #fff;
-  /* width: 100%; */
+  align-items: left;
   min-width: 200px;
-  /* keep height only as needed for content */
   line-height: 1.2;
-  /* subtle depth so it doesn't feel flat */
-  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 10;
 }
 
 /* center content and give breathing room */
+/* Contain header contents and align items neatly on a single line. */
 .header-container {
-  /* display: flex;
-  align-items: center; */
-  justify-content: left;
-  /* width: 100%; */
+  display: flex;
+  align-items: left;
+  justify-content: flex-start;
   gap: 16px;
-  padding: 8px 16px;            /* more horizontal padding, minimal vertical */
-  /* max-width: 1200px;            optional container width */
-  margin: 0 auto;               /* center the header contents */
+  padding: 12px 20px;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 /* left side: logo + title */
+/* Left section holds the logo and title.  We stretch the
+   elements to share the same height. */
 .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;                    /* consistent space between logo and text */
-  min-width: 0;                 /* allow text to ellipsize instead of pushing */
+  gap: 12px;
+  min-width: 0;
 }
 
 /* make the logo scale nicely without distortion */
+/* The organisation’s logo scales to fit within the header. */
 .header-logo {
-  display: block;               /* removes inline-img baseline gap */
-  height: 40px;                 /* tune this to taste */
-  width: auto;                  /* keep aspect ratio */
-  max-width: 180px;             /* prevent huge images from exploding the layout */
+  display: block;
+  height: 44px;
+  width: auto;
+  max-width: 200px;
   object-fit: contain;
 }
 
 /* title text with responsive sizing and truncation */
+/* Main title uses the Poppins font with a strong weight.  We
+   clamp the size for responsiveness and allow ellipsis on long
+   titles. */
 .title {
-  font-weight: 700;
-  letter-spacing: 0.3px;
-  /* responsive font: 18px on small screens up to 28px on large */
-  font-size: clamp(18px, 2.2vw, 28px);
-  white-space: nowrap;          /* keep on one line */
+  font-family: "Lato", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  font-size: clamp(20px, 2.4vw, 30px);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: left;
+  color: #fff;
 }
-
 /* optional slim divider between title and nav */
 .vertical-separator {
   width: 1px;
@@ -143,15 +195,17 @@ body {
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 16px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  background: #F8FAFC;
-  padding: 5px;
+  background: var(--color-panel-bg);
+  /* subtle border separates the toolbar from the map */
+  border: 1px solid var(--color-border);
+  padding: 12px;
   box-sizing: border-box;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   flex: 0 0 auto;
 }
 
@@ -169,18 +223,29 @@ body {
 
 .filter-dropdown label {
   flex: 1;
-  font-size: 14px;
+  font-size: var(--font-size-label);
   font-weight: 600;
+  color: var(--color-secondary);
+  margin-bottom: 4px;
 }
 
 .year-select {
   width: 100%;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  background: white;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fff;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-base);
+  color: var(--color-secondary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Focus ring for select controls improves keyboard accessibility */
+.year-select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(201, 76, 76, 0.2);
 }
 
 
@@ -188,6 +253,7 @@ body {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;  
+  
 }
 
 .site-group {
@@ -269,24 +335,26 @@ body {
 
 .filter-buttons {
   display: flex;
-  justify-content: center;
+  justify-content: end;
   margin-top: 15px;
 }
 
 .reset-btn {
-  padding: 10px 16px;
+  padding: 10px 18px;
   border: none;
-  border-radius: 5px;
-  font-size: 14px;
+  border-radius: var(--radius);
+  font-size: var(--font-size-base);
+  font-weight: 600;
   cursor: pointer;
-  background-color: #d9534f;
-  color: white;
+  background-color: var(--color-accent);
+  color: #ffffff;
   width: 100%;
   text-align: center;
+  transition: background-color 0.15s ease;
 }
 
 .reset-btn:hover {
-  background-color: #c9302c;
+  background-color: #b04040;
 }
 
 .menu-link,
@@ -307,16 +375,17 @@ body {
 
 .map,
 .plots {
-  background: #F8FAFC;
-  padding: 8px;            /* unified padding (was conflicting) */
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  padding: 12px;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 
   display: flex;
   flex-direction: column;
 
-  flex: 1 1 auto;           /* key: take leftover height */
-  min-height: 0;            /* allow inner content to shrink */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -337,16 +406,31 @@ body {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  background: white;
-  padding: 8px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  padding: 12px;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 /* Ensure the header (h4) doesn't shrink and takes minimal space */
 .plot-panel h4 {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   flex-shrink: 0;
+  font-family: "Poppins", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-secondary);
+}
+
+/* Colour the interactive icons used in the plot headers. */
+.plot-icons svg {
+  color: var(--color-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.plot-icons svg:hover {
+  color: var(--color-accent);
 }
 
 .plot-content {
@@ -427,11 +511,18 @@ body {
 
 /* Searchable Multi-Select */
 .sms-root { display: flex; flex-direction: column; width: 100%; max-width: 360px; }
-.sms-label { font-size: 14px; font-weight: 600; color: #334155; }
+.sms-label {
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  color: var(--color-secondary);
+}
 
 .sms-toggle {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid #cbd5e1;
+  background: #fff;
   cursor: pointer; text-align: left;
 }
 .sms-toggle.open { border-color: #94a3b8; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
@@ -443,7 +534,7 @@ body {
   margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff;
   box-shadow: 0 8px 20px rgba(2,6,23,0.12); overflow: hidden; display: flex; flex-direction: column;
 }
-.sms-controls { padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; align-items: center; }
+.sms-controls { padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; flex-direction: column; width:95%}
 .sms-search {
   flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none;
 }
@@ -455,7 +546,7 @@ body {
 .sms-empty { padding: 12px; color: #64748b; text-align: center; }
 
 .sms-option {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; gap: 16px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
 }
 .sms-option.hover { background: #f8fafc; }
 .sms-option.active { background: #eef2ff; }
@@ -487,10 +578,13 @@ body {
 .main {
   display: grid;
   grid-template-columns: max-content 1fr;
-  align-items: stretch;            /* stretch items to the row height */
-  gap: 8px;
-  padding: 12px;
-  min-height: 0;                   /* important to allow children to size */
+  align-items: stretch;
+  gap: 16px;
+
+  /* new: outside spacing and full-height fit */
+  margin: 16px;                 /* 16px “frame” around the content */
+  height: calc(100% - 32px);    /* fill available height minus top+bottom margins */
+  min-height: 0;                /* allow children to size correctly */
 }
 
 /* Let the second row actually be allowed to shrink/grow */
@@ -555,14 +649,6 @@ body {
   border-top-right-radius: var(--sms-radius) !important;
 }
 
-.sms-controls {
-  display: flex;
-  align-items: center;
-  /* gap: 8px; */
-  padding: 8px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
 .sms-search {
   flex: 1 1 auto;     /* grow and shrink */
   min-width: 0;       /* critical: allow shrinking inside flex */
@@ -595,15 +681,7 @@ body {
 
 /* holds one or two plot panels */
 .plots-container {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-gutter: stable both-edges;
-  gap: 8px;
-  overflow: auto;     /* scroll stays inside the right column */
+  gap: 16px;
 }
 
 /* each plot panel shares the space evenly */
@@ -629,3 +707,5 @@ body {
   width: 100% !important;
   height: 100% !important;
 }
+
+

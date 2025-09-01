@@ -5,3 +5,4 @@
 azure-functions
 pymssql
 PyJWT==2.6.0
+debugpy
