@@ -1,30 +1,23 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import logo from './bcd-logo-2012-darkblue_orig.png';
 
-/**
- * Header
- * ------
- * Renders the top navigation bar of the dashboard.  The header is
- * intentionally simple at the moment: it displays a logo, a title,
- * and leaves room for a navigation menu.  Additional navigation
- * items can be added to the <nav> element.  The surrounding CSS
- * ensures that the header is responsive and scales down gracefully on
- * small screens.
- */
 export default function Header() {
   return (
     <header className="header">
       <div className="header-container">
         {/* Left section: logo and title */}
         <div className="header-left">
-          <img src={logo} alt="Logo" className="header-logo" />
-          <div className="title">Benzie County Conservation District</div>
-          {/* Uncomment the following lines to add navigation links:
+          <Link to="/" aria-label="Home" style={{display:"flex", alignItems:"center", textDecoration:"none", color:"inherit"}}>
+            <img src={logo} alt="Logo" className="header-logo" />
+            <div className="title">Benzie County Conservation District</div>
+          </Link>
           <div className="vertical-separator"></div>
           <nav className="menu">
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav> */}
+            <Link to="/home">Home</Link>
+            {/* Provide a link to the interactive dashboard as well */}
+            <Link to="/app">Dashboard</Link>
+          </nav>
         </div>
       </div>
     </header>

@@ -178,6 +178,34 @@ h1, h2, h3, h4,
   text-decoration: underline;
 }
 
+/* ------------------------------------------ */
+/* Plot subtitles and notices for ChartPanel  */
+/* ------------------------------------------ */
+
+/* Secondary line beneath the chart title to describe the series (e.g. parameter by year). */
+.plot-subtitle {
+  font-size: 13px;
+  color: var(--color-secondary);
+  margin-top: 2px;
+}
+
+/* Inline notice shown above the chart when displaying a Trend plot.  It
+   indicates which site is currently shown and provides previous/next
+   arrows when multiple sites are selected. */
+.plot-notice {
+  font-size: 13px;
+  color: var(--color-secondary);
+  background-color: #fef7f0;
+  border: 1px solid #fde9da;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
 
 
 /* ========================================= */
@@ -460,46 +488,6 @@ h1, h2, h3, h4,
 .map .leaflet-container {
   height: 100%;
   width: 100%;
-}
-
-/* ========================================= */
-/* ============ Login Page ================= */
-/* ========================================= */
-
-.login-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 80vh;
-}
-
-.login-container input {
-  width: 280px;
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 16px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.login-container button {
-  width: 280px;
-  padding: 12px;
-  background-color: #37474F;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.login-container button:hover {
-  background-color: #263238;
 }
 
 .error {

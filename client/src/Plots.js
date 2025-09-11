@@ -1,13 +1,4 @@
 // Plots.js
-//
-// This component renders one or two charts using Chart.js and
-// @sgratzl/chartjs-chart-boxplot.  It is designed to fit into the
-// Benzie County Conservation District theme with a dark accent
-// palette, rounded cards and an accessible modal for ancillary
-// information.  The charts dynamically adjust their y‑axis to the
-// underlying data and display counts above each bar/box.  Tooltips
-// for boxplots list each statistic on its own line.
-
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
 import Papa from "papaparse";
 import { Chart as ReactChart } from "react-chartjs-2";
@@ -25,6 +16,8 @@ import {
   faLightbulb,
   faQuestionCircle,
   faTimes,
+  faArrowLeft,
+  faArrowRight,
 } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
 
@@ -37,20 +30,15 @@ Chart.register(
   Violin
 );
 
-// Global Chart.js defaults to match the dashboard’s typography
-Chart.defaults.font.family = 'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+// Global Chart.js defaults
+Chart.defaults.font.family =
+  'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 Chart.defaults.font.size = 12;
 Chart.defaults.color = "#37474f";
 
-// -----------------------------------------------------------------------------
-// Helpers
-//
+// ---------- helpers ----------
+const round3 = (v) => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : v);
 
-// Round a number to three decimal places; preserve NaN and non‑finite values
-const round3 = (v) =>
-  Number.isFinite(v) ? Math.round(v * 1000) / 1000 : v;
-
-// Simple quantile helper for boxplot statistics
 function quantile(arr, q) {
   if (!arr || arr.length === 0) return NaN;
   const pos = (arr.length - 1) * q;
@@ -62,14 +50,9 @@ function quantile(arr, q) {
   return arr[base];
 }
 
-// Compute boxplot stats (min, q1, median, q3, max) from a set of values,
-// rounding to three decimals.  Returns null for empty arrays.
 function computeBoxStats(values) {
   if (!values || values.length === 0) return null;
-  // Round inputs up front; filter out any non‑numeric values
-  const rvals = values
-    .map((v) => round3(Number(v)))
-    .filter((v) => Number.isFinite(v));
+  const rvals = values.map((v) => round3(Number(v))).filter((v) => Number.isFinite(v));
   if (rvals.length === 0) return null;
   const sorted = rvals.slice().sort((a, b) => a - b);
   return {
@@ -81,26 +64,17 @@ function computeBoxStats(values) {
   };
 }
 
-// Compute a sensible y‑axis range for a given chart.  For boxplots this
-// considers the whisker extremes; for bar charts it considers the bar
-// values.  Returns an object with {min, max} or null if nothing valid.
 function computeYRangeForChart(chartObj) {
   try {
     const ds = chartObj?.data?.datasets?.[0];
     if (!ds) return null;
     if (chartObj.type === "boxplot") {
-      const mins = ds.data
-        .map((d) => Number(d?.min))
-        .filter((n) => Number.isFinite(n));
-      const maxs = ds.data
-        .map((d) => Number(d?.max))
-        .filter((n) => Number.isFinite(n));
+      const mins = ds.data.map((d) => Number(d?.min)).filter((n) => Number.isFinite(n));
+      const maxs = ds.data.map((d) => Number(d?.max)).filter((n) => Number.isFinite(n));
       if (!mins.length || !maxs.length) return null;
       return { min: Math.min(...mins), max: Math.max(...maxs) };
     } else {
-      const vals = ds.data
-        .map((v) => Number(v))
-        .filter((n) => Number.isFinite(n));
+      const vals = ds.data.map((v) => Number(v)).filter((n) => Number.isFinite(n));
       if (!vals.length) return null;
       return { min: 0, max: Math.max(...vals) };
     }
@@ -109,20 +83,44 @@ function computeYRangeForChart(chartObj) {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Chart builders
-//
+function wrapLabel(label, maxChars = 12) {
+  if (!label) return label;
+  const words = String(label).split(/\s+/);
+  const lines = [];
+  let line = "";
+  words.forEach((w) => {
+    if ((line + " " + w).trim().length <= maxChars) {
+      line = (line ? line + " " : "") + w;
+    } else {
+      if (line) lines.push(line);
+      line = w;
+    }
+  });
+  if (line) lines.push(line);
+  return lines.length ? lines : [String(label)];
+}
 
-// Build a boxplot chart showing the distribution of a parameter by year.
+// ---------- chart builders ----------
 function buildTrendChart(rawData, cfg, palette) {
-  const { parameter, selectedSites = [], startYear, endYear } = cfg;
+  const { parameter, selectedSites = [], startYear, endYear, trendIndex } = cfg;
+
+  // Decide which site to show
+  let site = null;
+  if (selectedSites && selectedSites.length > 0) {
+    const count = selectedSites.length;
+    let idx = Number.isFinite(trendIndex) ? trendIndex : count - 1;
+    idx = ((idx % count) + count) % count; // wrap safely
+    site = selectedSites[idx] || selectedSites[count - 1];
+  }
+
   const filtered = rawData.filter((row) => {
     const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
     const rowSite = row?.Site ? String(row.Site).trim() : "";
     const yearNum = parseInt(row?.Year, 10);
+    const siteMatch = site ? rowSite === site : false;
     return (
       rowParam === parameter &&
-      selectedSites.includes(rowSite) &&
+      siteMatch &&
       Number.isFinite(yearNum) &&
       (startYear == null || yearNum >= startYear) &&
       (endYear == null || yearNum <= endYear)
@@ -134,9 +132,13 @@ function buildTrendChart(rawData, cfg, palette) {
   filtered.forEach((row) => {
     const y = row.Year;
     const avgVal = round3(parseFloat(row.Avg));
+    const minVal = round3(parseFloat(row.Max));
+    const maxVal = round3(parseFloat(row.Min));
     const cnt = parseInt(row.Count, 10);
     if (!Number.isFinite(avgVal)) return;
     (groups[y] ||= []).push(avgVal);
+    (groups[y] ||= []).push(maxVal);
+    (groups[y] ||= []).push(minVal);
     countByYear[y] = (countByYear[y] || 0) + (Number.isFinite(cnt) ? cnt : 0);
   });
 
@@ -151,8 +153,12 @@ function buildTrendChart(rawData, cfg, palette) {
     }
   });
 
+  const siteTitle = site ? `Trend — ${site}` : `Trend`;
+  const subtitle = parameter ? `${parameter} by year` : "";
+
   return {
-    title: `${parameter} Distribution by Year`,
+    title: siteTitle,
+    subtitle,
     type: "boxplot",
     data: {
       labels: years,
@@ -169,9 +175,11 @@ function buildTrendChart(rawData, cfg, palette) {
   };
 }
 
-// Build a bar chart comparing average parameter values by site.
 function buildComparisonChart(rawData, cfg, palette) {
   const { parameter, selectedSites = [], startYear, endYear } = cfg;
+
+  const subtitle = `Selected lakes (n): ${new Set(selectedSites).size}`;
+
   const filtered = rawData.filter((row) => {
     const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
     const rowSite = row?.Site ? String(row.Site).trim() : "";
@@ -193,8 +201,7 @@ function buildComparisonChart(rawData, cfg, palette) {
     const cnt = parseInt(row.Count, 10);
     if (!site || !Number.isFinite(avgVal)) return;
     (groups[site] ||= []).push(avgVal);
-    countsBySite[site] =
-      (countsBySite[site] || 0) + (Number.isFinite(cnt) ? cnt : 0);
+    countsBySite[site] = (countsBySite[site] || 0) + (Number.isFinite(cnt) ? cnt : 0);
   });
 
   const sites = Object.keys(groups);
@@ -208,8 +215,9 @@ function buildComparisonChart(rawData, cfg, palette) {
   return {
     title: `${parameter} Comparison by Site`,
     type: "bar",
+    subtitle,
     data: {
-      labels: sites,
+      labels: sites.map((s) => wrapLabel(s, 12)),
       datasets: [
         {
           label: parameter,
@@ -222,22 +230,16 @@ function buildComparisonChart(rawData, cfg, palette) {
   };
 }
 
-// Colour palette for charts.  The first colour is the primary dark
-// tone used for boxplots; subsequent colours are used for bar charts
-// when multiple sites are shown.  Adjust these to match the brand.
 const defaultColors = [
-  "#37474f", // dark slate (primary)
-  "#6faecb", // muted blue
-  "#90a4ae", // cool grey
-  "#b0c4d6", // light steel
-  "#5f7d95", // denim
-  "#a5b8c8", // pale blue-grey
-  "#adb5bd", // light grey
+  "#37474f",
+  "#6faecb",
+  "#90a4ae",
+  "#b0c4d6",
+  "#5f7d95",
+  "#a5b8c8",
+  "#adb5bd",
 ];
 
-// Chart plugin to draw counts above each bar or box.  For boxplots the
-// label is anchored to the top whisker with a configurable gap; for
-// other chart types it uses a simple offset from the bar top.
 const countPlugin = {
   id: "countPlugin",
   afterDatasetsDraw(chart) {
@@ -247,23 +249,17 @@ const countPlugin = {
     const meta = chart.getDatasetMeta(0);
     const ctx = chart.ctx;
 
-    // Read per‑chart plugin options
     const p = chart.options?.plugins?.countPlugin || {};
-    const gapAboveWhisker = Number.isFinite(p.gapAboveWhisker)
-      ? p.gapAboveWhisker
-      : 16;
+    const gapAboveWhisker = Number.isFinite(p.gapAboveWhisker) ? p.gapAboveWhisker : 16;
     const baseOffset = Number.isFinite(p.offset) ? p.offset : 10;
 
     ctx.save();
     meta.data.forEach((el, i) => {
       const c = counts[i];
       if (c == null) return;
-      // Horizontal position is always the centre of the element
       const x = el.tooltipPosition ? el.tooltipPosition().x : el.x;
       let textY;
       if (chart.config?.type === "boxplot") {
-        // Determine the raw max for this boxplot.  Handles either
-        // objects with {max} or arrays of numbers.
         const raw = el.$context?.raw ?? ds.data?.[i];
         let maxVal;
         if (raw && typeof raw === "object") {
@@ -274,9 +270,7 @@ const countPlugin = {
             if (nums.length) maxVal = Math.max(...nums);
           }
         }
-        const yScale = chart.scales[
-          chart.options.indexAxis === "y" ? "x" : "y"
-        ];
+        const yScale = chart.scales[chart.options.indexAxis === "y" ? "x" : "y"];
         const yHigh = Number.isFinite(maxVal)
           ? yScale.getPixelForValue(maxVal)
           : (el.tooltipPosition ? el.tooltipPosition().y : el.y);
@@ -295,14 +289,9 @@ const countPlugin = {
 };
 Chart.register(countPlugin);
 
-// Build chart options with dynamic y axis, tooltip formatting and
-// general styling.  Accepts the parameter label and the chart
-// definition so axis ranges can be computed.
 function makeOptions(parameterLabel, chartObj) {
-  // Compute axis range
   const range = computeYRangeForChart(chartObj);
-  let yMin;
-  let yMax;
+  let yMin, yMax;
   if (range) {
     const span = range.max - range.min;
     let pad = Number(span) * 0.16;
@@ -311,16 +300,19 @@ function makeOptions(parameterLabel, chartObj) {
     }
     if (chartObj.type === "boxplot") {
       yMin = Math.floor(range.min - pad);
-      yMax = Math.ceil(range.max + pad*2);
-    }
-    else{
+      yMax = Math.ceil(range.max + pad * 2);
+    } else {
       yMin = Math.floor(range.min);
-      yMax = Math.ceil(range.max + pad*2);
+      yMax = Math.ceil(range.max + pad * 2);
     }
-
-    // Avoid negative minima when all values are positive and close to zero
     if (range.min >= 0 && yMin < 0 && span < 0.5) yMin = 0;
   }
+
+  const maxLabelLines = (chartObj?.data?.labels || []).reduce(
+    (m, l) => Math.max(m, Array.isArray(l) ? l.length : 1),
+    1
+  );
+  const bottomPad = 14 + (maxLabelLines - 1) * 12 + 10;
 
   return {
     responsive: true,
@@ -330,23 +322,26 @@ function makeOptions(parameterLabel, chartObj) {
     responsiveAnimationDuration: 0,
     animations: { colors: false, x: { duration: 0 }, y: { duration: 0 } },
     interaction: { mode: "nearest", intersect: true },
-    layout: { padding: { top: 12, bottom: 12 } },
+    layout: { padding: { top: 12, bottom: bottomPad } },
     scales: {
       y: {
         beginAtZero: false,
         min: Number.isFinite(yMin) ? yMin : undefined,
         max: Number.isFinite(yMax) ? yMax : undefined,
         title: { display: true, text: parameterLabel || "" },
-        ticks: {
-          color: "#37474f",
-        },
-        grid: {
-          color: "#e5e7eb",
-          tickColor: "#e5e7eb",
-        },
+        ticks: { color: "#37474f" },
+        grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
       },
       x: {
-        ticks: { color: "#37474f" },
+        offset: true,
+        ticks: {
+          color: "#37474f",
+          maxRotation: 0,
+          minRotation: 0,
+          autoSkip: true,
+          autoSkipPadding: 8,
+          padding: 10,
+        },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
       },
     },
@@ -361,9 +356,6 @@ function makeOptions(parameterLabel, chartObj) {
       tooltip: {
         callbacks: {
           label: (ctx) => {
-            // When the chart is a boxplot, return an array of lines; Chart.js
-            // will display each line on its own row.  Otherwise, return a
-            // single string.
             if (ctx.chart.config.type === "boxplot") {
               const r = ctx.raw || {};
               const fmt = (v) =>
@@ -379,13 +371,11 @@ function makeOptions(parameterLabel, chartObj) {
               lines.push(`Min: ${fmt(r.min)}`);
               lines.push(`Q1 (25%): ${fmt(r.q1)}`);
               lines.push(`Median: ${fmt(r.median)}`);
-              if (Number.isFinite(r.mean))
-                lines.push(`Mean: ${fmt(r.mean)}`);
+              if (Number.isFinite(r.mean)) lines.push(`Mean: ${fmt(r.mean)}`);
               lines.push(`Q3 (75%): ${fmt(r.q3)}`);
               lines.push(`Max: ${fmt(r.max)}`);
               return lines;
             }
-            // For bar charts
             const v = ctx.parsed?.y ?? ctx.parsed;
             return `${ctx.dataset?.label ?? ""}: ${v}`;
           },
@@ -395,16 +385,8 @@ function makeOptions(parameterLabel, chartObj) {
   };
 }
 
-// -----------------------------------------------------------------------------
-// Modal component
-//
-
-// A lightweight modal that overlays the rest of the UI.  It closes on
-// backdrop click or when the user presses Esc.  The body text is
-// displayed verbatim and preserves whitespace.  See App.css for
-// additional styling of icons etc.
+// ---------- modal ----------
 function LightModal({ title, body, onClose }) {
-  // Close on Escape key
   React.useEffect(() => {
     const handler = (e) => {
       if (e.key === "Escape") onClose();
@@ -453,9 +435,7 @@ function LightModal({ title, body, onClose }) {
             borderBottom: "1px solid rgba(0,0,0,0.08)",
           }}
         >
-          <h5
-            style={{ margin: 0, fontSize: 16, fontWeight: 600, fontFamily: "Poppins, sans-serif" }}
-          >
+          <h5 style={{ margin: 0, fontSize: 16, fontWeight: 600, fontFamily: "Poppins, sans-serif" }}>
             {title}
           </h5>
           <button
@@ -474,40 +454,24 @@ function LightModal({ title, body, onClose }) {
             <FontAwesomeIcon icon={faTimes} />
           </button>
         </div>
-        <div
-          style={{
-            padding: 16,
-            overflow: "auto",
-            lineHeight: 1.5,
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <div style={{ padding: 16, overflow: "auto", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
           {body}
         </div>
       </div>
     </div>
   );
 }
-
 LightModal.propTypes = {
   title: PropTypes.string.isRequired,
   body: PropTypes.oneOfType([PropTypes.string, PropTypes.node]).isRequired,
   onClose: PropTypes.func.isRequired,
 };
 
-// -----------------------------------------------------------------------------
-// Chart panel
-//
-
-// ChartPanel defers rendering of the Chart.js component until its
-// container has a non‑zero size.  This avoids rendering glitches
-// caused by flexbox layout thrashing.  It also displays a heading and
-// passes through an icons node provided by the parent.
-function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons }) {
+// ---------- chart panel ----------
+function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons, notice }) {
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
 
-  // Wait until the chart container is attached and has size
   useLayoutEffect(() => {
     let raf1, raf2;
     const el = containerRef.current;
@@ -529,10 +493,12 @@ function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons }) {
     };
   }, [cfg?.parameter, cfg?.chartType, chartObj?.type, chartObj?.data?.labels?.length]);
 
-  // Panel content when there is no configuration
   if (!cfg) {
     return (
-      <div className="plot-panel">
+      <div
+        className="plot-panel"
+        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
         <div
           className="plot-header"
           style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
@@ -545,46 +511,75 @@ function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons }) {
             <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
           </div>
         </div>
-        <div className="plot-content" style={{ alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+        <div
+          className="plot-content"
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
           <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
         </div>
       </div>
     );
   }
 
-  // Panel content when there is no data
   if (!chartObj || !chartObj.data?.labels?.length) {
     return (
-      <div className="plot-panel">
+      <div
+        className="plot-panel"
+        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
         <div
           className="plot-header"
           style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
         >
-          <h4 style={{ margin: 0 }}>
-            {slotLabel}: {cfg.parameter}
-          </h4>
+          <h4 style={{ margin: 0 }}>{slotLabel}: {cfg.parameter}</h4>
           {icons}
         </div>
-        <div className="plot-content" style={{ alignItems: "center", justifyContent: "center", minHeight: 320 }}>
+        {notice && <div className="plot-notice">{notice}</div>}
+        <div
+          className="plot-content"
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
           <div className="no-plot-message">No data for the current filters.</div>
         </div>
       </div>
     );
   }
 
-  // Compose key to force remount when structure changes
   const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data?.labels?.length || 0}`;
 
   return (
-    <div className="plot-panel">
+    <div
+      className="plot-panel"
+      style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+    >
       <div
         className="plot-header"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}
       >
-        <h4 style={{ margin: 0 }}>{title}</h4>
+        {/* Inline subtitle next to the main title */}
+        <h4 style={{ margin: 0 }}>
+          {title}
+          {chartObj?.subtitle ? (
+            <span
+              style={{
+                marginLeft: 4,
+                fontWeight: "normal",
+                fontSize: "90%",
+                color: "#566d7e",
+              }}
+            >
+              ({chartObj.subtitle})
+            </span>
+          ) : null}
+        </h4>
         {icons}
       </div>
-      <div className="plot-content" ref={containerRef} style={{ minHeight: 360 }}>
+      {notice && <div className="plot-notice">{notice}</div>}
+      <div
+        className="plot-content"
+        ref={containerRef}
+        style={{ flex: 1, position: "relative" }}
+      >
         {ready ? (
           <ReactChart
             key={chartKey}
@@ -593,16 +588,15 @@ function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons }) {
             data={chartObj.data}
             options={options}
             updateMode="none"
+            style={{ height: "100%", width: "100%" }}
           />
         ) : (
-          // reserve space while waiting for layout to settle
           <div style={{ height: "100%" }} />
         )}
       </div>
     </div>
   );
 }
-
 ChartPanel.propTypes = {
   title: PropTypes.string,
   chartObj: PropTypes.object,
@@ -610,17 +604,14 @@ ChartPanel.propTypes = {
   slotLabel: PropTypes.string,
   options: PropTypes.object,
   icons: PropTypes.node,
+  notice: PropTypes.node,
 };
 
-// -----------------------------------------------------------------------------
-// Main Plots component
-//
-function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false }) {
-  // Determine which filters are assigned to each plot slot
+// ---------- main Plots ----------
+function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, loading = false }) {
   const cfg1 = plotConfigs[0];
   const cfg2 = plotConfigs[1];
 
-  // Build chart objects for each slot using the selected type
   const chart1 = useMemo(() => {
     if (!rawData || !cfg1) return null;
     return cfg1.chartType === "trend"
@@ -634,15 +625,74 @@ function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false 
       : buildComparisonChart(rawData, cfg2, defaultColors);
   }, [rawData, cfg2]);
 
-  // Compute chart options.  Options depend on the chart object so the
-  // axis range is updated when data changes.
   const options1 = useMemo(() => makeOptions(cfg1?.parameter, chart1), [cfg1?.parameter, chart1]);
   const options2 = useMemo(() => makeOptions(cfg2?.parameter, chart2), [cfg2?.parameter, chart2]);
 
-  // Modal state.  When modal is non‑null the LightModal will be rendered.
   const [modal, setModal] = useState(null);
 
-  // Download filtered data as CSV
+  // Navigation handlers for trend charts
+  const handlePrevSite = (slot) => {
+    if (typeof setPlotConfigs !== "function") return;
+    setPlotConfigs((prev) => {
+      const next = [...prev];
+      const cfg = next[slot];
+      if (!cfg) return prev;
+      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+      if (sites.length === 0) return prev;
+      const count = sites.length;
+      let idx = Number.isFinite(cfg.trendIndex) ? cfg.trendIndex : count - 1;
+      idx = ((idx - 1) % count + count) % count;
+      next[slot] = { ...cfg, trendIndex: idx };
+      return next;
+    });
+  };
+  const handleNextSite = (slot) => {
+    if (typeof setPlotConfigs !== "function") return;
+    setPlotConfigs((prev) => {
+      const next = [...prev];
+      const cfg = next[slot];
+      if (!cfg) return prev;
+      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+      if (sites.length === 0) return prev;
+      const count = sites.length;
+      let idx = Number.isFinite(cfg.trendIndex) ? cfg.trendIndex : count - 1;
+      idx = (idx + 1) % count;
+      next[slot] = { ...cfg, trendIndex: idx };
+      return next;
+    });
+  };
+
+  const getNoticeFor = (cfg, slot) => {
+    if (!cfg || cfg.chartType !== "trend") return null;
+    const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+    if (sites.length === 0) return null;
+    const count = sites.length;
+    let idx = Number.isFinite(cfg.trendIndex) ? cfg.trendIndex : count - 1;
+    idx = ((idx % count) + count) % count;
+    const site = sites[idx] || sites[count - 1];
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span>Showing {site}</span>
+        {count > 1 && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <FontAwesomeIcon
+              icon={faArrowLeft}
+              title="Previous site"
+              onClick={() => handlePrevSite(slot)}
+              style={{ cursor: "pointer" }}
+            />
+            <FontAwesomeIcon
+              icon={faArrowRight}
+              title="Next site"
+              onClick={() => handleNextSite(slot)}
+              style={{ cursor: "pointer" }}
+            />
+          </span>
+        )}
+      </span>
+    );
+  };
+
   const handleDownload = (cfg) => {
     if (!rawData || !cfg) return;
     const { parameter, chartType, selectedSites = [], startYear, endYear } = cfg;
@@ -668,13 +718,11 @@ function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false 
     URL.revokeObjectURL(url);
   };
 
-  // Helper to look up information about a parameter from the infoData map
   const infoFor = (param, field, fallback) => {
     const row = param && infoData[param];
     return (row && row[field]) || fallback;
   };
 
-  // If data is still loading show a placeholder
   if (loading || !rawData || rawData.length === 0) {
     return (
       <section className="plots">
@@ -685,52 +733,32 @@ function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false 
     );
   }
 
-  // Build the icons element for a given plot configuration.  When the
-  // information icons are clicked we open an in‑app modal rather than
-  // showing a browser alert.  The title and body are passed through
-  // from the infoData map with sensible defaults.
   const iconsFor = (cfg) => (
     <div className="plot-icons" style={{ display: "flex", gap: 12 }}>
-      <FontAwesomeIcon
-        icon={faDownload}
-        title="Download raw data"
-        onClick={() => handleDownload(cfg)}
-      />
+      <FontAwesomeIcon icon={faDownload} title="Download raw data" onClick={() => handleDownload(cfg)} />
       <FontAwesomeIcon
         icon={faInfoCircle}
         title="Contact information"
-        onClick={() =>
-          setModal({
-            title: "Contact Information",
-            body: infoFor(cfg?.parameter, "ContactInfo", "No contact information available."),
-          })
-        }
+        onClick={() => setModal({ title: "Contact Information", body: infoFor(cfg?.parameter, "ContactInfo", "No contact information available.") })}
       />
       <FontAwesomeIcon
         icon={faLightbulb}
         title="Lake association information"
-        onClick={() =>
-          setModal({
-            title: "Lake Association Information",
-            body: infoFor(cfg?.parameter, "AssociationInfo", "No association information available."),
-          })
-        }
+        onClick={() => setModal({ title: "Lake Association Information", body: infoFor(cfg?.parameter, "AssociationInfo", "No association information available.") })}
       />
       <FontAwesomeIcon
         icon={faQuestionCircle}
         title="Parameter information"
-        onClick={() =>
-          setModal({
-            title: "Parameter Information",
-            body: infoFor(cfg?.parameter, "ParameterInfo", "No parameter information available."),
-          })
-        }
+        onClick={() => setModal({ title: "Parameter Information", body: infoFor(cfg?.parameter, "ParameterInfo", "No parameter information available.") })}
       />
     </div>
   );
 
   return (
-    <div className="plots-container">
+    <div
+      className="plots-container"
+      style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}
+    >
       <ChartPanel
         title={chart1?.title}
         chartObj={chart1}
@@ -738,6 +766,7 @@ function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false 
         slotLabel="Plot 1"
         options={options1}
         icons={iconsFor(cfg1)}
+        notice={getNoticeFor(cfg1, 0)}
       />
       <ChartPanel
         title={chart2?.title}
@@ -746,18 +775,12 @@ function Plots({ plotConfigs = [], rawData = [], infoData = {}, loading = false 
         slotLabel="Plot 2"
         options={options2}
         icons={iconsFor(cfg2)}
+        notice={getNoticeFor(cfg2, 1)}
       />
-      {modal && (
-        <LightModal
-          title={modal.title}
-          body={modal.body}
-          onClose={() => setModal(null)}
-        />
-      )}
+      {modal && <LightModal title={modal.title} body={modal.body} onClose={() => setModal(null)} />}
     </div>
   );
 }
-
 Plots.propTypes = {
   plotConfigs: PropTypes.arrayOf(
     PropTypes.shape({
@@ -766,8 +789,10 @@ Plots.propTypes = {
       chartType: PropTypes.oneOf(["trend", "comparison"]).isRequired,
       startYear: PropTypes.number.isRequired,
       endYear: PropTypes.number.isRequired,
+      trendIndex: PropTypes.number,
     })
   ).isRequired,
+  setPlotConfigs: PropTypes.func.isRequired,
   rawData: PropTypes.arrayOf(PropTypes.object),
   infoData: PropTypes.object,
   loading: PropTypes.bool,

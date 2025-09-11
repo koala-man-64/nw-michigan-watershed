@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
-import { BrowserRouter as Router } from "react-router-dom";
+import React, { useState, useRef } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import FiltersPanel from "./FiltersPanel";
 import Header from "./Header";
 import Plots from "./Plots";
 import MapPanel from "./MapPanel";
-import { logClickEvent } from "./utils/logUserAction";
 import PropTypes from "prop-types";
+import Home from "./Home";
 
 /**
  * FilterMapPanel (controlled)
@@ -18,7 +18,8 @@ function FilterMapPanel({
   onFiltersChange,
   onUpdatePlot1,
   onUpdatePlot2,
-  onDataLoaded,           // NEW: bubbled up from FiltersPanel
+  onDataLoaded, // bubbled up from FiltersPanel
+  trendSingleSite = false,
 }) {
   const containerRef = useRef(null);
 
@@ -33,13 +34,14 @@ function FilterMapPanel({
 
   return (
     <div ref={containerRef} className="filter-map-panel">
-      {/* FiltersPanel now fetches from Azure and shares data up via onDataLoaded */}
+      {/* FiltersPanel fetches from Azure and shares data up via onDataLoaded */}
       <FiltersPanel
         selectedSites={filters.selectedSites}
         onFiltersChange={onFiltersChange}
         onUpdatePlot1={onUpdatePlot1}
         onUpdatePlot2={onUpdatePlot2}
-        onDataLoaded={onDataLoaded}      // NEW
+        onDataLoaded={onDataLoaded}
+        trendSingleSite={trendSingleSite}
       />
 
       <section className="map">
@@ -62,14 +64,15 @@ FilterMapPanel.propTypes = {
   onFiltersChange: PropTypes.func.isRequired,
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
-  onDataLoaded: PropTypes.func,   // optional
+  onDataLoaded: PropTypes.func,
+  trendSingleSite: PropTypes.bool,
 };
 
 function App() {
   // Single source of truth for filters used by both sides of the layout
   const [filters, setFilters] = useState({
     selectedSites: [],
-    selectedParameters: [],      // reserved for future use
+    selectedParameters: [], // reserved for future use
     startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
     endDate: new Date(),
     startYear: null,
@@ -100,61 +103,76 @@ function App() {
 
   // Handler for "Update Plot 1"
   const handleUpdatePlot1 = (plotFilters) => {
+    // If trend, default to last selected site
+    let cfg = { ...plotFilters };
+    if (cfg.chartType === "trend") {
+      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+      const idx = sites.length > 0 ? sites.length - 1 : 0;
+      cfg = { ...cfg, trendIndex: idx };
+    }
     setPlotConfigs((prev) => {
-      if (prev.length === 0) return [plotFilters];
+      if (prev.length === 0) return [cfg];
       const next = [...prev];
-      next[0] = plotFilters;
+      next[0] = cfg;
       return next;
     });
   };
 
   // Handler for "Update Plot 2"
   const handleUpdatePlot2 = (plotFilters) => {
+    let cfg = { ...plotFilters };
+    if (cfg.chartType === "trend") {
+      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+      const idx = sites.length > 0 ? sites.length - 1 : 0;
+      cfg = { ...cfg, trendIndex: idx };
+    }
     setPlotConfigs((prev) => {
-      if (prev.length === 0) return [plotFilters];
-      if (prev.length === 1) return [...prev, plotFilters];
+      if (prev.length === 0) return [cfg];
+      if (prev.length === 1) return [...prev, cfg];
       const next = [...prev];
-      next[1] = plotFilters;
+      next[1] = cfg;
       return next;
     });
   };
-
-  // Global click analytics
-  useEffect(() => {
-    const handleClick = (event) => {
-      const text = event.target.textContent?.trim();
-      if (text) logClickEvent(event);
-    };
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, []);
-
-  return (
+return (
     <Router>
-      <div className="app">
+      <div className="app" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
         <Header />
-
-        {/* Two-column layout: left = filters+map, right = plots */}
-        <div className="main">
-          <div className="left">
-            <FilterMapPanel
-              filters={filters}
-              onFiltersChange={onFiltersChange}
-              onUpdatePlot1={handleUpdatePlot1}
-              onUpdatePlot2={handleUpdatePlot2}
-              onDataLoaded={handleDataLoaded}   // NEW
-            />
-          </div>
-
-          <div className="right">
-            <Plots
-              plotConfigs={plotConfigs}
-              rawData={rawData}
-              infoData={infoData}
-              loading={loading}
-            />
-          </div>
-        </div>
+        {/* Define routes for Home and Dashboard.  */}
+        <Routes>
+          {/* Home route renders the landing page */}
+          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Home />} />
+          {/* Dashboard route renders the interactive plotting interface */}
+          <Route
+            path="/app"
+            element={
+              <div className="main" style={{ flex: 1, display: "flex", height: "100%" }}>
+                <div className="left">
+                <FilterMapPanel
+                    filters={filters}
+                    onFiltersChange={onFiltersChange}
+                    onUpdatePlot1={handleUpdatePlot1}
+                    onUpdatePlot2={handleUpdatePlot2}
+                    onDataLoaded={handleDataLoaded}
+                    trendSingleSite={false}
+                  />
+                </div>
+                <div className="right" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <Plots
+                    plotConfigs={plotConfigs}
+                    setPlotConfigs={setPlotConfigs}
+                    rawData={rawData}
+                    infoData={infoData}
+                    loading={loading}
+                  />
+                </div>
+              </div>
+            }
+          />
+          {/* Fallback: any unknown path goes to Home */}
+          <Route path="*" element={<Home />} />
+        </Routes>
       </div>
     </Router>
   );

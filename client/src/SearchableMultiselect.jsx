@@ -11,6 +11,7 @@ export default function SearchableMultiSelect({
   maxPanelHeight = 280,
   className = "",
   siteTypeMap = {},              // NEW: map of site → "Lake" | "Stream"
+  multiSelect = true,            // NEW: allow caller to toggle multi‑ or single‑select behaviour
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -39,9 +40,23 @@ export default function SearchableMultiSelect({
 
   const toggle = () => setOpen(v => !v);
   const toggleOption = (opt) => {
-    const next = selected.includes(opt)
-      ? selected.filter(s => s !== opt)
-      : [...selected, opt];
+    let next;
+    // In multi‑select mode we toggle membership; in single‑select mode
+    // clicking an option selects it exclusively and clicking the already
+    // selected option clears the selection.
+    if (multiSelect) {
+      next = selected.includes(opt)
+        ? selected.filter((s) => s !== opt)
+        : [...selected, opt];
+    } else {
+      // If the option is already the sole selection, deselect it; otherwise
+      // replace the current selection with this option.
+      if (selected.length === 1 && selected[0] === opt) {
+        next = [];
+      } else {
+        next = [opt];
+      }
+    }
     onChange?.(next);
   };
 
@@ -148,6 +163,8 @@ export default function SearchableMultiSelect({
       </div>
 
       <div className="sms-list" role="listbox" aria-multiselectable>
+        {/* When not in multi‑select mode, indicate that only a single option can be chosen */}
+        {/* Note: we keep the checkbox controls for visual consistency. */}
         {filtered.length === 0 && <div className="sms-empty">No matches</div>}
         {filtered.map((opt, idx) => {
           const active = selected.includes(opt);
@@ -198,6 +215,12 @@ SearchableMultiSelect.propTypes = {
   placeholder: PropTypes.string,
   label: PropTypes.string,
   maxPanelHeight: PropTypes.number,
+  /**
+   * Whether the control allows selecting multiple options.  When false,
+   * selecting an option will replace the previous selection and a second
+   * click on the same option will clear the selection entirely.
+   */
+  multiSelect: PropTypes.bool,
   className: PropTypes.string,
   siteTypeMap: PropTypes.object,  // NEW
 };
