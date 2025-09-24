@@ -11,7 +11,7 @@ export default function SearchableMultiSelect({
   maxPanelHeight = 280,
   className = "",
   siteTypeMap = {},              // NEW: map of site → "Lake" | "Stream"
-  multiSelect = true,            // NEW: allow caller to toggle multi‑ or single‑select behaviour
+  multiSelect = true,            // NEW: allow caller to toggle multi- or single-select behaviour
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -41,16 +41,11 @@ export default function SearchableMultiSelect({
   const toggle = () => setOpen(v => !v);
   const toggleOption = (opt) => {
     let next;
-    // In multi‑select mode we toggle membership; in single‑select mode
-    // clicking an option selects it exclusively and clicking the already
-    // selected option clears the selection.
     if (multiSelect) {
       next = selected.includes(opt)
         ? selected.filter((s) => s !== opt)
         : [...selected, opt];
     } else {
-      // If the option is already the sole selection, deselect it; otherwise
-      // replace the current selection with this option.
       if (selected.length === 1 && selected[0] === opt) {
         next = [];
       } else {
@@ -64,7 +59,7 @@ export default function SearchableMultiSelect({
   const selectAll = () => onChange?.(Array.from(new Set([...selected, ...filtered])));
   const clearAll  = () => onChange?.([]);
 
-  // NEW: select by site type (replaces current selection)
+  // Type helpers
   const inferType = (name) => {
     const t = (siteTypeMap?.[name] || "").toString().toLowerCase();
     if (t === "lake" || t === "stream") return t;
@@ -106,7 +101,6 @@ export default function SearchableMultiSelect({
       const left  = Math.max(pad, Math.min(r.left, window.innerWidth - width - pad));
       const maxH  = Math.min(maxPanelHeight, window.innerHeight - pad * 2);
 
-      // anchor to TOP of trigger so it covers it
       setPanelStyle({
         position: "fixed",
         top: r.top,
@@ -131,7 +125,6 @@ export default function SearchableMultiSelect({
     selected.length === 1 ? selected[0] :
     `${selected.length} ${label.toLowerCase()} selected`;
 
-  // The overlay panel is portaled to <body>, so it doesn't affect layout.
   const panel = open ? createPortal(
     <div
       ref={panelRef}
@@ -149,8 +142,6 @@ export default function SearchableMultiSelect({
           value={query}
           onChange={(e) => { setQuery(e.target.value); setHoverIdx(0); }}
         />
-
-        {/* One row of actions: All, Clear, Lake, Stream */}
         <div
           className="sms-actions"
           style={{ display: "flex", gap: 8, flexWrap: "nowrap", justifyContent: "flex-start" }}
@@ -163,8 +154,6 @@ export default function SearchableMultiSelect({
       </div>
 
       <div className="sms-list" role="listbox" aria-multiselectable>
-        {/* When not in multi‑select mode, indicate that only a single option can be chosen */}
-        {/* Note: we keep the checkbox controls for visual consistency. */}
         {filtered.length === 0 && <div className="sms-empty">No matches</div>}
         {filtered.map((opt, idx) => {
           const active = selected.includes(opt);
@@ -200,7 +189,8 @@ export default function SearchableMultiSelect({
         aria-expanded={open}
       >
         <span className={`sms-summary ${selected.length ? "has-value" : ""}`}>{summary}</span>
-        <span className="sms-caret" aria-hidden>▾</span>
+        {/* empty span; styled as a chevron purely via CSS */}
+        <span className="sms-caret" aria-hidden />
       </button>
 
       {panel}
@@ -215,14 +205,9 @@ SearchableMultiSelect.propTypes = {
   placeholder: PropTypes.string,
   label: PropTypes.string,
   maxPanelHeight: PropTypes.number,
-  /**
-   * Whether the control allows selecting multiple options.  When false,
-   * selecting an option will replace the previous selection and a second
-   * click on the same option will clear the selection entirely.
-   */
   multiSelect: PropTypes.bool,
   className: PropTypes.string,
-  siteTypeMap: PropTypes.object,  // NEW
+  siteTypeMap: PropTypes.object,
 };
 
 SearchableMultiSelect.defaultProps = {
@@ -230,5 +215,5 @@ SearchableMultiSelect.defaultProps = {
   label: "Select",
   maxPanelHeight: 300,
   className: "",
-  siteTypeMap: {},               // NEW
+  siteTypeMap: {},
 };

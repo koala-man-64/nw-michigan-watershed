@@ -1,16 +1,16 @@
 {
   "files": {
-    "main.css": "/static/css/main.7940135d.css",
+    "main.css": "/static/css/main.be3b2985.css",
     "main.js": "/static/js/main.5b6bdefd.js",
     "static/js/488.94140801.chunk.js": "/static/js/488.94140801.chunk.js",
     "static/media/bcd-logo-2012-darkblue_orig.png": "/static/media/bcd-logo-2012-darkblue_orig.2001b38264ec1ff52007.png",
     "index.html": "/index.html",
-    "main.7940135d.css.map": "/static/css/main.7940135d.css.map",
+    "main.be3b2985.css.map": "/static/css/main.be3b2985.css.map",
     "main.5b6bdefd.js.map": "/static/js/main.5b6bdefd.js.map",
     "488.94140801.chunk.js.map": "/static/js/488.94140801.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.7940135d.css",
+    "static/css/main.be3b2985.css",
     "static/js/main.5b6bdefd.js"
   ]
 }

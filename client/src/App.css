@@ -271,9 +271,10 @@ h1, h2, h3, h4,
 
 /* Focus ring for select controls improves keyboard accessibility */
 .year-select:focus {
-  border-color: var(--color-accent);
+  /* Remove the red highlight effect on focus and keep a neutral border */
+  border-color: var(--color-secondary);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(201, 76, 76, 0.2);
+  box-shadow: none;
 }
 
 
@@ -478,6 +479,51 @@ h1, h2, h3, h4,
 }
 
 /* ========================================= */
+
+/*
+ * Overrides for the SearchableMultiSelect component used in the
+ * FiltersPanel.  These rules adjust the spacing and caret styling
+ * so that the site multi‑select matches the appearance and height
+ * of the native <select> elements used for the other filters.
+ */
+
+/* Add a small margin below the label to mirror the spacing of the
+   native select labels */
+.sms-label {
+  margin-bottom: 4px;
+}
+
+/* Reduce vertical padding on the toggle so its height aligns with
+   the other dropdowns in the filter bar */
+.sms-toggle {
+  padding: 8px 10px;
+}
+
+/* Replace the default caret icon with a chevron similar to the native
+   select dropdowns.  We draw a right‑angle using borders and rotate
+   it 45° so it appears as a thin, open “V” shape.  This removes
+   the solid triangle and produces a lighter chevron to match the
+   other dropdowns in the filter panel. */
+.sms-caret {
+  margin-left: 8px;
+  /* give the caret a fixed size so the border trick works (slightly smaller) */
+  width: 0.5em;
+  height: 0.5em;
+  /* draw the right angle with two borders; make the lines thinner */
+  border-right: 2px solid var(--color-secondary);
+  border-bottom: 2px solid var(--color-secondary);
+  /* rotate 45° to make the borders form a downward chevron */
+  transform: rotate(45deg);
+  display: inline-block;
+  /* ensure borders are crisp */
+  box-sizing: border-box;
+}
+
+/* Hide any embedded SVG icon inside the caret so only the CSS
+   chevron is visible */
+.sms-caret > svg {
+  display: none;
+}
 /* ============ Responsive Design ========== */
 /* ========================================= */
 
@@ -498,7 +544,12 @@ h1, h2, h3, h4,
 
 
 /* Searchable Multi-Select */
-.sms-root { display: flex; flex-direction: column; width: 100%; max-width: 360px; }
+.sms-root {
+  display: flex;
+  flex-direction: column; 
+  width: 100%; 
+  max-width: 360px; 
+}
 .sms-label {
   font-size: var(--font-size-label);
   font-weight: 600;
@@ -506,25 +557,52 @@ h1, h2, h3, h4,
 }
 
 .sms-toggle {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* Match the height and padding of native year selects */
+  padding: 9px 8px;
   border-radius: var(--radius);
-  border: 1px solid #cbd5e1;
+  /* Use the same neutral border colour as other dropdowns */
+  border: 1.25px solid var(--color-border);
   background: #fff;
-  cursor: pointer; text-align: left;
+  cursor: pointer;
+  text-align: left;
 }
-.sms-toggle.open { border-color: #94a3b8; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.sms-summary { color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sms-summary.has-value { color: #0f172a; }
+.sms-toggle.open {
+  /* Maintain the neutral border colour when the dropdown is open */
+  border-color: var(--color-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.sms-summary {
+  /* Inherit font size and use the same colour as native selects for consistency */
+  color: var(--color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* When a value is selected, keep the same colour rather than darkening */
+.sms-summary.has-value {
+  color: var(--color-secondary);
+}
 .sms-caret { margin-left: 8px; }
 
 .sms-panel {
-  margin-top: 6px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff;
+  margin-top: 6px;
+  /* Use the same neutral border colour as other dropdown components */
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
   box-shadow: 0 8px 20px rgba(2,6,23,0.12); overflow: hidden; display: flex; flex-direction: column;
 }
 .sms-controls { padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; flex-direction: column; width:95%}
 .sms-search {
-  flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #cbd5e1; outline: none;
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  /* Match border colour to other selects */
+  border: 1px solid var(--color-border);
+  outline: none;
 }
 .sms-actions { display: flex; gap: 6px; }
 .sms-action { border: none; background: #f1f5f9; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
@@ -545,7 +623,8 @@ h1, h2, h3, h4,
 .sms-panel-overlay {
   /* position, top, left, width, z-index set inline */
   margin-top: 0;             /* don't add layout gaps */
-  border: 1px solid #cbd5e1;
+  /* Use neutral border colour consistent with the rest of the UI */
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   background: #fff;
   box-shadow: 0 12px 28px rgba(2,6,23,0.18), 0 2px 8px rgba(2,6,23,0.08);
@@ -627,7 +706,8 @@ h1, h2, h3, h4,
 
 .sms-panel-overlay {
   border-radius: var(--sms-radius) !important;   /* round all corners */
-  border: 1px solid #cbd5e1;
+  /* Use neutral border colour consistent with other controls */
+  border: 1px solid var(--color-border);
   overflow: hidden;                               /* show the rounding cleanly */
 }
 
