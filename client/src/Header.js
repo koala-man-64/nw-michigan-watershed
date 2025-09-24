@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import logo from './bcd-logo-2012-darkblue_orig.png';
+import logo from './nwmiws_logo.png';
 
 export default function Header() {
   return (
@@ -10,14 +10,13 @@ export default function Header() {
         <div className="header-left">
           <Link to="/" aria-label="Home" style={{display:"flex", alignItems:"center", textDecoration:"none", color:"inherit"}}>
             <img src={logo} alt="Logo" className="header-logo" />
-            <div className="title">Benzie County Conservation District</div>
+            <div className="title">Northwest Michigan Watershed Coalition</div>
           </Link>
-          <div className="vertical-separator"></div>
+          {/* <div className="vertical-separator"></div>
           <nav className="menu">
             <Link to="/home">Home</Link>
-            {/* Provide a link to the interactive dashboard as well */}
             <Link to="/app">Dashboard</Link>
-          </nav>
+          </nav> */}
         </div>
       </div>
     </header>
