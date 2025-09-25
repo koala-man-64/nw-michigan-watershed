@@ -16,10 +16,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: shadow,
 });
 
-/** Custom red marker icon */
-const salmonIcon = new L.Icon({
+/** Explicit colored marker icons */
+const redIcon = new L.Icon({
   iconUrl:
     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+  shadowUrl: shadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+const greenIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
   shadowUrl: shadow,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -67,7 +77,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                   row.Link ||
                   row.website ||
                   row.Website ||
-                  ""; // placeholder handled in UI if empty
+                  "";
 
                 return {
                   name: row.name || row.Location,
@@ -83,7 +93,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                     ? `${parseInt(row.surface_area_acres, 10).toLocaleString()} acres`
                     : "N/A",
                   description: row.description || "No description available.",
-                  url: String(urlField).trim(), // NEW
+                  url: String(urlField).trim(),
                 };
               })
               .filter((loc) => !isNaN(loc.lat) && !isNaN(loc.lng));
@@ -122,12 +132,12 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
       {allLocations.map((loc) => {
         const isSelected = selectedSites.includes(loc.name);
+        const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
         return (
           <Marker
             key={loc.name}
             position={[loc.lat, loc.lng]}
-            opacity={isSelected ? 1.0 : 0.5}
-            icon={salmonIcon}
+            icon={icon}
             eventHandlers={{
               click: () => onMarkerClick && onMarkerClick(loc.name),
               mouseover: (e) => e.target.openPopup(),
@@ -149,8 +159,6 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                 <p>
                   <strong>Description:</strong> {loc.description}
                 </p>
-
-                {/* NEW: URL or placeholder */}
                 <p>
                   <strong>Website:</strong>{" "}
                   {loc.url ? (

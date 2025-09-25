@@ -154,12 +154,19 @@ export default function SearchableMultiSelect({
     };
   }, [open, maxPanelHeight]);
 
-  const summary =
-    selected.length === 0
-      ? `Select ${label}`
-      : selected.length === 1
-      ? selected[0]
-      : `${selected.length} ${label.toLowerCase()} selected`;
+  // --- Updated summary text logic ---
+  const summary = (() => {
+    if (selected.length === 0) return `Select ${label}`;
+    if (selected.length === 1) return selected[0];
+
+    // When multiple sites are selected: "First + N other(s)"
+    // Example: "North Lake Leelanau + 3 others"
+    const first = selected[0];
+    const others = selected.length - 1;
+    const suffix = others === 1 ? "other" : "others";
+    return `${first} + ${others} ${suffix}`;
+  })();
+  // -----------------------------------
 
   const panel = open
     ? createPortal(

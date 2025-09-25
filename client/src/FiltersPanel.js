@@ -22,7 +22,7 @@ function FiltersPanel({
   onFiltersChange = () => {},
   onUpdatePlot1 = () => {},
   onUpdatePlot2 = () => {},
-  onDataLoaded = () => {},  // NEW hook to lift data up
+  onDataLoaded = () => {}, // lift data up
 }) {
   // Options loaded from CSV
   const [sites, setSites] = useState([]);
@@ -41,6 +41,12 @@ function FiltersPanel({
   // Guard to ensure CSV-based year initialization runs once
   const didInitYearsRef = useRef(false);
 
+  // Keep latest onDataLoaded without depending on function identity in effects
+  const onDataLoadedRef = useRef(onDataLoaded);
+  useEffect(() => {
+    onDataLoadedRef.current = onDataLoaded;
+  }, [onDataLoaded]);
+
   /**
    * Keep local selectedSites in sync with parent prop (no parent updates here).
    */
@@ -57,6 +63,9 @@ function FiltersPanel({
   /**
    * Fetch CSV(s) once from Azure, populate options, initialize years, and
    * bubble up the parsed data to App via onDataLoaded.
+   *
+   * NOTE: Runs once on mount. We intentionally do NOT depend on function props,
+   * which were causing repeated fetches due to identity changes.
    */
   useEffect(() => {
     const dataUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/NWMIWS_Site_Data_testing_varied.csv?${SAS_TOKEN}`;
@@ -133,18 +142,19 @@ function FiltersPanel({
           onFiltersChange({ startYear: min, endYear: max });
         }
 
-        // Bubble up parsed data for Plots/App-wide state
-        onDataLoaded({ rawData: dataRows, infoData: infoMap });
+        // Bubble up parsed data for Plots/App-wide state (via ref)
+        onDataLoadedRef.current?.({ rawData: dataRows, infoData: infoMap });
       } catch (err) {
         console.error("Error loading CSV(s) from Azure:", err);
-        onDataLoaded({ rawData: [], infoData: {} });
+        onDataLoadedRef.current?.({ rawData: [], infoData: {} });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [onFiltersChange, onDataLoaded]);
+    // Intentionally empty deps: run once on mount to avoid re-fetch loops.
+  }, []); // <-- surgical change: no function props in deps
 
   // ---------------- Handlers (user-initiated; safe to notify parent) ----------------
   const handleSitesChange = (updated) => {
@@ -297,7 +307,7 @@ FiltersPanel.propTypes = {
   onFiltersChange: PropTypes.func.isRequired,
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
-  onDataLoaded: PropTypes.func,  // NEW
+  onDataLoaded: PropTypes.func, // lifted data
 };
 
 export default FiltersPanel;

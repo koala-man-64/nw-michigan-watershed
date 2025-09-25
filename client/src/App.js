@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import FiltersPanel from "./FiltersPanel";
@@ -90,19 +90,19 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   // Accept either partial updates or a full filters object
-  const onFiltersChange = (partialOrFull) => {
+  const onFiltersChange = useCallback((partialOrFull) => {
     setFilters((prev) => ({ ...prev, ...partialOrFull }));
-  };
+  }, []);
 
   // Receive CSV payload from FiltersPanel
-  const handleDataLoaded = ({ rawData, infoData }) => {
+  const handleDataLoaded = useCallback(({ rawData, infoData }) => {
     setRawData(Array.isArray(rawData) ? rawData : []);
     setInfoData(infoData && typeof infoData === "object" ? infoData : {});
     setLoading(false);
-  };
+  }, []);
 
   // Handler for "Update Plot 1"
-  const handleUpdatePlot1 = (plotFilters) => {
+  const handleUpdatePlot1 = useCallback((plotFilters) => {
     // If trend, default to last selected site
     let cfg = { ...plotFilters };
     if (cfg.chartType === "trend") {
@@ -116,10 +116,10 @@ function App() {
       next[0] = cfg;
       return next;
     });
-  };
+  }, []);
 
   // Handler for "Update Plot 2"
-  const handleUpdatePlot2 = (plotFilters) => {
+  const handleUpdatePlot2 = useCallback((plotFilters) => {
     let cfg = { ...plotFilters };
     if (cfg.chartType === "trend") {
       const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
@@ -133,7 +133,7 @@ function App() {
       next[1] = cfg;
       return next;
     });
-  };
+  }, []);
 return (
     <Router>
       <div className="app" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
