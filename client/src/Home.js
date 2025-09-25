@@ -1,8 +1,12 @@
 import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 // import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 // // import L from "leaflet";
 import Papa from "papaparse";
+import map_screenshot from './map_screenshot.png';
+import trend_plot_icon from './trend_plot_icon.png';
+import comparison_plot_icon from './comparison_plot_icon.png';
 import "leaflet/dist/leaflet.css";
 // import shadow from "leaflet/dist/images/marker-shadow.png";
 
@@ -91,11 +95,12 @@ export default function Home() {
   // const defaultZoom = 6;
 
   return (
-    <div className="home-page" style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <div className="main" style={{ height: "100%"  }}>
       {/* Reuse the same .main grid as the dashboard so columns match:
          left = max-content (capped by --panel-max-width), right = flexible */}
-      <div className="main" style={{ padding: 16 }}>
-        {/* RIGHT: description panel (flexible width like plots column) */}
+       {/* RIGHT: description panel (flexible width like plots column) */}
+        
+          <img src={map_screenshot} />
         <div
           className="right"
           style={{
@@ -123,11 +128,12 @@ export default function Home() {
 
             <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
               This database can be used to retrieve, display, and download water quality data
-              for lakes <span style={{ color: "#b91c1c" }}>(●)</span> and streams{" "}
-              <span style={{ color: "#1d4ed8" }}>(●)</span> in northern Michigan. (see map)
+              for lakes and streams in northern Michigan. (see map)
             </p>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 14px" }}>
+            <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
+              You can select from a list of select any of the following water quality parameters: Chloro, Cloride, Nitrate, Secchi, Total Phosphorous
+            </p>
+            {/* <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 14px" }}>
               <span style={{ color: "var(--color-secondary)", fontWeight: 600 }}>
                 Click below to show parameters
               </span>
@@ -145,29 +151,25 @@ export default function Home() {
               >
                 Trophic Index
               </Link>
-            </div>
-
-            <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
-              You can select from a list of chemical, biological, and physical water quality
-              measurements (parameters).
-            </p>
+            </div> */}
 
             <ol style={{ margin: "12px 0 12px 18px", lineHeight: 1.6, padding: 0 }}>
               <li style={{ marginBottom: 8 }}>
-                <strong>Trend:</strong> Display a trend line that shows how a water quality
-                parameter changes over time (one lake at a time).
+                <strong>Trend:</strong> Data can be displayed as a trend line that shows 
+         how a water quality parameter changes over time.
+                <img src={trend_plot_icon} />
               </li>
               <li>
-                <strong>Comparison:</strong> Display a bar chart that simultaneously compares the
-                average water quality of up to 10 different sites.
-              </li>
+               <img src={comparison_plot_icon} /> <strong>Comparison:</strong> Data can also be displayed as a bar graph that simultaneously 
+       compares the average water quality of up to 10 different sites.
+                
+              </li>   
             </ol>
 
             <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
               Select the preferred site(s), the type of display, the water quality measurement,
               and the time interval. The charts show the selected data and the maximum and minimum
-              values as well as the actual number of annual measurements. Click on chart labels for
-              a description of the site and the water quality parameter.
+              values as well as the actual number of annual measurements.
             </p>
 
             <p style={{ marginBottom: 0, lineHeight: 1.5 }}>
@@ -194,6 +196,7 @@ export default function Home() {
             >
               Continue
             </button>
+            <div style={{flex: 1}} />
             <a
               href="https://www.benziecd.org"
               target="_blank"
@@ -219,7 +222,6 @@ export default function Home() {
             </a>
           </div>
         </div>
-      </div>
     </div>
   );
 }

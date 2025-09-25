@@ -158,7 +158,14 @@ return (
                     trendSingleSite={false}
                   />
                 </div>
-                <div className="right" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div 
+                className="right" 
+                style={{ 
+                  flex: 1, 
+                  display: "flex", 
+                  flexDirection: "column", 
+                  overflow: "hidden"
+                   }}>
                 <Plots
                     plotConfigs={plotConfigs}
                     setPlotConfigs={setPlotConfigs}

@@ -34,6 +34,7 @@
   --font-size-base: 14px;
   --font-size-label: 14px;
   --font-size-title: 24px;
+  --left-overlay-width: 12px; 
 }
 
 html, body, #root { height: 100%; }
@@ -660,6 +661,20 @@ h1, h2, h3, h4,
   min-height: 0;     /* allow grid items to shrink inside .main */
   min-width: 0;      /* prevent horizontal blowout from long content */
   justify-self: start;
+}
+
+.left-edge-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;                /* sit on the seam next to the right panel */
+  width: var(--left-overlay-width);
+  height: 100%;
+  z-index: 10;             /* above the map/filters, but below any modals */
+  pointer-events: auto;    /* capture clicks/wheel so nothing bleeds through */
+  background: transparent; /* invisible; make visible if you want during debug */
+  cursor: default;
+  /* Optional: stop scroll chaining into underlying elements */
+  overscroll-behavior: contain;
 }
 
 /* 4) Right should take all available HEIGHT */
