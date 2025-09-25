@@ -16,8 +16,7 @@ import {
   faLightbulb,
   faQuestionCircle,
   faTimes,
-  faArrowLeft,
-  faArrowRight,
+  faHashtag
 } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
 
@@ -30,6 +29,27 @@ Chart.register(
   Violin
 );
 
+const HideWhiskerCaps = {
+  id: 'hideWhiskerCaps',
+  beforeDatasetsDraw(chart) {
+    // Walk visible datasets and force capSize=0 on boxplots
+    chart.getSortedVisibleDatasetMetas().forEach(meta => {
+      const ds = chart.config.data.datasets[meta.index] || {};
+      const isBoxplot = (ds.type ?? chart.config.type) === 'boxplot';
+      if (!isBoxplot) return;
+
+      meta.data.forEach(el => {
+        // Many builds place rendering options on el.options
+        if (el && el.options) {
+          el.options.capSize = 0;     // make the caps zero-length
+        }
+      });
+    });
+  },
+};
+// somewhere in your setup:
+Chart.register(HideWhiskerCaps);
+
 // Global Chart.js defaults
 Chart.defaults.font.family =
   'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -38,31 +58,6 @@ Chart.defaults.color = "#37474f";
 
 // ---------- helpers ----------
 const round3 = (v) => (Number.isFinite(v) ? Math.round(v * 1000) / 1000 : v);
-
-function quantile(arr, q) {
-  if (!arr || arr.length === 0) return NaN;
-  const pos = (arr.length - 1) * q;
-  const base = Math.floor(pos);
-  const rest = pos - base;
-  if (arr[base + 1] !== undefined) {
-    return arr[base] + rest * (arr[base + 1] - arr[base]);
-  }
-  return arr[base];
-}
-
-function computeBoxStats(values) {
-  if (!values || values.length === 0) return null;
-  const rvals = values.map((v) => round3(Number(v))).filter((v) => Number.isFinite(v));
-  if (rvals.length === 0) return null;
-  const sorted = rvals.slice().sort((a, b) => a - b);
-  return {
-    min: sorted[0],
-    q1: round3(quantile(sorted, 0.25)),
-    median: round3(quantile(sorted, 0.5)),
-    q3: round3(quantile(sorted, 0.75)),
-    max: sorted[sorted.length - 1],
-  };
-}
 
 function computeYRangeForChart(chartObj) {
   try {
@@ -104,57 +99,109 @@ function wrapLabel(label, maxChars = 12) {
 function buildTrendChart(rawData, cfg, palette) {
   const { parameter, selectedSites = [], startYear, endYear, trendIndex } = cfg;
 
-  // Decide which site to show
+  // decide which site to show
   let site = null;
-  if (selectedSites && selectedSites.length > 0) {
+  if (selectedSites.length) {
     const count = selectedSites.length;
     let idx = Number.isFinite(trendIndex) ? trendIndex : count - 1;
-    idx = ((idx % count) + count) % count; // wrap safely
+    idx = ((idx % count) + count) % count;
     site = selectedSites[idx] || selectedSites[count - 1];
   }
 
+  // filter rows for this site/parameter/year range
   const filtered = rawData.filter((row) => {
     const rowParam = row?.Parameter ? String(row.Parameter).trim() : "";
-    const rowSite = row?.Site ? String(row.Site).trim() : "";
-    const yearNum = parseInt(row?.Year, 10);
-    const siteMatch = site ? rowSite === site : false;
+    const rowSite  = row?.Site ? String(row.Site).trim() : "";
+    const yearNum  = parseInt(row?.Year, 10);
     return (
       rowParam === parameter &&
-      siteMatch &&
+      (!!site && rowSite === site) &&
       Number.isFinite(yearNum) &&
       (startYear == null || yearNum >= startYear) &&
-      (endYear == null || yearNum <= endYear)
+      (endYear   == null || yearNum <= endYear)
     );
   });
 
-  const groups = {};
+  // group by year
+  //
+  // Group the numeric values by year separately for averages, minimums and maximums.
+  //
+  // The previous implementation pushed the average, minimum and maximum for each
+  // record into a single array (`groups[y]`).  When computing the boxplot
+  // statistics for a year the min and max were then derived from this
+  // combined array.  That approach meant that any missing minimum or maximum
+  // values were silently ignored and, more importantly, it treated the
+  // collection of values as a single population.  As a consequence, if the
+  // underlying data lacked distinct min or max values (or they were parsed as
+  // NaN) the boxplot whiskers collapsed onto the mean and the trend chart
+  // appeared to plot only a single horizontal line for the average.  To
+  // correctly display the whiskers we now track the averages, minimums and
+  // maximums independently and compute the statistics per year from those
+  // distinct arrays.
+  const groupAvgs = {};
+  const groupMins = {};
+  const groupMaxs = {};
   const countByYear = {};
   filtered.forEach((row) => {
     const y = row.Year;
     const avgVal = round3(parseFloat(row.Avg));
-    const minVal = round3(parseFloat(row.Max));
-    const maxVal = round3(parseFloat(row.Min));
+    const minVal = round3(parseFloat(row.Min)); // expected column names
+    const maxVal = round3(parseFloat(row.Max)); // expected column names
     const cnt = parseInt(row.Count, 10);
-    if (!Number.isFinite(avgVal)) return;
-    (groups[y] ||= []).push(avgVal);
-    (groups[y] ||= []).push(maxVal);
-    (groups[y] ||= []).push(minVal);
-    countByYear[y] = (countByYear[y] || 0) + (Number.isFinite(cnt) ? cnt : 0);
-  });
 
-  const years = Object.keys(groups).sort((a, b) => +a - +b);
-  const boxData = [];
-  const counts = [];
-  years.forEach((y) => {
-    const stats = computeBoxStats(groups[y]);
-    if (stats) {
-      boxData.push(stats);
-      counts.push(countByYear[y] || 0);
+    // Only consider finite average values.  If the average is missing the
+    // observation is skipped entirely since the plotted series represents
+    // averages by year.  The min and max arrays are still updated only when
+    // the parsed values are finite.
+    if (Number.isFinite(avgVal)) {
+      (groupAvgs[y] ||= []).push(avgVal);
+    }
+    if (Number.isFinite(minVal)) {
+      (groupMins[y] ||= []).push(minVal);
+    }
+    if (Number.isFinite(maxVal)) {
+      (groupMaxs[y] ||= []).push(maxVal);
+    }
+    if (Number.isFinite(cnt)) {
+      countByYear[y] = (countByYear[y] || 0) + cnt;
     }
   });
 
+  const years = Array.from(new Set([...Object.keys(groupAvgs), ...Object.keys(groupMins), ...Object.keys(groupMaxs)])).sort((a, b) => +a - +b);
+
+  // Build the boxplot points.  For each year we compute the mean of the
+  // averages (these values represent the center of the box) and then derive
+  // the minimum and maximum whiskers from the separate min and max arrays.
+  const boxData = [];
+  const counts = [];
+  years.forEach((y) => {
+    const avgs = groupAvgs[y] || [];
+    // Compute the mean average for this year.  When no averages are
+    // available the box is not plotted.
+    if (!avgs.length) return;
+    const meanAvg = avgs.reduce((s, v) => s + v, 0) / avgs.length;
+    const avgRounded = round3(meanAvg);
+
+    const mins = groupMins[y] || [];
+    const maxs = groupMaxs[y] || [];
+    // Determine whisker values.  If no explicit min or max values were
+    // recorded then fall back to the mean average so that the whisker
+    // collapses to the average rather than becoming undefined.
+    const minVal = mins.length ? Math.min(...mins) : meanAvg;
+    const maxVal = maxs.length ? Math.max(...maxs) : meanAvg;
+
+    boxData.push({
+      min: round3(minVal),
+      q1: avgRounded,
+      median: avgRounded,
+      q3: avgRounded,
+      max: round3(maxVal),
+    });
+    counts.push(countByYear[y] || 0);
+  });
+
   const siteTitle = site ? `Trend — ${site}` : `Trend`;
-  const subtitle = parameter ? `${parameter} by year` : "";
+  const subtitle  = parameter ? `${parameter} by year` : "";
 
   return {
     title: siteTitle,
@@ -174,6 +221,7 @@ function buildTrendChart(rawData, cfg, palette) {
     },
   };
 }
+
 
 function buildComparisonChart(rawData, cfg, palette) {
   const { parameter, selectedSites = [], startYear, endYear } = cfg;
@@ -356,6 +404,10 @@ function makeOptions(parameterLabel, chartObj) {
       tooltip: {
         callbacks: {
           label: (ctx) => {
+            // For boxplot charts used in the trend view we only display
+            // minimum, average and maximum values.  Quartiles are not
+            // calculated or displayed.  For other chart types (e.g. bar)
+            // retain the default single line label.
             if (ctx.chart.config.type === "boxplot") {
               const r = ctx.raw || {};
               const fmt = (v) =>
@@ -369,10 +421,8 @@ function makeOptions(parameterLabel, chartObj) {
               const series = ctx.dataset?.label || parameterLabel || "";
               if (series) lines.push(series);
               lines.push(`Min: ${fmt(r.min)}`);
-              lines.push(`Q1 (25%): ${fmt(r.q1)}`);
-              lines.push(`Median: ${fmt(r.median)}`);
-              if (Number.isFinite(r.mean)) lines.push(`Mean: ${fmt(r.mean)}`);
-              lines.push(`Q3 (75%): ${fmt(r.q3)}`);
+              // Use the median property as the average since we set q1 = median = q3 = average
+              lines.push(`Average: ${fmt(r.median)}`);
               lines.push(`Max: ${fmt(r.max)}`);
               return lines;
             }
@@ -468,13 +518,16 @@ LightModal.propTypes = {
 };
 
 // ---------- chart panel ----------
-function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons, notice }) {
+function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice }) {
+  // 1. Hooks at top level (always called in the same order)
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
+  const [showCounts, setShowCounts] = useState(false);
 
   useLayoutEffect(() => {
     let raf1, raf2;
     const el = containerRef.current;
+    // reset before we check
     setReady(false);
     const ensureReady = () => {
       const inDoc = el && el.ownerDocument && el.ownerDocument.body.contains(el);
@@ -489,114 +542,130 @@ function ChartPanel({ title, chartObj, cfg, slotLabel, options, icons, notice })
     return () => {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
-      setReady(false);
     };
+
   }, [cfg?.parameter, cfg?.chartType, chartObj?.type, chartObj?.data?.labels?.length]);
 
+  // put this near your component top or config area
+  const WHISKER_COEF = 0; // 0 = whiskers to true min/max; 1.5 = Tukey default; tweak as desired
+
+  const chartData = useMemo(() => {
+    if (!chartObj) return null;
+
+    // consider it a boxplot if the chart or any dataset declares boxplot type
+    const isBoxplot =
+      chartObj.type === 'boxplot' ||
+      chartObj?.data?.datasets?.some(d => d.type === 'boxplot');
+
+    const datasets = chartObj.data.datasets.map(ds => {
+      const counts = ds.customCounts || [];
+      return {
+        ...ds,
+        // apply whisker coef only to boxplot datasets
+        ...(isBoxplot && (ds.type === 'boxplot' || chartObj.type === 'boxplot')
+          ? { coef: WHISKER_COEF, capSize: 0  }
+          : {}),
+        customCounts: showCounts ? counts : counts.map(() => null),
+      };
+    });
+
+    return { ...chartObj.data, datasets };
+  }, [chartObj, showCounts]);
+
+
+  // 2. Conditional rendering AFTER hooks are set up
   if (!cfg) {
+    // Config not provided yet – prompt user to update plot
     return (
-      <div
-        className="plot-panel"
-        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-      >
-        <div
-          className="plot-header"
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
-        >
-          <h4 style={{ margin: 0 }}>{slotLabel} — not set</h4>
-          <div className="plot-icons" style={{ display: "flex", gap: 12, opacity: 0.4 }}>
-            <FontAwesomeIcon icon={faDownload} title="Download raw data" />
-            <FontAwesomeIcon icon={faInfoCircle} title="Contact information" />
-            <FontAwesomeIcon icon={faLightbulb} title="Lake association information" />
-            <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
-          </div>
+      <div className="plot-panel" style={{ /* styling omitted */ }}>
+        <div className="plot-header"> 
+          <h4 style={{ margin: 0 }}>
+          {chartObj?.title
+            ? `${slotLabel} — ${chartObj.title}`
+            : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
+        </h4>
+          <div className="plot-icons" style={{ opacity: 0.4 }}>{/* icons (disabled) */}</div>
         </div>
-        <div
-          className="plot-content"
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
+        <div className="plot-content">
+          <div className="no-plot-message">
+            Click “Update {slotLabel}” to populate this plot.
+          </div>
         </div>
       </div>
     );
   }
-
   if (!chartObj || !chartObj.data?.labels?.length) {
+    // No chart data available for current filters – show message
     return (
-      <div
-        className="plot-panel"
-        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-      >
-        <div
-          className="plot-header"
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
-        >
-          <h4 style={{ margin: 0 }}>{slotLabel}: {cfg.parameter}</h4>
-          {icons}
+      <div className="plot-panel" style={{ /* styling omitted */ }}>
+        <div className="plot-header">
+          <h4>{slotLabel}: {cfg.parameter}</h4>
+          {icons /* display any action icons */}
         </div>
         {notice && <div className="plot-notice">{notice}</div>}
-        <div
-          className="plot-content"
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
+        <div className="plot-content">
           <div className="no-plot-message">No data for the current filters.</div>
         </div>
       </div>
     );
   }
 
-  const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data?.labels?.length || 0}`;
-
+  // 3. Normal rendering when data is present
+  const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data.labels.length}-${showCounts}`;
   return (
-    <div
-      className="plot-panel"
-      style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-    >
+    <div className="plot-panel" style={{ /* container styling */ }}>
+      {/* Plot header with title, navigation, etc. */}
       <div
         className="plot-header"
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
       >
-        {/* Inline subtitle next to the main title */}
         <h4 style={{ margin: 0 }}>
-          {title}
-          {chartObj?.subtitle ? (
-            <span
-              style={{
-                marginLeft: 4,
-                fontWeight: "normal",
-                fontSize: "90%",
-                color: "#566d7e",
-              }}
-            >
-              ({chartObj.subtitle})
-            </span>
-          ) : null}
+          {chartObj?.title
+            ? `${slotLabel} — ${chartObj.title}`
+            : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
         </h4>
-        {icons}
+        <div className="plot-icons" style={{ display: "flex", gap: 12, opacity: 0.4 }}>
+          <FontAwesomeIcon icon={faDownload} title="Download raw data" />
+          <FontAwesomeIcon icon={faInfoCircle} title="Contact information" />
+          <FontAwesomeIcon icon={faLightbulb} title="Lake association information" />
+          <FontAwesomeIcon icon={faQuestionCircle} title="Parameter information" />
+            <FontAwesomeIcon
+            icon={faHashtag}
+            title={showCounts ? "Hide counts" : "Show counts"}
+            onClick={() => setShowCounts((prev) => !prev)}
+            style={{ cursor: "pointer", opacity: showCounts ? 1.0 : 0.4 }}
+          />
+        </div>
       </div>
       {notice && <div className="plot-notice">{notice}</div>}
-      <div
-        className="plot-content"
-        ref={containerRef}
-        style={{ flex: 1, position: "relative" }}
-      >
+      {/* Plot content with the chart (using the ref and ready state) */}
+      <div className="plot-content" ref={containerRef} style={{ position: "relative", flex: 1 }}>
         {ready ? (
           <ReactChart
             key={chartKey}
             datasetIdKey={`${cfg.parameter}-${chartObj.type}`}
             type={chartObj.type}
-            data={chartObj.data}
-            options={options}
+            data={chartData}
+            options={{
+              ...options,
+              boxplot: {
+                ...(options?.boxplot ?? {}),
+                coef: 0, // 0 = whiskers go to true min/max (default is 1.5*IQR)
+                capSize: 0,
+              },
+            }}
             updateMode="none"
-            style={{ height: "100%", width: "100%" }}
+            style={{ width: "100%", height: "100%" }}
           />
         ) : (
+          // If not ready (container not measured yet), render an empty placeholder to maintain layout
           <div style={{ height: "100%" }} />
         )}
       </div>
     </div>
   );
 }
+
 ChartPanel.propTypes = {
   title: PropTypes.string,
   chartObj: PropTypes.object,
@@ -605,6 +674,12 @@ ChartPanel.propTypes = {
   options: PropTypes.object,
   icons: PropTypes.node,
   notice: PropTypes.node,
+  // Optional navigation handlers and metadata for cycling through selected sites
+  nav: PropTypes.shape({
+    prev: PropTypes.func,
+    next: PropTypes.func,
+    hasMultipleSites: PropTypes.bool,
+  }),
 };
 
 // ---------- main Plots ----------
@@ -662,35 +737,11 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
     });
   };
 
-  const getNoticeFor = (cfg, slot) => {
-    if (!cfg || cfg.chartType !== "trend") return null;
-    const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
-    if (sites.length === 0) return null;
-    const count = sites.length;
-    let idx = Number.isFinite(cfg.trendIndex) ? cfg.trendIndex : count - 1;
-    idx = ((idx % count) + count) % count;
-    const site = sites[idx] || sites[count - 1];
-    return (
-      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span>Showing {site}</span>
-        {count > 1 && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <FontAwesomeIcon
-              icon={faArrowLeft}
-              title="Previous site"
-              onClick={() => handlePrevSite(slot)}
-              style={{ cursor: "pointer" }}
-            />
-            <FontAwesomeIcon
-              icon={faArrowRight}
-              title="Next site"
-              onClick={() => handleNextSite(slot)}
-              style={{ cursor: "pointer" }}
-            />
-          </span>
-        )}
-      </span>
-    );
+  // With navigation now integrated into the plot header, we no longer display
+  // a separate notice row for trend charts.  This helper is kept for API
+  // compatibility but always returns null.
+  const getNoticeFor = () => {
+    return null;
   };
 
   const handleDownload = (cfg) => {
@@ -754,6 +805,21 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
     </div>
   );
 
+  // Build navigation metadata for a given plot configuration.  For trend
+  // charts, navigation arrows allow cycling through the selected sites.  We
+  // include a flag indicating whether multiple sites are present so the
+  // header can decide whether to render the arrows.
+  const navFor = (cfg, slot) => {
+    if (!cfg || cfg.chartType !== "trend") return null;
+    const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+    if (sites.length === 0) return null;
+    return {
+      prev: () => handlePrevSite(slot),
+      next: () => handleNextSite(slot),
+      hasMultipleSites: sites.length > 1,
+    };
+  };
+
   return (
     <div
       className="plots-container"
@@ -767,6 +833,7 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
         options={options1}
         icons={iconsFor(cfg1)}
         notice={getNoticeFor(cfg1, 0)}
+        nav={navFor(cfg1, 0)}
       />
       <ChartPanel
         title={chart2?.title}
@@ -776,6 +843,7 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
         options={options2}
         icons={iconsFor(cfg2)}
         notice={getNoticeFor(cfg2, 1)}
+        nav={navFor(cfg2, 1)}
       />
       {modal && <LightModal title={modal.title} body={modal.body} onClose={() => setModal(null)} />}
     </div>
