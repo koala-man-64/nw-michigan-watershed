@@ -130,8 +130,9 @@ export default function Home() {
               This database can be used to retrieve, display, and download water quality data
               for lakes and streams in northern Michigan. (see map)
             </p>
+            <br />
             <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
-              You can select from a list of select any of the following water quality parameters: Chloro, Cloride, Nitrate, Secchi, Total Phosphorous
+              You can select from a list of select any of the following water quality parameters: <strong>Chloro, Cloride, Nitrate, Secchi, Total Phosphorous</strong>
             </p>
             {/* <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "8px 0 14px" }}>
               <span style={{ color: "var(--color-secondary)", fontWeight: 600 }}>
@@ -152,7 +153,7 @@ export default function Home() {
                 Trophic Index
               </Link>
             </div> */}
-
+            <br />
             <ol style={{ margin: "12px 0 12px 18px", lineHeight: 1.6, padding: 0 }}>
               <li style={{ marginBottom: 8 }}>
                 <strong>Trend:</strong> Data can be displayed as a trend line that shows 
@@ -165,19 +166,19 @@ export default function Home() {
                 
               </li>   
             </ol>
-
+            <br />
             <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
               Select the preferred site(s), the type of display, the water quality measurement,
               and the time interval. The charts show the selected data and the maximum and minimum
               values as well as the actual number of annual measurements.
             </p>
 
+
+          </div>
             <p style={{ marginBottom: 0, lineHeight: 1.5 }}>
               If you have questions or comments, please contact John Ransom at the Benzie County
               Conservation District. <strong>231-882-4391</strong> or <strong>john@benziecd.org</strong>.
             </p>
-          </div>
-
           <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
             <button
               type="button"
