@@ -59,8 +59,8 @@ function getFontScale() {
 // charts respect the same typographic scale defined in App.css.
 const __fontScale = getFontScale();
 Chart.defaults.font.size = 12 * __fontScale;
-const COUNT_FONT_PX = 14 * __fontScale;
-const COUNT_FONT = `700 ${COUNT_FONT_PX}px sans-serif`;
+const COUNT_FONT_PX = 12 * __fontScale;
+const COUNT_FONT = `400 ${COUNT_FONT_PX}px sans-serif`;
 const CHART_FONT = 12 * __fontScale;
 Chart.defaults.color = "#37474f";
 
