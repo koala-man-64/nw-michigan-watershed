@@ -1,3 +1,4 @@
+
 // Plots.js
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
 import Papa from "papaparse";
@@ -32,9 +33,35 @@ Chart.register(
   Violin
 );
 
+
+
 Chart.defaults.font.family =
   'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-Chart.defaults.font.size = 12;
+
+// Derive the application's typographic scale from CSS custom property `--font-scale`.
+// If the CSS variable is not found or cannot be parsed the scale defaults to 1 (100%).
+function getFontScale() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return 1;
+  }
+  try {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const raw = rootStyle.getPropertyValue('--font-scale');
+    const scale = parseFloat(raw);
+    return Number.isFinite(scale) ? scale : 1;
+  } catch {
+    return 1;
+  }
+}
+
+// Use the computed font scale to adjust default font sizes used by Chart.js.
+// Base font size of 12px will be multiplied by this scale. This ensures that
+// charts respect the same typographic scale defined in App.css.
+const __fontScale = getFontScale();
+Chart.defaults.font.size = 12 * __fontScale;
+const COUNT_FONT_PX = 14 * __fontScale;
+const COUNT_FONT = `700 ${COUNT_FONT_PX}px sans-serif`;
+const CHART_FONT = 12 * __fontScale;
 Chart.defaults.color = "#37474f";
 
 // ---------- helpers ----------
@@ -278,7 +305,7 @@ const countPlugin = {
       const textY = ppos.y - baseOffset;
       ctx.fillStyle = p.color || "#37474f";
       ctx.textAlign = "center";
-      ctx.font = p.font || "bold 12px sans-serif";
+      ctx.font = p.font || "12px sans-serif";
       ctx.fillText(String(c), x, textY);
     });
     ctx.restore();
@@ -305,12 +332,18 @@ function makeOptions(parameterLabel, chartObj) {
     if (range.min >= 0 && yMin < 0 && span < 0.5) yMin = 0;
   }
 
-  const maxLabelLines = (chartObj?.data?.labels || []).reduce(
-    (m, l) => Math.max(m, Array.isArray(l) ? l.length : 1),
-    1
-  );
-  const bottomPad = 14 + (maxLabelLines - 1) * 12 + 10;
+  // const maxLabelLines = (chartObj?.data?.labels || []).reduce(
+  //   (m, l) => Math.max(m, Array.isArray(l) ? l.length : 1),
+  //   1
+  // );
+  // Pad the bottom of the chart depending on how many lines of x-axis labels there are.
+  // Scale the padding values by the global font scale so that spacing grows proportionally.
+  // const basePad = 14 * __fontScale;
+  // const linePad = 12 * __fontScale;
+  // const extraPad = 10 * __fontScale;
+  // const bottomPad = basePad + (maxLabelLines - 1) * linePad + extraPad;
 
+  const isBox = chartObj?.type === "boxplot";
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -319,36 +352,37 @@ function makeOptions(parameterLabel, chartObj) {
     responsiveAnimationDuration: 0,
     animations: { colors: false, x: { duration: 0 }, y: { duration: 0 } },
     interaction: { mode: "nearest", intersect: true },
-    layout: { padding: { top: 12, bottom: bottomPad } },
+    layout: { padding: { top: 12 } },
     scales: {
       y: {
-        beginAtZero: false,
-        min: Number.isFinite(yMin) ? yMin : undefined,
-        max: Number.isFinite(yMax) ? yMax : undefined,
-        title: { display: true, text: parameterLabel || "" },
-        ticks: { color: "#37474f" },
+        // Strict bounds for boxplot; soft bounds for bar chart to avoid the extra tick
+        beginAtZero: !isBox,
+        min: isBox && Number.isFinite(yMin) ? yMin : undefined,
+        max: isBox && Number.isFinite(yMax) ? yMax : undefined,
+        suggestedMin: !isBox && Number.isFinite(yMin) ? Math.max(0, yMin) : undefined,
+        suggestedMax: !isBox && Number.isFinite(yMax) ? yMax : undefined,
+        grace: !isBox ? "10%" : 0,          // add breathing room for bars instead of forcing a new tick
+        ticks: {
+          color: "#37474f",
+          precision: 0,                     // prevent near-duplicate float ticks (e.g., 15 vs 15.0000001)
+          includeBounds: true
+        },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
+        title: { display: false, text: "" },
       },
       x: {
         offset: true,
-        ticks: {
-          color: "#37474f",
-          maxRotation: 0,
-          minRotation: 0,
-          autoSkip: true,
-          autoSkipPadding: 8,
-          padding: 10,
-        },
+        ticks: { color: "#37474f", maxRotation: 0, minRotation: 0, autoSkip: true, autoSkipPadding: 8, padding: 10 },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
       },
     },
     plugins: {
       legend: { display: false },
       countPlugin: {
-        gapAboveWhisker: 16,
-        offset: 10,
+        gapAboveWhisker: 16 * __fontScale,
+        offset: 10 * __fontScale,
         color: "#37474f",
-        font: "bold 12px sans-serif",
+        font: COUNT_FONT, 
       },
       tooltip: {
         callbacks: {
@@ -435,7 +469,7 @@ function LightModal({ title, body, onClose }) {
             borderBottom: "1px solid rgba(0,0,0,0.08)",
           }}
         >
-          <h5 style={{ margin: 0, fontSize: 16, fontWeight: 600, fontFamily: "Poppins, sans-serif" }}>
+          <h5 style={{ margin: 0, fontSize: 14 * CHART_FONT, fontWeight: 600, fontFamily: "Poppins, sans-serif" }}>
             {title}
           </h5>
           <button
@@ -525,9 +559,9 @@ function D3Boxplot({
             left: hover.x,
             top: Math.max(8, hover.y - 12),
             transform: "translate(-50%, -100%)",
-            background: "#fff",
-            color: "rgba(31, 41, 55, 0.98)",
-            fontSize: 11,
+            background: "rgba(31, 41, 55, 0.98)",
+            color: "#fff",
+            fontSize: 14 * __fontScale,
             padding: "8px 10px",
             borderRadius: 6,
             pointerEvents: "none",
@@ -545,23 +579,23 @@ function D3Boxplot({
               style={{
                 gridColumn: "1 / -1",
                 marginBottom: 4,
-                fontWeight: 700,
+                fontWeight: 900,
               }}
             >
               {hover.label}
             </strong>
           )}
 
-          <span style={{ textAlign: "right", color: "#6b7280" }}>Max:</span>
+          <span style={{ textAlign: "right", color: "#fff" }}>Max:</span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(hover.stats.max)}</span>
           {Number.isFinite(hover.stats.mean) && (
             <>
-              <span style={{ textAlign: "right", color: "#6b7280" }}>Mean:</span>
+              <span style={{ textAlign: "right", color: "#fff" }}>Mean:</span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(hover.stats.mean)}</span>
             </>
           )}
 
-          <span style={{ textAlign: "right", color: "#6b7280" }}>Min:</span>
+          <span style={{ textAlign: "right", color: "#fff" }}>Min:</span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(hover.stats.min)}</span>
 
 
@@ -662,7 +696,7 @@ function BoxplotInner({
               x={-10}
               y={3}
               textAnchor="end"
-              fontSize="11"
+              fontSize={14 * __fontScale}
               fill="#37474f"
               style={{ pointerEvents: "none", userSelect: "none" }}
             >
@@ -680,9 +714,9 @@ function BoxplotInner({
           <text
             key={`x-${i}`}
             x={cx}
-            y={innerH + 18}
+            y={innerH + 18 * __fontScale}
             textAnchor="middle"
-            fontSize="11"
+            fontSize={14 * __fontScale}
             fill="#37474f"
             style={{ pointerEvents: "none", userSelect: "none" }}
           >
@@ -696,10 +730,10 @@ function BoxplotInner({
         <text
           transform={`translate(-34, ${innerH / 2}) rotate(-90)`}
           textAnchor="middle"
-          fontSize="12"
+          fontSize={14 * __fontScale}
           fill="#37474f"
         >
-          {yLabel}
+          {/* {yLabel} */}
         </text>
       ) : null}
 
@@ -723,7 +757,7 @@ function BoxplotInner({
             onMouseLeave={onLeave}
           >
             {/* whisker */}
-            <line x1={cx} x2={cx} y1={yMin} y2={yMax} stroke={color} strokeWidth={1.25} />
+            <line x1={cx} x2={cx} y1={yMin} y2={yMax} stroke={color} strokeWidth={1.5} />
 
             {/* box */}
             <rect
@@ -742,7 +776,14 @@ function BoxplotInner({
 
             {/* counts */}
             {Number.isFinite(counts[i]) ? (
-              <text x={cx} y={yMax - 14} textAnchor="middle" fontSize="12" fontWeight="700" fill="#37474f">
+              <text
+                x={cx}
+                y={yMax - 14 * __fontScale}
+                textAnchor="middle"
+                fontSize={14 * __fontScale}
+                fontWeight="700"
+                fill="#37474f"
+              >
                 {counts[i]}
               </text>
             ) : null}
@@ -967,8 +1008,18 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   if (!cfg) {
     return (
       <div className="plot-panel">
-        <div className="plot-header">
-          <h4 style={{ margin: 0 }}>
+        <div className="plot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4
+            style={{
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexGrow: 1,
+              flexShrink: 1,
+              minWidth: 0,
+            }}
+          >
             {chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}`}
           </h4>
           <div className="plot-icons" style={{ opacity: 0.4 }} />
@@ -982,8 +1033,18 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   if (!chartObj || !chartObj.data?.labels?.length) {
     return (
       <div className="plot-panel">
-        <div className="plot-header">
-          <h4>
+        <div className="plot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4
+            style={{
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flexGrow: 1,
+              flexShrink: 1,
+              minWidth: 0,
+            }}
+          >
             {slotLabel}: {cfg.parameter}
           </h4>
           {icons}
@@ -997,6 +1058,22 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   }
 
   const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data.labels.length}-${showCounts}`;
+
+  // Build the header title string. If the combined slot label and chart title is very long
+  // we truncate it to avoid crowding the icons. The actual text is still available via
+  // the `title` attribute for accessibility and tooltips.
+  const buildHeaderTitle = () => {
+    let baseTitle;
+    if (chartObj?.title) {
+      baseTitle = `${slotLabel} — ${chartObj.title}`;
+    } else {
+      baseTitle = `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`;
+    }
+    // If the title is overly long (over 80 characters), truncate and append an ellipsis.
+    const maxLen = 80;
+    return baseTitle.length > maxLen ? baseTitle.slice(0, maxLen - 1) + '…' : baseTitle;
+  };
+  const headerTitle = buildHeaderTitle();
 
   // Build a padded y-domain for the D3 plot using the same helper used by options.
   // Add a bit of breathing room on top and bottom of the data. We pad by 10% of the
@@ -1022,10 +1099,19 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
         className="plot-header"
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
       >
-        <h4 style={{ margin: 0 }}>
-          {chartObj?.title
-            ? `${slotLabel} — ${chartObj.title}`
-            : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
+        <h4
+          style={{
+            margin: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0,
+          }}
+          title={chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
+        >
+          {headerTitle}
         </h4>
         {/* Icons container: use icons prop passed from parent.  Also include nav arrows and counts toggle. */}
         <div className="plot-icons" style={{ display: "flex", gap: 12, alignItems: "center", opacity: 0.9 }}>

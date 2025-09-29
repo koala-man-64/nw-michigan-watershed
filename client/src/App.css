@@ -697,3 +697,40 @@ h1, h2, h3, h4,
   height: 100%;
   width: 100%;
 }
+
+/* Root sets the base for label + toggle (panel inherits too) */
+.sms-root {
+  font-size: var(--font-size-base);
+}
+
+/* Ensure the portalled panel and everything inside scales uniformly */
+.sms-panel,
+.sms-panel-overlay {
+  font-size: var(--font-size-base);
+}
+
+/* Search box */
+.sms-search {
+  font-size: var(--font-size-base);
+}
+
+/* The text in the closed control should inherit the same size */
+.sms-summary {
+  font-size: inherit;
+}
+
+/* Quick action pills (All / Clear / All Lakes / All Streams) */
+.sms-action {
+  font-size: var(--font-size-base);
+}
+
+/* List rows and labels */
+.sms-option,
+.sms-option-label {
+  font-size: var(--font-size-base);
+}
+
+/* Empty state message */
+.sms-empty {
+  font-size: var(--font-size-base);
+}
