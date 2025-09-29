@@ -23,6 +23,12 @@ function FiltersPanel({
   onUpdatePlot1 = () => {},
   onUpdatePlot2 = () => {},
   onDataLoaded = () => {}, // lift data up
+  /**
+   * Whether the Update Plot buttons should be enabled.  When false
+   * the buttons are disabled and a helpful tooltip is shown on hover
+   * instructing the user to click Continue on the home panel first.
+   */
+  updateEnabled = true,
 }) {
   // Options loaded from CSV
   const [sites, setSites] = useState([]);
@@ -63,9 +69,6 @@ function FiltersPanel({
   /**
    * Fetch CSV(s) once from Azure, populate options, initialize years, and
    * bubble up the parsed data to App via onDataLoaded.
-   *
-   * NOTE: Runs once on mount. We intentionally do NOT depend on function props,
-   * which were causing repeated fetches due to identity changes.
    */
   useEffect(() => {
     const dataUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/NWMIWS_Site_Data_testing_varied.csv?${SAS_TOKEN}`;
@@ -83,7 +86,7 @@ function FiltersPanel({
       try {
         const [dataCsvText, infoCsvText] = await Promise.all([
           fetchText(dataUrl),
-          fetchText(infoUrl).catch(() => ""), // tolerate missing info.csv
+          fetchText(infoUrl).catch(() => ""),
         ]);
 
         // Parse main data
@@ -153,8 +156,7 @@ function FiltersPanel({
     return () => {
       cancelled = true;
     };
-    // Intentionally empty deps: run once on mount to avoid re-fetch loops.
-  }, []); // <-- surgical change: no function props in deps
+  }, []); // run once
 
   // ---------------- Handlers (user-initiated; safe to notify parent) ----------------
   const handleSitesChange = (updated) => {
@@ -191,6 +193,8 @@ function FiltersPanel({
     setFilters((prev) => ({ ...prev, chartType }));
     onFiltersChange({ chartType });
   };
+
+  const disabledHint = "Click Continue in the welcome panel to enable plotting.";
 
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
@@ -285,16 +289,21 @@ function FiltersPanel({
           type="button"
           className="reset-btn"
           onClick={() => onUpdatePlot1(filters)}
+          disabled={!updateEnabled}
+          title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
         >
           Update Plot 1
         </button>
       </div>
 
+      {/* Update Plot 2 */}
       <div className="filter-group filter-buttons">
         <button
           type="button"
           className="reset-btn"
           onClick={() => onUpdatePlot2(filters)}
+          disabled={!updateEnabled}
+          title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
         >
           Update Plot 2
         </button>
@@ -308,6 +317,8 @@ FiltersPanel.propTypes = {
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
   onDataLoaded: PropTypes.func, // lifted data
+  /** Whether the Update Plot buttons should be enabled */
+  updateEnabled: PropTypes.bool,
 };
 
 export default FiltersPanel;

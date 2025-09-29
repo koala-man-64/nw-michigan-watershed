@@ -177,6 +177,7 @@ export default function SearchableMultiSelect({
           role="dialog"
           aria-label={`${label} picker`}
         >
+          {/* Top controls: only the search input remains here */}
           <div className="sms-controls">
             <input
               autoFocus
@@ -189,10 +190,33 @@ export default function SearchableMultiSelect({
                 setHoverIdx(0);
               }}
             />
-            <div
-              className="sms-actions"
-              style={{ display: "flex", gap: 8, flexWrap: "nowrap", justifyContent: "flex-start" }}
-            >
+          </div>
+
+          {/* Scrollable list */}
+          <div className="sms-list" role="listbox" aria-multiselectable>
+            {filtered.length === 0 && <div className="sms-empty">No matches</div>}
+            {filtered.map((opt, idx) => {
+              const active = selected.includes(opt);
+              return (
+                <div
+                  key={opt}
+                  role="option"
+                  aria-selected={active}
+                  className={`sms-option ${active ? "active" : ""} ${idx === hoverIdx ? "hover" : ""}`}
+                  onMouseEnter={() => setHoverIdx(idx)}
+                  onClick={() => toggleOption(opt)}
+                  title={opt}
+                >
+                  <input type="checkbox" readOnly checked={active} />
+                  <span className="sms-option-label">{opt}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* New sticky footer with right-aligned actions */}
+          <div className="sms-footer">
+            <div className="sms-actions">
               <button type="button" className="sms-action" onClick={selectAll} title="Select all">
                 All
               </button>
@@ -216,27 +240,6 @@ export default function SearchableMultiSelect({
                 All Streams
               </button>
             </div>
-          </div>
-
-          <div className="sms-list" role="listbox" aria-multiselectable>
-            {filtered.length === 0 && <div className="sms-empty">No matches</div>}
-            {filtered.map((opt, idx) => {
-              const active = selected.includes(opt);
-              return (
-                <div
-                  key={opt}
-                  role="option"
-                  aria-selected={active}
-                  className={`sms-option ${active ? "active" : ""} ${idx === hoverIdx ? "hover" : ""}`}
-                  onMouseEnter={() => setHoverIdx(idx)}
-                  onClick={() => toggleOption(opt)}
-                  title={opt}
-                >
-                  <input type="checkbox" readOnly checked={active} />
-                  <span className="sms-option-label">{opt}</span>
-                </div>
-              );
-            })}
           </div>
         </div>,
         document.body

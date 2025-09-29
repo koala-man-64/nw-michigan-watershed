@@ -1,42 +1,45 @@
-/* ========================================= */
-/* ============ Global Styles ============== */
-/* ========================================= */
+/* =========================================================================
+ * App Layout and Theme Styles
+ *
+ * This stylesheet defines the overall look and feel for the watershed
+ * dashboard. It is organised top‑down so that global variables and resets
+ * appear first, followed by layout containers, navigation/header styles,
+ * filter controls, plots/maps, search multi‑select overrides, responsive
+ * tweaks and finally state variations such as disabled buttons.
+ *
+ * The file uses CSS custom properties (variables) to centralise the colour
+ * palette, typographic scale and radii. Adjusting these variables will
+ * propagate consistent changes throughout the UI.
+ * ========================================================================= */
 
+/* ======= Theme variables ======= */
 @import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Lato:wght@300;400;700&display=swap');
 
-/*
- * Theme variables
- *
- * Define a handful of CSS custom properties up front so the
- * colour palette, typography and radii can be tweaked in one
- * place.  These values are inspired by the Benzie Conservation
- * District website: a deep blue header, soft neutral panels and
- * a warm red accent for call‑to‑action buttons.  Using
- * variables makes it easy to adjust the look and feel across
- * all components without hunting through the stylesheet.
- */
 :root {
-  /* Primary brand colour for the header and other dark elements */
-  --color-primary: #1f2937;      /* dark blue/graphite */
-  /* Secondary text colour used throughout the interface */
-  --color-secondary: #37474f;    /* charcoal slate */
-  /* Warm accent colour for buttons and highlights */
-  --color-accent: #c94c4c;      /* muted brick red */
-  /* Light background for the app shell */
-  --color-bg: #f8fafc;          /* very light blue/grey */
-  /* Panel backgrounds such as cards, filters and charts */
-  --color-panel-bg: #ffffff;    /* white */
-  /* Neutral border colour for subtle outlines */
-  --color-border: #e5e7eb;      /* light grey */
-  /* Radius used on cards and inputs for a soft look */
-  --radius: 10px;
-  /* Default font sizes */
-  --font-size-base: 14px;
-  --font-size-label: 14px;
-  --font-size-title: 24px;
+  /* Colour palette */
+  --color-primary: #1f2937;      /* primary brand colour: dark blue/graphite */
+  --color-secondary: #37474f;    /* secondary text colour: charcoal slate */
+  --color-accent: #c94c4c;       /* warm accent colour: muted brick red */
+  --color-bg: #f8fafc;           /* page background: very light blue/grey */
+  --color-panel-bg: #ffffff;     /* card backgrounds: white */
+  --color-border: #e5e7eb;       /* neutral border lines: light grey */
+  
+  /* new */
+  --font-scale: 1.125; /* 1 = 100% baseline */
+
+  /* update these to use the scale */
+  --font-size-base:  calc(14px * var(--font-scale));
+  --font-size-label: calc(14px * var(--font-scale));
+  --font-size-title: calc(24px * var(--font-scale));
+
+  /* Sizing */
+  --radius: 10px;                /* default border radius used on cards and inputs */
 }
 
-html, body, #root { height: 100%; }
+/* ======= Global resets ======= */
+html, body, #root {
+  height: 100%;
+}
 
 body {
   margin: 0;
@@ -50,6 +53,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Serif headings use the complementary Lora font for contrast */
 h1, h2, h3, h4,
 .plot-panel h4 {
   font-family: "Lora", Georgia, "Times New Roman", serif;
@@ -57,32 +61,77 @@ h1, h2, h3, h4,
   letter-spacing: 0;
 }
 
-/* ========================================= */
-/* ============ Layout & Containers ======== */
-/* ========================================= */
+/* =========================================================================
+ * Layout Containers
+ *
+ * The following classes control the overall page layout using CSS grid.
+ * The .app wrapper defines the header row and main content area. The
+ * .main area splits into a left column for the filter/map and a right
+ * column for plots. On narrow screens, the columns stack vertically.
+ * ========================================================================= */
 
-/* Left column: stack filters over the map, and have this container fill its grid cell */
+/* Grid wrapper holding the header (auto height) and main content (fills remainder) */
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+/* Main content uses two columns on large screens and stacks on mobile */
+.main {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: stretch;
+  gap: 16px;
+  margin: 16px;
+  height: calc(100% - 32px);
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left column holds the filter panel and map */
+.left {
+  min-height: 0;
+  min-width: 0;
+  justify-self: start;
+}
+
+/* Right column hosts plots and grows to fill available space */
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Inside the left column, stack the filters toolbar above the map */
 .filter-map-panel {
   display: grid;
   grid-template-rows: max-content 1fr;
-  flex-direction: column;
   gap: 16px;
   width: min(100%, var(--panel-max-width));
+  height: 100%;
   min-height: 0;
-  height: 100%;                   /* <— key: makes the panel fill the grid cell height */
 }
 
-/* ====================Header===================== */
-/* Updated header styling with merged title and menu on one line */
-/* --- Header wrapper --- */
-/* Header bar at the very top of the application.  The dark
-   background uses the primary brand colour and white text for
-   high contrast.  A light drop shadow separates it from the
-   content below. */
+/* =========================================================================
+ * Header Navigation
+ *
+ * The header provides branding and navigation. It is styled with the
+ * primary brand colour and white text for contrast. The header container
+ * aligns the logo, title and optional menu on one line.
+ * ========================================================================= */
+
+/* Header bar with dark background and subtle shadow */
 .header {
   background-color: var(--color-primary);
   color: #fff;
-  align-items: left;
   min-width: 200px;
   line-height: 1.2;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -90,11 +139,10 @@ h1, h2, h3, h4,
   z-index: 10;
 }
 
-/* center content and give breathing room */
-/* Contain header contents and align items neatly on a single line. */
+/* Flex container to align header contents horizontally */
 .header-container {
   display: flex;
-  align-items: left;
+  align-items: center;
   justify-content: flex-start;
   gap: 16px;
   padding: 12px 20px;
@@ -102,9 +150,7 @@ h1, h2, h3, h4,
   margin: 0 auto;
 }
 
-/* left side: logo + title */
-/* Left section holds the logo and title.  We stretch the
-   elements to share the same height. */
+/* Left section contains logo and title */
 .header-left {
   display: flex;
   align-items: center;
@@ -112,8 +158,7 @@ h1, h2, h3, h4,
   min-width: 0;
 }
 
-/* make the logo scale nicely without distortion */
-/* The organisation’s logo scales to fit within the header. */
+/* Site logo scales nicely within the header */
 .header-logo {
   display: block;
   height: 44px;
@@ -123,104 +168,64 @@ h1, h2, h3, h4,
   object-fit: contain;
 }
 
-/* title text with responsive sizing and truncation */
-/* Main title uses the Poppins font with a strong weight.  We
-   clamp the size for responsiveness and allow ellipsis on long
-   titles. */
+/* Main title uses Lato for clarity and clamps size responsively */
 .title {
   font-family: "Lato", system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: 0.4px;
-  font-size: clamp(20px, 2.4vw, 30px);
+  font-size: calc(clamp(20px, 2.4vw, 30px) * var(--font-scale));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: #fff;
 }
-/* optional slim divider between title and nav */
-.vertical-separator {
-  width: 1px;
-  height: 1.4em;
-  background: rgba(255,255,255,0.25);
-  margin: 0 10px;
-}
 
-/* small screens: let the title wrap if needed */
+/* Allow the title to wrap on very narrow screens */
 @media (max-width: 520px) {
   .title {
     white-space: normal;
   }
 }
-/* ========================================= */
 
-/* Vertical separator between title and menu */
+/* Optional vertical divider between title and menu */
 .vertical-separator {
   width: 1px;
-  height: 24px;
-  background-color: white;
+  height: 1.4em;
+  background: rgba(255, 255, 255, 0.25);
   margin: 0 10px;
 }
 
-/* Menu styling with slightly smaller and thinner text */
+/* Navigation menu next to the title */
 .menu {
   display: flex;
   gap: 15px;
   align-items: center;
 }
 
-.menu a {
+.menu a,
+.menu-link,
+.menu-button {
   font-size: 16px;
   font-weight: 400;
-  color: white;
+  color: #fff;
   text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
 .menu a:hover {
   text-decoration: underline;
 }
 
-/* ------------------------------------------ */
-/* Plot subtitles and notices for ChartPanel  */
-/* ------------------------------------------ */
-
-/* Secondary line beneath the chart title to describe the series (e.g. parameter by year). */
-.plot-subtitle {
-  font-size: 13px;
-  color: var(--color-secondary);
-  margin-top: 2px;
-}
-
-/* Inline notice shown above the chart when displaying a Trend plot.  It
-   indicates which site is currently shown and provides previous/next
-   arrows when multiple sites are selected. */
-.plot-notice {
-  font-size: 13px;
-  color: var(--color-secondary);
-  background-color: #fef7f0;
-  border: 1px solid #fde9da;
-  border-radius: 6px;
-  padding: 4px 8px;
-  margin-bottom: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-
-
-
-/* ========================================= */
-/* ============ Filter Panel =============== */
-/* ========================================= */
-
-/*
- * Filters toolbar
+/* =========================================================================
+ * Filter Toolbar
  *
- * Defines the layout and appearance of the collection of filter
- * controls at the top of the map panel.  The toolbar wraps when
- * necessary, scrolls horizontally on overflow and applies a light
- * background and shadow for visual separation.
- */
+ * The filters toolbar groups inputs for site selection, year range,
+ * parameter selection and actions. It scrolls horizontally when there
+ * isn't enough space and floats above the map on the left side.
+ * ========================================================================= */
+
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -229,11 +234,10 @@ h1, h2, h3, h4,
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--color-panel-bg);
-  /* subtle border separates the toolbar from the map */
   border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   padding: 12px;
   box-sizing: border-box;
-  border-radius: var(--radius);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   flex: 0 0 auto;
 }
@@ -243,22 +247,37 @@ h1, h2, h3, h4,
   white-space: nowrap;
 }
 
+/* Generic group wrapper used for dropdowns */
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
 
+/* Site multi‑select has a defined width on large screens but collapses responsively */
+.site-group {
+  width: 320px;
+  max-width: 100%;
+}
+
+/* Filter dropdown including its label */
 .filter-dropdown {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
-.filter-dropdown label {
-  flex: 1;
+.filter-dropdown label,
+.sms-label {
   font-size: var(--font-size-label);
   font-weight: 600;
   color: var(--color-secondary);
   margin-bottom: 4px;
 }
 
-.year-select {
+/* Native select styling (year and parameter selects) */
+.year-select,
+.sms-toggle {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
@@ -270,46 +289,28 @@ h1, h2, h3, h4,
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* Focus ring for select controls improves keyboard accessibility */
 .year-select:focus {
-  /* Remove the red highlight effect on focus and keep a neutral border */
   border-color: var(--color-secondary);
   outline: none;
   box-shadow: none;
 }
 
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  flex: 0 0 auto;  
-  
-}
-
-.site-group {
-  width: 320px;
-  max-width: 100%;
-}
-
-.filter-separator {
-  border: none;
-  border-top: 1px solid #ccc;
-  margin: 10px 0;
-}
-
-/* Site Filter */
-.search-box {
+/* Search box for site filtering */
+.search-box,
+.sms-search {
   width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   box-sizing: border-box;
+  outline: none;
 }
 
+/* Site list container and items */
 .site-list {
   max-height: 200px;
   overflow-y: auto;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border);
   border-radius: 5px;
   padding: 5px;
   background: #fff;
@@ -330,19 +331,18 @@ h1, h2, h3, h4,
 }
 
 .site-item.selected {
-  background: #37474F;
-  color: white;
+  background: var(--color-secondary);
+  color: #fff;
   font-weight: bold;
 }
 
-/* Parameter Filter */
+/* Parameter filter layout and options */
 .parameter-filter {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-/* Adds spacing between parameter options */
 .parameter-options {
   display: flex;
   flex-wrap: wrap;
@@ -359,13 +359,10 @@ h1, h2, h3, h4,
   margin-right: 5px;
 }
 
-/* ========================================= */
-/* ============ Buttons ==================== */
-/* ========================================= */
-
+/* Filter action buttons align to the end of the toolbar */
 .filter-buttons {
   display: flex;
-  justify-content: end;
+  justify-content: flex-end;
   margin-top: 15px;
 }
 
@@ -377,7 +374,7 @@ h1, h2, h3, h4,
   font-weight: 600;
   cursor: pointer;
   background-color: var(--color-accent);
-  color: #ffffff;
+  color: #fff;
   width: 100%;
   text-align: center;
   transition: background-color 0.15s ease;
@@ -387,63 +384,48 @@ h1, h2, h3, h4,
   background-color: #b04040;
 }
 
-.menu-link,
-.menu-button {
-  font-size: 16px;
-  font-weight: 400;
-  color: white;
-  text-decoration: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-
-/* ========================================= */
-/* ============ Map and Plot Panels ======== */
-/* ========================================= */
+/* =========================================================================
+ * Map and Plot Panels
+ *
+ * These panels share a common card style: white background, neutral
+ * border, padding, radius and a soft shadow. They are flex containers
+ * oriented vertically to house their respective content.
+ * ========================================================================= */
 
 .map,
-.plots {
+.plots,
+.plot-panel {
   background: var(--color-panel-bg);
   border: 1px solid var(--color-border);
   padding: 12px;
   border-radius: var(--radius);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-
   display: flex;
   flex-direction: column;
+}
 
+.map,
+.plot-panel {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-/* ========================================= */
-/* ============ Plots Styling ============== */
-/* ========================================= */
-
+/* Layout container for up to two plots stacked vertically */
 .plots-container {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  height: 100%;   /* Fills the entire plots panel */
+  gap: 16px;
+  height: 100%;
 }
 
 .plot-panel {
-  flex: 1;        /* Evenly split available vertical space */
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 1;
   min-height: 0;
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-border);
-  padding: 12px;
-  border-radius: var(--radius);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
 }
 
-/* Ensure the header (h4) doesn't shrink and takes minimal space */
+/* Chart header within a plot panel */
 .plot-panel h4 {
   margin-bottom: 12px;
   flex-shrink: 0;
@@ -453,328 +435,265 @@ h1, h2, h3, h4,
   color: var(--color-secondary);
 }
 
-/* Colour the interactive icons used in the plot headers. */
+/* Icon styling within plot headers */
 .plot-icons svg {
   color: var(--color-secondary);
   cursor: pointer;
   transition: color 0.15s ease;
 }
+
 .plot-icons svg:hover {
   color: var(--color-accent);
 }
 
+/* Chart area fills the panel */
 .plot-content {
-  flex: 1;        /* Chart fills the rest of the panel */
-  width: 100%;
-  display: flex;
+  flex: 1;
   min-height: 0;
+  display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
+  position: relative;
 }
 
-/* Force the chart's canvas to always fill the container */
 .plot-content canvas {
   width: 100% !important;
   height: 100% !important;
 }
 
-/* ========================================= */
-
-/*
- * Overrides for the SearchableMultiSelect component used in the
- * FiltersPanel.  These rules adjust the spacing and caret styling
- * so that the site multi‑select matches the appearance and height
- * of the native <select> elements used for the other filters.
- */
-
-/* Add a small margin below the label to mirror the spacing of the
-   native select labels */
-.sms-label {
-  margin-bottom: 4px;
+/* Subtitles and notices displayed above charts */
+.plot-subtitle,
+.plot-notice {
+  font-size: 13px;
+  color: var(--color-secondary);
+  margin-top: 2px;
 }
 
-/* Reduce vertical padding on the toggle so its height aligns with
-   the other dropdowns in the filter bar */
-.sms-toggle {
-  padding: 8px 10px;
+.plot-notice {
+  background-color: #fef7f0;
+  border: 1px solid #fde9da;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Replace the default caret icon with a chevron similar to the native
-   select dropdowns.  We draw a right‑angle using borders and rotate
-   it 45° so it appears as a thin, open “V” shape.  This removes
-   the solid triangle and produces a lighter chevron to match the
-   other dropdowns in the filter panel. */
-.sms-caret {
-  margin-left: 8px;
-  /* give the caret a fixed size so the border trick works (slightly smaller) */
-  width: 0.5em;
-  height: 0.5em;
-  /* draw the right angle with two borders; make the lines thinner */
-  border-right: 2px solid var(--color-secondary);
-  border-bottom: 2px solid var(--color-secondary);
-  /* rotate 45° to make the borders form a downward chevron */
-  transform: rotate(45deg);
-  display: inline-block;
-  /* ensure borders are crisp */
-  box-sizing: border-box;
-}
+/* =========================================================================
+ * Searchable Multi‑Select Overrides
+ *
+ * The SearchableMultiSelect component comes from a third‑party library.
+ * These overrides adjust sizing, spacing and the caret icon so it aligns
+ * visually with native selects used in the filter panel.
+ * ========================================================================= */
 
-/* Hide any embedded SVG icon inside the caret so only the CSS
-   chevron is visible */
-.sms-caret > svg {
-  display: none;
-}
-/* ============ Responsive Design ========== */
-/* ========================================= */
-
-.map > * {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-.map .leaflet-container {
-  height: 100%;
-  width: 100%;
-}
-
-.error {
-  color: #D32F2F;
-  margin-top: 10px;
-  font-weight: 500;
-}
-
-
-/* Searchable Multi-Select */
 .sms-root {
   display: flex;
-  flex-direction: column; 
-  width: 100%; 
-  max-width: 360px; 
-}
-.sms-label {
-  font-size: var(--font-size-label);
-  font-weight: 600;
-  color: var(--color-secondary);
+  flex-direction: column;
+  width: 100%;
+  max-width: 360px;
+  --sms-radius: 12px;
 }
 
+/* Toggle (the collapsed control shown before opening the list) */
 .sms-toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* Match the height and padding of native year selects */
-  padding: 9px 8px;
+  padding: 8px 10px;
   border-radius: var(--radius);
-  /* Use the same neutral border colour as other dropdowns */
-  border: 1.25px solid var(--color-border);
+  border: 1px solid var(--color-border);
   background: #fff;
   cursor: pointer;
   text-align: left;
-}
-.sms-toggle.open {
-  /* Maintain the neutral border colour when the dropdown is open */
-  border-color: var(--color-border);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-.sms-summary {
-  /* Inherit font size and use the same colour as native selects for consistency */
-  color: var(--color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* When a value is selected, keep the same colour rather than darkening */
-.sms-summary.has-value {
-  color: var(--color-secondary);
-}
-.sms-caret { margin-left: 8px; }
-
-.sms-panel {
-  margin-top: 6px;
-  /* Use the same neutral border colour as other dropdown components */
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(2,6,23,0.12); overflow: hidden; display: flex; flex-direction: column;
-}
-.sms-controls { padding: 8px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; flex-direction: column; width:95%}
-.sms-search {
-  flex: 1;
-  padding: 8px 10px;
-  border-radius: 8px;
-  /* Match border colour to other selects */
-  border: 1px solid var(--color-border);
-  outline: none;
-}
-.sms-actions { display: flex; gap: 6px; }
-.sms-action { border: none; background: #f1f5f9; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
-.sms-action:hover { background: #e2e8f0; }
-
-.sms-list { overflow: auto; max-height: 240px; padding: 6px; display: grid; gap: 4px; }
-.sms-empty { padding: 12px; color: #64748b; text-align: center; }
-
-.sms-option {
-  display: flex; align-items: center; gap: 16px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
-}
-.sms-option.hover { background: #f8fafc; }
-.sms-option.active { background: #eef2ff; }
-.sms-option input { pointer-events: none; }
-.sms-option-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* existing .sms-panel styles are fine; add an overlay variant */
-.sms-panel-overlay {
-  /* position, top, left, width, z-index set inline */
-  margin-top: 0;             /* don't add layout gaps */
-  /* Use neutral border colour consistent with the rest of the UI */
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(2,6,23,0.18), 0 2px 8px rgba(2,6,23,0.08);
-  overflow: hidden;
-}
-
-/* optional: stop parents (like .filters) from creating a clipping context */
-.filters, .container {
-  overflow: visible; /* ensure overlay isn't clipped by ancestors */
-}
-
-.app {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  min-height: 100vh;
-}
-
-.main {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: stretch;
-  gap: 16px;
-
-  /* new: outside spacing and full-height fit */
-  margin: 16px;                 /* 16px “frame” around the content */
-  height: calc(100% - 32px);    /* fill available height minus top+bottom margins */
-  min-height: 0;                /* allow children to size correctly */
-}
-
-/* Let the second row actually be allowed to shrink/grow */
-.left {
-  min-height: 0;     /* allow grid items to shrink inside .main */
-  min-width: 0;      /* prevent horizontal blowout from long content */
-  justify-self: start;
-}
-
-/* 4) Right should take all available HEIGHT */
-.right {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;   /* children can’t push beyond */
-}
-
-.map .leaflet-container {
-  height: 100%;
-  width: 100%;
-}
-
-/* If your map tries to take the whole viewport, constrain it */
-/* Removed .map-container; see .left .map definition above for height control */
-
-/* Responsive: stack on narrow screens */
-@media (max-width: 900px) {
-  .main { grid-template-columns: 1fr; }
-  .right { order: 2; }   /* plot below left column when stacked */
 }
 
 .sms-toggle.open {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
-  box-shadow: none;
   border-bottom-color: transparent;
-  pointer-events: none;    /* clicks go to the overlay */
+  box-shadow: none;
+  pointer-events: none;
   visibility: hidden;
 }
-.sms-panel-overlay {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
+
+.sms-summary {
+  color: var(--color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.sms-summary.has-value {
+  color: var(--color-secondary);
+}
+
+/* Custom chevron caret using borders */
+.sms-caret {
+  margin-left: 8px;
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid var(--color-secondary);
+  border-bottom: 2px solid var(--color-secondary);
+  transform: rotate(45deg);
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.sms-caret > svg {
+  display: none; /* hide default SVG icon */
+}
+
+/* Dropdown panel containing controls and list */
 .sms-panel,
 .sms-panel-overlay {
   margin-top: 0 !important;
-}
-
-/* one place to control radius */
-.sms-root { --sms-radius: 12px; }
-
-.sms-panel-overlay {
-  border-radius: var(--sms-radius) !important;   /* round all corners */
-  /* Use neutral border colour consistent with other controls */
   border: 1px solid var(--color-border);
-  overflow: hidden;                               /* show the rounding cleanly */
+  border-radius: var(--sms-radius);
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* if you previously added a 'merged' look, undo any 0-radius on top */
-.sms-panel-overlay {
-  border-top-left-radius: var(--sms-radius) !important;
-  border-top-right-radius: var(--sms-radius) !important;
-}
-
-.sms-search {
-  flex: 1 1 auto;     /* grow and shrink */
-  min-width: 0;       /* critical: allow shrinking inside flex */
+.sms-controls {
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+  width: 95%;
 }
 
 .sms-actions {
   display: flex;
   gap: 6px;
-  flex: 0 0 auto;     /* don’t stretch */
+  flex: 0 0 auto;
 }
 
 .sms-action {
+  border: none;
+  background: #f1f5f9;
   padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
   font-size: 12px;
   line-height: 1;
-  white-space: nowrap;  /* prevent wrap */
+  white-space: nowrap;
 }
 
-/* The map card itself should consume all remaining space under the toolbar */
-.map {
- /*  flex: 1 1 auto;                 <— key: makes the map area stretch */
-  min-height: 0;                  /* avoids flex overflow issues */
+.sms-action:hover {
+  background: #e2e8f0;
 }
 
-/* Leaflet map fills its parent .map area */
+.sms-list {
+  overflow: auto;
+  max-height: 240px;
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.sms-empty {
+  padding: 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+.sms-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.sms-option.hover {
+  background: #f8fafc;
+}
+
+.sms-option.active {
+  background: #eef2ff;
+}
+
+.sms-option input {
+  pointer-events: none;
+}
+
+.sms-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Overlay variant used when dropdown appears in a portal */
+.sms-panel-overlay {
+  border-top-left-radius: var(--sms-radius) !important;
+  border-top-right-radius: var(--sms-radius) !important;
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.18), 0 2px 8px rgba(2, 6, 23, 0.08);
+  overflow: hidden;
+}
+
+/* Prevent parent containers from clipping overlay dropdowns */
+.filters,
+.container {
+  overflow: visible;
+}
+
+/* =========================================================================
+ * Utility & State classes
+ *
+ * Common utility classes used across the application for spacing and error
+ * messages. Also includes disabled state styling for buttons.
+ * ========================================================================= */
+
+.filter-separator {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 10px 0;
+}
+
+.error {
+  color: #d32f2f;
+  margin-top: 10px;
+  font-weight: 500;
+}
+
+/* Disabled reset buttons are visibly faded and not interactive */
+.reset-btn:disabled,
+.reset-btn[disabled] {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  border: 1px solid #d1d5db;
+  box-shadow: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reset-btn:disabled:hover,
+.reset-btn[disabled]:hover,
+.reset-btn:disabled:active,
+.reset-btn[disabled]:active,
+.reset-btn:disabled:focus,
+.reset-btn[disabled]:focus {
+  background-color: #e5e7eb;
+  color: #9ca3af;
+  box-shadow: none;
+  outline: none;
+}
+
+/* Faded icons within disabled buttons */
+.reset-btn:disabled svg,
+.reset-btn[disabled] svg {
+  opacity: 0.55;
+}
+
+/* Make the Leaflet map fill its parent card */
 .map .leaflet-container {
   height: 100%;
-  /* width: 100%; */
+  width: 100%;
 }
-
-/* holds one or two plot panels */
-.plots-container {
-  gap: 16px;
-}
-
-/* each plot panel shares the space evenly */
-.plot-panel {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* chart area fills the panel */
-.plot-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
-
-/* the canvas must follow the container, not its intrinsic size */
-.plot-content canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-
