@@ -37,6 +37,7 @@ Chart.register(
 
 Chart.defaults.font.family =
   'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const FONT_FAMILY = Chart.defaults.font.family;
 
 // Derive the application's typographic scale from CSS custom property `--font-scale`.
 // If the CSS variable is not found or cannot be parsed the scale defaults to 1 (100%).
@@ -59,8 +60,8 @@ function getFontScale() {
 // charts respect the same typographic scale defined in App.css.
 const __fontScale = getFontScale();
 Chart.defaults.font.size = 12 * __fontScale;
-const COUNT_FONT_PX = 12 * __fontScale;
-const COUNT_FONT = `400 ${COUNT_FONT_PX}px sans-serif`;
+const COUNT_FONT_PX = 14 * __fontScale;
+const COUNT_FONT = `700 ${COUNT_FONT_PX-4}px Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
 const CHART_FONT = 12 * __fontScale;
 Chart.defaults.color = "#37474f";
 
@@ -259,7 +260,7 @@ function buildComparisonChart(rawData, cfg, palette) {
 
   return {
     title: `${parameter} Comparison by Site`,
-    type: "bar",
+    type: "d3bar",
     subtitle,
     // carry y padding/meta so the Chart.js options can use it
     yMeta: {
@@ -305,7 +306,7 @@ const countPlugin = {
       const textY = ppos.y - baseOffset;
       ctx.fillStyle = p.color || "#37474f";
       ctx.textAlign = "center";
-      ctx.font = p.font || "12px sans-serif";
+      ctx.font = p.font || COUNT_FONT;
       ctx.fillText(String(c), x, textY);
     });
     ctx.restore();
@@ -381,7 +382,7 @@ function makeOptions(parameterLabel, chartObj) {
       countPlugin: {
         gapAboveWhisker: 16 * __fontScale,
         offset: 10 * __fontScale,
-        color: "#37474f",
+        // color: "#37474f",
         font: COUNT_FONT, 
       },
       tooltip: {
@@ -652,6 +653,258 @@ D3Boxplot.defaultProps = {
   yLabel: "",
 };
 
+
+function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain }) {
+  // Increase margins slightly to give the bar chart a bit more breathing room
+  // This mirrors the appearance of the trend plots which have extra space
+  const margin = { top: 16, right: 8, bottom: 40, left: 48 };
+  const [hover, setHover] = React.useState(null);
+  const hideHover = React.useCallback(() => setHover(null), []);
+
+  const fmt = React.useCallback(
+    (v) => (Number.isFinite(v) ? String(Number(v).toFixed(3)).replace(/\.0+$/, "").replace(/\.([^0]*)0+$/, ".$1") : "—"),
+    []
+  );
+
+  return (
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="none">
+        <D3BarInner
+          labels={labels}
+          values={values}
+          counts={counts}
+          color={color}
+          yDomain={yDomain}
+          margin={margin}
+          width={800}
+          height={400}
+          onHover={(e, i, v, lab) => {
+            setHover({
+              x: e.clientX,
+              y: e.clientY,
+              label: Array.isArray(lab) ? lab.join(" ") : String(lab),
+              value: v,
+            });
+          }}
+          onLeave={hideHover}
+        />
+      </svg>
+
+      {hover && (
+        <>
+          <span
+            role="tooltip"
+            style={{
+              position: "fixed",
+              left: hover.x,
+              top: Math.max(8, hover.y - 12),
+              transform: "translate(-50%, -100%)",
+              background: "rgba(31, 41, 55, 0.98)",
+              color: "#fff",
+              fontSize: 14 * __fontScale,
+              padding: "8px 10px",
+              borderRadius: 6,
+              pointerEvents: "none",
+              zIndex: 999999,
+              boxShadow: "0 6px 18px rgba(0,0,0,.28)",
+              display: "inline-flex",
+              flexDirection: "column",
+              gap: 2,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {hover.label && <strong style={{ marginBottom: 4, fontWeight: 900 }}>{hover.label}</strong>}
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(hover.value)}</span>
+          </span>
+          <span
+            style={{
+              position: "fixed",
+              left: hover.x,
+              top: Math.max(8, hover.y - 12),
+              transform: "translate(-50%, -2px)",
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "6px solid rgba(31, 41, 55, 0.98)",
+              pointerEvents: "none",
+              zIndex: 999999,
+            }}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+D3Bar.propTypes = {
+  labels: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)])
+  ).isRequired,
+  values: PropTypes.arrayOf(PropTypes.number).isRequired,
+  counts: PropTypes.arrayOf(PropTypes.number),
+  // Allow colour to be either a single string (uniform colour) or an array of strings (one per bar)
+  color: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.arrayOf(PropTypes.string),
+  ]),
+  yDomain: PropTypes.shape({
+    min: PropTypes.number,
+    max: PropTypes.number,
+  }),
+};
+
+D3Bar.defaultProps = {
+  counts: [],
+  color: "#37474f",
+  yDomain: undefined,
+};
+
+function D3BarInner({
+  labels, values, counts, color, yDomain, margin, width, height, onHover, onLeave,
+}) {
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  // y scale (with nice ticks and small padding like trend)
+  const dataMin = 0;
+  const dataMax = Math.max(...values);
+  const domainMin = Number.isFinite(yDomain?.min) ? yDomain.min : dataMin;
+  const domainMax = Number.isFinite(yDomain?.max) ? yDomain.max : dataMax;
+  const y = d3.scaleLinear().domain([domainMin, domainMax]).nice().range([innerH, 0]);
+
+  // x scale
+  const labelKeys = labels.map(String);
+  const x = d3.scaleBand().domain(labelKeys).range([0, innerW]).padding(0.2);
+
+  const ticks = y.ticks(Math.max(2, Math.floor(innerH / 60)));
+  const barW = Math.max(8, Math.min(48, x.bandwidth()));
+
+  // heuristic skip so we don't cram too many vertical labels
+  // const maxLabels = Math.max(1, Math.floor(innerW / 50));
+  // const skip = Math.ceil(labelKeys.length / maxLabels);
+
+  return (
+    <g transform={`translate(${margin.left},${margin.top})`}>
+      {/* gridlines + y ticks */}
+      {ticks.map((t) => {
+        const py = y(t);
+        return (
+          <g key={`t-${t}`} transform={`translate(0,${py})`} shapeRendering="crispEdges">
+            <line x1={0} x2={innerW} stroke="#e5e7eb" strokeWidth={0.75} />
+            <text
+              x={-10}
+              y={3}
+              textAnchor="end"
+              fontSize={14 * __fontScale}
+              fill="#37474f"
+              fontFamily={FONT_FAMILY}
+              style={{ pointerEvents: "none", userSelect: "none" }}
+            >
+              {t}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* bars + counts + vertical labels inside bars */}
+      {values.map((v, i) => {
+        const lab = labelKeys[i];
+        const xBand = x(lab) ?? 0;
+        const x0 = xBand + (x.bandwidth() - barW) / 2;
+        const h = Math.max(0, innerH - y(v));
+        const top = y(v);
+        const cx = x0 + barW / 2;
+
+        // Determine bar fill
+        const fillColor = Array.isArray(color) ? color[i % color.length] : color;
+
+        // Label text (preserve original array->string behavior)
+        const labelText = Array.isArray(labels[i]) ? labels[i].join(" ") : labels[i];
+
+        return (
+          <g
+            key={`bar-${i}`}
+            onMouseEnter={(e) => onHover && onHover(e, i, v, labels[i])}
+            onMouseMove={(e) => onHover && onHover(e, i, v, labels[i])}
+            onMouseLeave={onLeave}
+          >
+            <rect
+              x={x0}
+              y={top}
+              width={barW}
+              height={h}
+              fill={fillColor}
+              opacity={0.9}
+              shapeRendering="crispEdges"
+            />
+
+            {/* count above bar */}
+            {Number.isFinite(counts?.[i]) && (
+              <text
+                x={cx}
+                y={top - 10 * __fontScale}
+                textAnchor="middle"
+                fontSize={14 * __fontScale}
+                fontWeight="700"
+                fill="#37474f"
+                fontFamily={FONT_FAMILY}
+                style={{ pointerEvents: "none", userSelect: "none" }}
+              >
+                {counts[i]}
+              </text>
+            )}
+
+            {/* vertical x-axis label INSIDE the bar (skip to reduce clutter) */}
+            {/* {i % skip === 0 && h > 10 && ( */}
+            { h > 10 && (
+              <text
+                x={cx} 
+                y={top + h / 2}
+                transform={`rotate(-90, ${cx}, ${top + h / 2})`}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={14 * __fontScale}
+                fontFamily={FONT_FAMILY}
+                fill="#ffffff"
+                style={{ pointerEvents: "none", userSelect: "none" }}
+              >
+                {labelText}
+              </text>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+D3BarInner.defaultProps = {
+  counts: [],
+  yDomain: undefined,
+  onHover: undefined,
+  onLeave: undefined,
+};
+D3BarInner.propTypes = {
+  labels: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)])
+  ).isRequired,
+  values: PropTypes.arrayOf(PropTypes.number).isRequired,
+  counts: PropTypes.arrayOf(PropTypes.number),
+  color: PropTypes.string.isRequired,
+  yDomain: PropTypes.shape({
+    min: PropTypes.number,
+    max: PropTypes.number,
+  }),
+  margin: PropTypes.shape({
+    top: PropTypes.number.isRequired,
+    right: PropTypes.number.isRequired,
+    bottom: PropTypes.number.isRequired,
+    left: PropTypes.number.isRequired,
+  }).isRequired,
+  width: PropTypes.number.isRequired,
+  height: PropTypes.number.isRequired,
+  onHover: PropTypes.func,
+  onLeave: PropTypes.func,
+};
 // Inner SVG — now emits hover events for each box group
 function BoxplotInner({
   labels, series, color, counts, yDomain, yLabel, margin, width, height,
@@ -698,6 +951,7 @@ function BoxplotInner({
               textAnchor="end"
               fontSize={14 * __fontScale}
               fill="#37474f"
+              fontFamily={FONT_FAMILY}
               style={{ pointerEvents: "none", userSelect: "none" }}
             >
               {t}
@@ -1147,16 +1401,34 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
             yDomain={yDomain}
             yLabel={cfg?.parameter || ""}
           />
-        ) : (
-          <ReactChart
+        ) : chartObj.type === "d3bar" ? (
+          <D3Bar
             key={chartKey}
-            datasetIdKey={`${cfg.parameter}-${chartObj.type}`}
-            type={chartObj.type}
-            data={chartData}
-            options={options}
-            updateMode="none"
-            style={{ width: "100%", height: "100%" }}
+            labels={chartObj.data.labels}
+            values={chartData.datasets[0].data}
+            counts={chartData.datasets[0].customCounts || []}
+            // Pass the entire colour palette array so the bar chart can colour each bar individually
+            color={chartData.datasets[0].backgroundColor || "#37474f"}
+            yDomain={
+              (() => {
+                const r = computeYRangeForChart(chartObj);
+                if (!r) return undefined;
+                const span = r.max - r.min;
+                const pad = !Number.isFinite(span) || span === 0 ? 1 : span * 0.1;
+                return { min: Math.max(0, r.min - pad), max: r.max + pad };
+              })()
+            }
           />
+        ) : (
+           <ReactChart
+             key={chartKey}
+             datasetIdKey={`${cfg.parameter}-${chartObj.type}`}
+             type={chartObj.type}
+             data={chartData}
+             options={options}
+             updateMode="none"
+             style={{ width: "100%", height: "100%" }}
+           />
         )}
       </div>
     </div>
