@@ -1,3 +1,4 @@
+// /client/src/FiltersPanel.js
 import React, { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
@@ -198,7 +199,7 @@ function FiltersPanel({
 
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
-      {/* Sites (multi-select) */}
+      {/* Sites (multi-select) - always visible */}
       <div className="filter-group site-group">
         <SearchableMultiSelect
           label="Sites"
@@ -211,103 +212,105 @@ function FiltersPanel({
         />
       </div>
 
-      {/* Start Year */}
-      <div className="filter-group">
-        <div className="filter-dropdown">
-          <label className="sms-label">Start Year</label>
-          <select
-            value={filters.startYear ?? ""}
-            onChange={handleStartYearChange}
-            className="year-select"
-          >
-            {availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Render other filter controls only when updateEnabled is true. */}
+      {updateEnabled && (
+        <>
+          {/* Start Year */}
+          <div className="filter-group">
+            <div className="filter-dropdown">
+              <label className="sms-label">Start Year</label>
+              <select
+                value={filters.startYear ?? ""}
+                onChange={handleStartYearChange}
+                className="year-select"
+              >
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-      {/* End Year */}
-      <div className="filter-group">
-        <div className="filter-dropdown">
-          <label className="sms-label">End Year</label>
-          <select
-            value={filters.endYear ?? ""}
-            onChange={handleEndYearChange}
-            className="year-select"
-          >
-            {availableYears.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+          {/* End Year */}
+          <div className="filter-group">
+            <div className="filter-dropdown">
+              <label className="sms-label">End Year</label>
+              <select
+                value={filters.endYear ?? ""}
+                onChange={handleEndYearChange}
+                className="year-select"
+              >
+                {availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-      {/* Parameter (single-select) */}
-      <div className="filter-group">
-        <div className="filter-dropdown">
-          <label className="sms-label">Parameter</label>
-          <select
-            value={filters.parameter}
-            onChange={handleParameterChange}
-            className="year-select"
-          >
-            <option value="" disabled>
-              Select parameter…
-            </option>
-            {parameters.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+          {/* Parameter */}
+          <div className="filter-group">
+            <div className="filter-dropdown">
+              <label className="sms-label">Parameter</label>
+              <select
+                value={filters.parameter}
+                onChange={handleParameterChange}
+                className="year-select"
+              >
+                <option value="" disabled>
+                  Select parameter…
+                </option>
+                {parameters.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-      {/* Chart Type */}
-      <div className="filter-group">
-        <div className="filter-dropdown">
-          <label className="sms-label">Chart Type</label>
-          <select
-            value={filters.chartType}
-            onChange={handleChartTypeChange}
-            className="year-select"
-          >
-            <option value="trend">Trend</option>
-            <option value="comparison">Comparison</option>
-          </select>
-        </div>
-      </div>
+          {/* Chart Type */}
+          <div className="filter-group">
+            <div className="filter-dropdown">
+              <label className="sms-label">Chart Type</label>
+              <select
+                value={filters.chartType}
+                onChange={handleChartTypeChange}
+                className="year-select"
+              >
+                <option value="trend">Trend</option>
+                <option value="comparison">Comparison</option>
+              </select>
+            </div>
+          </div>
 
-      {/* Update Plot 1 */}
-      <div className="filter-group filter-buttons">
-        <button
-          type="button"
-          className="reset-btn"
-          onClick={() => onUpdatePlot1(filters)}
-          disabled={!updateEnabled}
-          title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
-        >
-          Update Plot 1
-        </button>
-      </div>
+          {/* Actions — stacked vertically to save horizontal space */}
+          <div className="filter-group filter-buttons">
+            <button
+              type="button"
+              className="reset-btn"
+              onClick={() => onUpdatePlot1(filters)}
+              disabled={!updateEnabled}
+              title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
+            >
+              Update Plot 1
+            </button>
 
-      {/* Update Plot 2 */}
-      <div className="filter-group filter-buttons">
-        <button
-          type="button"
-          className="reset-btn"
-          onClick={() => onUpdatePlot2(filters)}
-          disabled={!updateEnabled}
-          title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
-        >
-          Update Plot 2
-        </button>
-      </div>
+            <button
+              type="button"
+              className="reset-btn"
+              onClick={() => onUpdatePlot2(filters)}
+              disabled={!updateEnabled}
+              title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
+            >
+              Update Plot 2
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

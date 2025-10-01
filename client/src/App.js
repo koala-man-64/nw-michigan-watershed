@@ -88,7 +88,7 @@ function WelcomePanel({ onContinue }) {
           Welcome to the NW Michigan Water Quality Database!
         </h1>
 
-        <p style={{ marginBottom: 10, lineHeight: 1.5 }}>
+        <p style={{ marginBottom: 10, lineHeight: 1.5, fontSize: 'calc(1em * var(--font-scale, 1))'   }}>
 This database can be used to retrieve, display, and download water quality data 
 for lakes and streams in northern Michigan.  Click the markers on the map 
 or use the dropdown list to identify sites that are included in the database.

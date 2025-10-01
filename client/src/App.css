@@ -97,7 +97,7 @@ h1, h2, h3, h4,
 /* Left column holds the filter panel and map */
 .left {
   min-height: 0;
-  min-width: 0;
+  min-width: 980px;
   justify-self: start;
 }
 
@@ -256,7 +256,7 @@ h1, h2, h3, h4,
 
 /* Site multi‑select has a defined width on large screens but collapses responsively */
 .site-group {
-  width: 320px;
+  width: 260px;
   max-width: 100%;
 }
 
@@ -362,12 +362,15 @@ h1, h2, h3, h4,
 /* Filter action buttons align to the end of the toolbar */
 .filter-buttons {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 15px;
+  flex-direction: column;   /* <— was row; now column */
+  gap: 8px;                 /* space between the two buttons */
+  align-self: flex-start;   /* keep the block compact instead of stretching */
+  margin-top: 0;            /* tighter since they are their own column */
+  min-width: 160px;         /* keeps a tidy, narrow column; tweak as desired */
 }
 
 .reset-btn {
-  padding: 10px 18px;
+  padding: 5px 9px;
   border: none;
   border-radius: var(--radius);
   font-size: var(--font-size-base);
@@ -556,6 +559,7 @@ h1, h2, h3, h4,
   box-shadow: 0 8px 20px rgba(2, 6, 23, 0.12);
   overflow: hidden;
   display: flex;
+  width: 250px;
   flex-direction: column;
 }
 
@@ -734,3 +738,32 @@ h1, h2, h3, h4,
 .sms-empty {
   font-size: var(--font-size-base);
 }
+
+/* The dropdown list area */
+.sms-panel .sms-list {
+  overflow-y: auto;
+  overflow-x: hidden !important;        /* never show horizontal bar */
+  scrollbar-width: thin;                /* Firefox: thin vertical bar only */
+}
+
+/* WebKit: remove horizontal scrollbar track entirely */
+.sms-panel .sms-list::-webkit-scrollbar:horizontal { height: 0 !important; }
+
+/* Keep rows from expanding the width */
+.sms-panel .sms-option {
+  display: grid;
+  grid-template-columns: 18px 1fr;      /* checkbox | label */
+  align-items: center;
+  column-gap: 8px;
+  min-width: 0;                         /* allow shrink */
+}
+
+/* Wrap long names so they don't force horizontal scroll */
+.sms-panel .sms-option-label {
+  min-width: 0;
+  white-space: normal;                  /* wrap text */
+  word-break: break-word;               /* break very long tokens */
+}
+
+/* (Optional) also hide horizontal overflow in the whole overlay just in case */
+.sms-panel { overflow-x: hidden; }

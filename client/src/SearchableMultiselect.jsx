@@ -191,7 +191,7 @@ export default function SearchableMultiSelect({
             />
             <div
               className="sms-actions"
-              style={{ display: "flex", gap: 8, flexWrap: "nowrap", justifyContent: "flex-start" }}
+              style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-start" }}
             >
               <button type="button" className="sms-action" onClick={selectAll} title="Select all">
                 All
@@ -205,7 +205,7 @@ export default function SearchableMultiSelect({
                 onClick={() => selectByType("lake")}
                 title="Select all Lakes"
               >
-                All Lakes
+                Lakes
               </button>
               <button
                 type="button"
@@ -213,7 +213,7 @@ export default function SearchableMultiSelect({
                 onClick={() => selectByType("stream")}
                 title="Select all Streams"
               >
-                All Streams
+                Streams
               </button>
             </div>
           </div>
