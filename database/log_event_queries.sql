@@ -7,10 +7,15 @@ CREATE TABLE LogEvent (
     TargetTag NVARCHAR(50) NOT NULL,
     TargetID NVARCHAR(100) NULL,
     TargetClasses NVARCHAR(255) NULL,
+    TargetText NVARCHAR(255) NULL,
+    ClientIp NVARCHAR(255) NULL,
+    ClientUrl NVARCHAR(255) NULL,
     Timestamp DATETIME NOT NULL,
     CONSTRAINT PK_LogEvent PRIMARY KEY (EventID)
 );
 --------------------------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE LogEvent;
 
 
 --------------------------------------------------------------------------------------------------------------------------------------

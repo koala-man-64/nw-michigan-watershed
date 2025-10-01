@@ -20,6 +20,13 @@ jobs:
           submodules: true
           lfs: false
 
+      # Set environment variables from GitHub secrets
+      - name: Set SQL Connection String from Secret
+        run: echo "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" >> $GITHUB_ENV
+
+      - name: Set JWT Secret Key from Secret
+        run: echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> $GITHUB_ENV
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
@@ -49,12 +56,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "client" # App source code path
-          api_location: "api" # Api source code path - optional
-          output_location: "build" # Built app content directory - optional
-          ###### End of Repository/Build Configurations ######
-
+          app_location: "client" #_
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -64,5 +66,6 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_COAST_0A9902A1E }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
           action: "close"
+          app_location: "client"  # Added required parameter

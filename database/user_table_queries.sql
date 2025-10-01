@@ -8,7 +8,9 @@ CREATE TABLE dbo.Users (
 
 
 INSERT INTO dbo.Users (Username, [Password])
-VALUES ('admin', '390a4ab5-a138-48d5-b12f-8b172157c56e');
+VALUES     ('test', 'test');
+    ('admin', '390a4ab5-a138-48d5-b12f-8b172157c56e'),
+    ('test', 'test');
 
 UPDATE dbo.Users
 SET [Password] = 'NewP@ssword456', 
