@@ -229,6 +229,39 @@ def _connect_sql():
 # ---------------------------
 app = func.FunctionApp()
 
+@app.function_name(name="chat_rudy")
+@app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
+def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("Received chat request.")
+    if req.method == "OPTIONS":
+        return func.HttpResponse(status_code=204, headers=_cors())
+
+    try:
+        req_body = req.get_json()
+    except ValueError:
+        req_body = {}
+
+    user_message = (req_body.get("message") or "").strip()
+
+    # Hardcoded response for now; keep shape stable for future upgrades.
+    reply = (
+        "Hi! I’m Rudy. For now I’m a simple demo bot, but I received your message and "
+        "can be wired up to a real model next."
+    )
+
+    return func.HttpResponse(
+        json.dumps(
+            {
+                "ok": True,
+                "message": user_message,
+                "reply": reply,
+            }
+        ),
+        status_code=200,
+        mimetype="application/json",
+        headers=_cors(),
+    )
+
 @app.function_name(name="hello")
 @app.route(route="hello", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def hello(req: func.HttpRequest) -> func.HttpResponse:
