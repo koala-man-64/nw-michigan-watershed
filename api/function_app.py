@@ -130,7 +130,13 @@ def _public_container() -> str:
 def _public_blobs() -> set[str]:
     raw = os.getenv("PUBLIC_BLOBS", "").strip()
     if not raw:
-        return {"locations.csv", "info.csv", "NWMIWS_Site_Data_testing_varied.csv"}
+        return {
+            "NWMIWS Site Data.csv",
+            "NWMIWS_Site_Data_testing.csv",
+            "NWMIWS_Site_Data_testing_varied.csv",
+            "info.csv",
+            "locations.csv",
+        }
     return {b.strip() for b in raw.split(",") if b.strip()}
 
 def _allow_arbitrary_blob_reads() -> bool:

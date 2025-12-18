@@ -3,7 +3,13 @@ import Papa from "papaparse";
 
 function Data() {
   // List of available CSV files in the Azure Blob container.
-  const csvFiles = ["locations.csv", "water_quality_data.csv"];
+  const csvFiles = [
+    "NWMIWS Site Data.csv",
+    "NWMIWS_Site_Data_testing.csv",
+    "NWMIWS_Site_Data_testing_varied.csv",
+    "info.csv",
+    "locations.csv",
+  ];
   const [selectedFile, setSelectedFile] = useState(csvFiles[0]);
   const [csvData, setCsvData] = useState([]);
   const [initialCsvData, setInitialCsvData] = useState([]);
