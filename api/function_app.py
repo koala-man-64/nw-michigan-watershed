@@ -2,21 +2,19 @@
 # v2 Function App with:
 #   - hello       : simple greeting
 #   - read_csv    : get blob as CSV/JSON
-#   - log_event   : write UI events to SQL Server (pyodbc default, pymssql fallback)
+#   - log_event   : write UI events to SQL Server (SWA-auth required)
 #
-# SQL env (pick one set):
-#   - SQLSERVER_CONNSTR = "Driver={ODBC Driver 18 for SQL Server};Server=tcp:...;Database=...;Uid=...;Pwd=...;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
-#   or discrete vars (ODBC):
-#       SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD
-#       [optional] SQL_PORT=1433, SQL_ENCRYPT=yes, SQL_TRUST_SERVER_CERT=no, SQL_CONN_TIMEOUT=30, SQL_ODBC_DRIVER="ODBC Driver 18 for SQL Server"
+# SQL env:
+#   - Preferred: SQL_CONNECTION_STRING = "Server=tcp:...,...;Database=...;User ID=...;Password=...;"
+#   - Or discrete vars: SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, [optional] SQL_PORT=1433
 #   - Driver choice:
-#       SQL_DRIVER=pyodbc (default) or SQL_DRIVER=pymssql
+#       SQL_DRIVER=pymssql (default; pure-Python) or SQL_DRIVER=pyodbc (requires ODBC driver present in the host)
 #
 # Storage env for read_csv (pick one auth path):
 #   - BLOB_CONN  (connection string), or
 #   - STORAGE_ACCOUNT_NAME + SAS_TOKEN, or
 #   - STORAGE_ACCOUNT_URL (uses default creds/MSI)
-#   plus BLOB_CONTAINER, BLOB_NAME (defaults)
+#   plus: PUBLIC_BLOB_CONTAINER, PUBLIC_BLOBS (allowlist for anonymous reads)
 
 import base64
 import csv
@@ -25,6 +23,9 @@ import io
 import json
 import logging
 import os
+import random
+import threading
+import time
 from typing import Optional
 
 import azure.functions as func
@@ -70,6 +71,8 @@ if os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is not None:
     if os.getenv("WAIT_FOR_DEBUGGER") == "1":
         logging.info("Waiting for debugger to attach...")
         debugpy.wait_for_client()
+elif os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is None:
+    logging.warning("ENABLE_DEBUGPY=1 but debugpy is not installed in this environment.")
 
 def _allowed_origins() -> set[str]:
     raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
@@ -181,6 +184,71 @@ def _truncate(value: str, max_len: int) -> str:
     s = value or ""
     return s if len(s) <= max_len else s[:max_len]
 
+_rate_lock = threading.Lock()
+_rate_state: dict[str, list[float]] = {}
+
+def _get_client_ip(req: func.HttpRequest) -> str:
+    xff = req.headers.get("x-forwarded-for") or req.headers.get("X-Forwarded-For")
+    if xff:
+        return xff.split(",")[0].strip()
+    for header in ("x-azure-clientip", "X-Azure-ClientIP", "client-ip", "Client-IP"):
+        v = req.headers.get(header)
+        if v:
+            return v.strip()
+    return ""
+
+def _ip_for_storage(raw_ip: str) -> str:
+    mode = os.getenv("LOG_EVENT_IP_MODE", "raw").strip().lower()  # raw | hash | none
+    if mode == "none":
+        return ""
+    ip = raw_ip or ""
+    if mode == "hash":
+        import hashlib
+        return hashlib.sha256(ip.encode("utf-8")).hexdigest()
+    return ip
+
+def _should_sample() -> bool:
+    raw = os.getenv("LOG_EVENT_SAMPLE_RATE", "1.0").strip()
+    try:
+        rate = float(raw)
+    except Exception:
+        rate = 1.0
+    if rate >= 1.0:
+        return True
+    if rate <= 0.0:
+        return False
+    return random.random() < rate
+
+def _rate_limit_key(req: func.HttpRequest) -> str:
+    principal = _get_swa_principal(req) or {}
+    return (
+        principal.get("userId")
+        or principal.get("userDetails")
+        or _get_client_ip(req)
+        or "unknown"
+    )
+
+def _is_rate_limited(req: func.HttpRequest) -> bool:
+    try:
+        max_events = int(os.getenv("LOG_EVENT_RATE_LIMIT_MAX", "60"))
+        window_sec = int(os.getenv("LOG_EVENT_RATE_LIMIT_WINDOW_SEC", "60"))
+    except Exception:
+        max_events, window_sec = 60, 60
+    if max_events <= 0 or window_sec <= 0:
+        return False
+    now = time.time()
+    key = _rate_limit_key(req)
+    with _rate_lock:
+        timestamps = _rate_state.get(key, [])
+        cutoff = now - window_sec
+        timestamps = [t for t in timestamps if t >= cutoff]
+        if len(timestamps) >= max_events:
+            _rate_state[key] = timestamps
+            return True
+        timestamps.append(now)
+        _rate_state[key] = timestamps
+        return False
+
 def _csv_to_rows(data: bytes):
     if pd is not None:
         try:
@@ -198,91 +266,68 @@ def _csv_to_rows(data: bytes):
 # ---------------------------
 # SQL helpers
 # ---------------------------
-def _build_odbc_conn_str() -> str:
-    full = os.getenv("SQLSERVER_CONNSTR")
-    if full:
-        return full
-    driver = os.getenv("SQL_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
+def _parse_kv_conn_string(conn_str: str) -> dict:
+    items: dict[str, str] = {}
+    for part in (conn_str or "").split(";"):
+        if not part.strip() or "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        items[k.strip().lower()] = v.strip()
+    return items
+
+def _sql_from_env() -> dict:
+    """
+    Supports:
+    - SQL_CONNECTION_STRING (preferred; ADO-style key/value string)
+    - Discrete env vars: SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, [SQL_PORT]
+    """
+    conn = os.getenv("SQL_CONNECTION_STRING", "").strip()
+    if conn:
+        kv = _parse_kv_conn_string(conn)
+        server_raw = kv.get("server") or kv.get("data source") or kv.get("address") or kv.get("addr") or kv.get("network address")
+        database = kv.get("database") or kv.get("initial catalog")
+        user = kv.get("user id") or kv.get("uid") or kv.get("user")
+        password = kv.get("password") or kv.get("pwd")
+        if not (server_raw and database and user and password):
+            raise RuntimeError("SQL_CONNECTION_STRING missing required keys (server, database, user id, password).")
+        server_raw = server_raw.replace("tcp:", "")
+        if "," in server_raw:
+            server, port_str = server_raw.split(",", 1)
+            port = int(port_str)
+        else:
+            server, port = server_raw, int(os.getenv("SQL_PORT", "1433"))
+        return {"server": server, "database": database, "user": user, "password": password, "port": port}
+
     server = os.getenv("SQL_SERVER")
     database = os.getenv("SQL_DATABASE")
     user = os.getenv("SQL_USERNAME")
     password = os.getenv("SQL_PASSWORD")
-    port = os.getenv("SQL_PORT", "1433")
-    encrypt = os.getenv("SQL_ENCRYPT", "yes")
-    trust = os.getenv("SQL_TRUST_SERVER_CERT", "no")
-    timeout = os.getenv("SQL_CONN_TIMEOUT", "30")
-    missing = [k for k,v in {"SQL_SERVER":server,"SQL_DATABASE":database,"SQL_USERNAME":user,"SQL_PASSWORD":password}.items() if not v]
+    port = int(os.getenv("SQL_PORT", "1433"))
+    missing = [k for k, v in {"SQL_SERVER": server, "SQL_DATABASE": database, "SQL_USERNAME": user, "SQL_PASSWORD": password}.items() if not v]
     if missing:
-        raise RuntimeError(f"Missing required SQL env vars for ODBC: {', '.join(missing)}")
-    return (
-        f"Driver={{{driver}}};"
-        f"Server=tcp:{server},{port};"
-        f"Database={database};"
-        f"Uid={user};"
-        f"Pwd={password};"
-        f"Encrypt={encrypt};"
-        f"TrustServerCertificate={trust};"
-        f"Connection Timeout={timeout};"
-    )
-
-def get_connection_params():
-    try:
-        if os.environ.get("LOCAL_DEVELOPMENT", "true").lower() == "true":
-            with open("local.settings.json", "r") as f:
-                local_settings = json.load(f)
-            values     = local_settings.get("Values", {})
-            raw_server = values.get("SQL_SERVER")
-            database   = values.get("SQL_DATABASE")
-            username   = values.get("SQL_USERNAME")
-            password   = values.get("SQL_PASSWORD")
-        else:
-            raw_server = os.environ["SQL_SERVER"]
-            database   = os.environ["SQL_DATABASE"]
-            username   = os.environ["SQL_USERNAME"]
-            password   = os.environ["SQL_PASSWORD"]
-
-        # Remove "tcp:" prefix if present
-        if raw_server.startswith("tcp:"):
-            raw_server = raw_server[4:]
-
-        # Split server and port if a comma exists
-        if "," in raw_server:
-            server, port_str = raw_server.split(",", 1)
-            port = int(port_str)
-        else:
-            server = raw_server
-            port = 1433  # default SQL Server port
-
-        connection_params = {
-            "server": server,
-            "user": username,
-            "password": password,
-            "database": database,
-            "port": port
-        }
-        return connection_params
-    except Exception as e:
-        raise Exception(f"ERROR retrieving connection parameters: {str(e)}")
+        raise RuntimeError(f"Missing required SQL env vars: {', '.join(missing)}")
+    return {"server": server.replace("tcp:", ""), "database": database, "user": user, "password": password, "port": port}
 
 
 def _connect_sql():
-    choice = os.getenv("SQL_DRIVER", "pyodbc").lower()
+    choice = os.getenv("SQL_DRIVER", "pymssql").lower()
     if choice == "pymssql":
         if pymssql is None:
             raise RuntimeError("SQL_DRIVER=pymssql but pymssql is not installed.")
-        server = os.getenv("SQL_SERVER")
-        database = os.getenv("SQL_DATABASE")
-        user = os.getenv("SQL_USERNAME")
-        password = os.getenv("SQL_PASSWORD")
-        port = int(os.getenv("SQL_PORT", "1433"))
-        missing = [k for k,v in {"SQL_SERVER":server,"SQL_DATABASE":database,"SQL_USERNAME":user,"SQL_PASSWORD":password}.items() if not v]
-        if missing:
-            raise RuntimeError(f"Missing required SQL env vars for pymssql: {', '.join(missing)}")
-        return pymssql.connect(server=server, user=user, password=password, database=database, port=port)
+        params = _sql_from_env()
+        return pymssql.connect(
+            server=params["server"],
+            user=params["user"],
+            password=params["password"],
+            database=params["database"],
+            port=params["port"],
+        )
     # default: pyodbc
     if pyodbc is None:
         raise RuntimeError("pyodbc is not installed and SQL_DRIVER is not set to 'pymssql'.")
-    conn_str = _build_odbc_conn_str()
+    conn_str = os.getenv("SQLSERVER_CONNSTR") or os.getenv("SQL_CONNECTION_STRING")
+    if not conn_str:
+        raise RuntimeError("Set SQLSERVER_CONNSTR (ODBC) or SQL_CONNECTION_STRING.")
     return pyodbc.connect(conn_str)
 
 # ---------------------------
@@ -393,6 +438,14 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
     if req.method == "OPTIONS":
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
 
+    if os.getenv("LOG_EVENT_ENABLED", "1").strip() != "1":
+        return func.HttpResponse(
+            json.dumps({"status": "disabled"}),
+            status_code=200,
+            mimetype="application/json",
+            headers=_cors_headers(req),
+        )
+
     required_role = os.getenv("LOG_EVENT_REQUIRED_ROLE", "authenticated")
     if not _require_swa_role(req, required_role):
         return func.HttpResponse(
@@ -406,17 +459,42 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
     except ValueError:
         return func.HttpResponse(json.dumps({"error": "Invalid JSON"}), status_code=400, mimetype="application/json", headers=_cors_headers(req))
 
+    if _is_rate_limited(req):
+        return func.HttpResponse(
+            json.dumps({"error": "Too many requests"}),
+            status_code=429,
+            mimetype="application/json",
+            headers=_cors_headers(req),
+        )
+
+    if not _should_sample():
+        return func.HttpResponse(
+            json.dumps({"status": "sampled_out"}),
+            status_code=200,
+            mimetype="application/json",
+            headers=_cors_headers(req),
+        )
+
     eventType     = _truncate((req_body.get("eventType")     or "").strip(), 50)
     targetTag     = _truncate((req_body.get("targetTag")     or "").strip(), 50)
     targetId      = _truncate((req_body.get("targetId")      or "").strip(), 100)
     targetClasses = _truncate((req_body.get("targetClasses") or "").strip(), 255)
-    targetText    = _truncate((req_body.get("targetText")    or "").strip(), 255)
-    clientIp      = _truncate((req_body.get("clientIp")      or "").strip(), 255)
+    capture_text  = os.getenv("LOG_EVENT_CAPTURE_TEXT", "0").strip() == "1"
+    targetText    = _truncate((req_body.get("targetText")    or "").strip(), 255) if capture_text else ""
+    clientIp      = _truncate(_ip_for_storage(_get_client_ip(req)), 255)
     clientUrl     = _truncate((req_body.get("clientUrl")     or "").strip(), 255)
     timestamp     = datetime.datetime.utcnow()
 
+    if not eventType or not targetTag:
+        return func.HttpResponse(
+            json.dumps({"error": "Missing required fields: eventType, targetTag"}),
+            status_code=400,
+            mimetype="application/json",
+            headers=_cors_headers(req),
+        )
+
     try:
-        driver_choice = os.getenv("SQL_DRIVER", "pyodbc").lower()
+        driver_choice = os.getenv("SQL_DRIVER", "pymssql").lower()
         conn = _connect_sql()
         cursor = conn.cursor()
         insert_sql = (

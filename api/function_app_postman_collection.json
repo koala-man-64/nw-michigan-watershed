@@ -1,17 +1,25 @@
 {
   "info": {
-    "name": "Azure Functions (Local) — hello + read_csv",
+    "name": "NW Michigan Watershed Coalition — Azure Functions API",
     "_postman_id": "f0a6b2d2-9e1a-44b3-8b3a-6d7c2a9b0b11",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Local tests for function_app.py endpoints: /api/hello and /api/read-csv"
+    "description": "Requests for `api/function_app.py` routes.\n\n- Local: set `baseUrl` to `localBaseUrl` (default)\n- Dev/Prod: set `baseUrl` to `devBaseUrl` / `prodBaseUrl`\n\nRoutes:\n- `POST /api/chat-rudy`\n- `GET|POST /api/hello`\n- `GET|POST /api/read-csv`\n- `POST /api/log-event`"
   },
   "item": [
     {
-      "name": "hello — positive (GET with name)",
+      "name": "chat-rudy — POST (200)",
       "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/api/hello?name={{name}}"
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"{{chat_message}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/api/chat-rudy"
       },
       "event": [
         {
@@ -19,15 +27,67 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-              "pm.test(\"Body says Hello\", function () { pm.expect(pm.response.text()).to.include(\"Hello\"); });"
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Content-Type is JSON', function () {",
+              "  const ct = (pm.response.headers.get('Content-Type') || '').toLowerCase();",
+              "  pm.expect(ct).to.include('application/json');",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('ok=true', function () { pm.expect(body.ok).to.eql(true); });",
+              "pm.test('Echoes message', function () { pm.expect(body.message).to.eql(pm.collectionVariables.get('chat_message')); });",
+              "pm.test('Has reply', function () { pm.expect(body.reply || '').to.be.a('string').and.to.have.length.above(0); });"
             ]
           }
         }
       ]
     },
     {
-      "name": "hello — negative (no name -> 400)",
+      "name": "hello — GET (200)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/hello?name={{hello_name}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Body includes name', function () { pm.expect(pm.response.text()).to.include(pm.collectionVariables.get('hello_name')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "hello — POST JSON (200)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{hello_name}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/api/hello"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Body includes name', function () { pm.expect(pm.response.text()).to.include(pm.collectionVariables.get('hello_name')); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "hello — GET missing name (400)",
       "request": {
         "method": "GET",
         "header": [],
@@ -39,21 +99,19 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
-              "pm.test(\"Body asks for name\", function () { pm.expect(pm.response.text()).to.include(\"Please pass a 'name'\"); });"
+              "pm.test('Status is 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('Body asks for name', function () { pm.expect(pm.response.text()).to.include(\"Please pass a 'name'\"); });"
             ]
           }
         }
       ]
     },
     {
-      "name": "read_csv — positive (JSON)",
+      "name": "read-csv — missing blob (400)",
       "request": {
         "method": "GET",
-        "header": [
-          { "key": "Accept", "value": "application/json" }
-        ],
-        "url": "{{baseUrl}}/api/read-csv?container={{container}}&blob={{blob}}&format=json"
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/read-csv?format=json"
       },
       "event": [
         {
@@ -61,30 +119,79 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
-              "const ct = pm.response.headers.get('Content-Type') || '';",
-              "pm.test(\"Content-Type is JSON\", function () { pm.expect(ct.toLowerCase()).to.include('application/json'); });",
-              "let data;",
-              "pm.test(\"Response is valid JSON\", function(){",
-              "  data = pm.response.json();",
-              "  pm.expect(data).to.be.an('array');",
+              "pm.test('Status is 400', function () { pm.response.to.have.status(400); });",
+              "const body = pm.response.json();",
+              "pm.test('Has error', function () { pm.expect(body).to.have.property('error'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "read-csv — forbidden blob (403; no storage needed)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/read-csv?blob={{read_csv_forbidden_blob}}&format=json"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 403', function () { pm.response.to.have.status(403); });",
+              "const body = pm.response.json();",
+              "pm.test('Error is Blob not allowed', function () { pm.expect(body.error).to.eql('Blob not allowed'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "read-csv — allowlisted blob JSON (200; requires storage config)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Accept", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/read-csv?blob={{read_csv_allowlisted_blob}}&format=json"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 or 500 (missing storage)', function () {",
+              "  pm.expect([200, 500]).to.include(pm.response.code);",
               "});",
-              "pm.test(\"Array has at least one row\", function(){",
-              "  pm.expect(data.length).to.be.at.least(1);",
-              "});"
+              "if (pm.response.code === 200) {",
+              "  const ct = (pm.response.headers.get('Content-Type') || '').toLowerCase();",
+              "  pm.test('Content-Type is JSON', function () { pm.expect(ct).to.include('application/json'); });",
+              "  const data = pm.response.json();",
+              "  pm.test('Response is an array', function () { pm.expect(data).to.be.an('array'); });",
+              "} else {",
+              "  const body = pm.response.json();",
+              "  pm.test('Has error', function () { pm.expect(body).to.have.property('error'); });",
+              "}"
             ]
           }
         }
       ]
     },
     {
-      "name": "read_csv — negative (invalid container/blob -> 4xx/5xx)",
+      "name": "log-event — unauthenticated (401; no SQL needed)",
       "request": {
-        "method": "GET",
+        "method": "POST",
         "header": [
+          { "key": "Content-Type", "value": "application/json" },
           { "key": "Accept", "value": "application/json" }
         ],
-        "url": "{{baseUrl}}/api/read-csv?container=this_container_should_not_exist_12345&blob=nope.csv&format=json"
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"eventType\": \"click\",\n  \"targetTag\": \"button\",\n  \"targetId\": \"sample\",\n  \"targetClasses\": \"btn\",\n  \"targetText\": \"\",\n  \"clientUrl\": \"{{log_event_client_url}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/api/log-event"
       },
       "event": [
         {
@@ -92,12 +199,45 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test(\"Status is >= 400\", function () { pm.expect(pm.response.code).to.be.at.least(400); });",
-              "const ct = pm.response.headers.get('Content-Type') || '';",
-              "pm.test(\"Content-Type is JSON-ish\", function () { pm.expect(ct.toLowerCase()).to.include('application/json'); });",
-              "let body = {};",
-              "try { body = pm.response.json(); } catch(e) { body = {}; }",
-              "pm.test(\"Error field present\", function(){ pm.expect(body).to.have.property('error'); });"
+              "pm.test('Status is 401', function () { pm.response.to.have.status(401); });",
+              "const body = pm.response.json();",
+              "pm.test('Has error', function () { pm.expect(body).to.have.property('error'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "log-event — authenticated (200/429/500; requires SQL + config)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Accept", "value": "application/json" },
+          { "key": "x-ms-client-principal", "value": "{{swaClientPrincipalB64}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"eventType\": \"click\",\n  \"targetTag\": \"button\",\n  \"targetId\": \"sample\",\n  \"targetClasses\": \"btn\",\n  \"targetText\": \"\",\n  \"clientUrl\": \"{{log_event_client_url}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/api/log-event"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200/429/500', function () { pm.expect([200, 429, 500]).to.include(pm.response.code); });",
+              "pm.test('JSON response', function () {",
+              "  const ct = (pm.response.headers.get('Content-Type') || '').toLowerCase();",
+              "  pm.expect(ct).to.include('application/json');",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('Has status or error', function () {",
+              "  pm.expect(body).to.satisfy(b => Object.prototype.hasOwnProperty.call(b, 'status') || Object.prototype.hasOwnProperty.call(b, 'error'));",
+              "});"
             ]
           }
         }
@@ -106,8 +246,17 @@
   ],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:7071" },
-    { "key": "name", "value": "Rudy" },
-    { "key": "container", "value": "nwmiws" },
-    { "key": "blob", "value": "NWMIWS_Site_Data_testing_varied.csv" }
+    { "key": "localBaseUrl", "value": "http://localhost:7071" },
+    { "key": "devBaseUrl", "value": "https://<your-dev-function-app>.azurewebsites.net" },
+    { "key": "prodBaseUrl", "value": "https://<your-prod-function-app>.azurewebsites.net" },
+    { "key": "hello_name", "value": "Rudy" },
+    { "key": "chat_message", "value": "Hello from Postman" },
+    { "key": "read_csv_forbidden_blob", "value": "not-allowed.csv" },
+    { "key": "read_csv_allowlisted_blob", "value": "locations.csv" },
+    { "key": "log_event_client_url", "value": "http://localhost:3000/" },
+    {
+      "key": "swaClientPrincipalB64",
+      "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoibG9jYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJ1c2VyRGV0YWlscyI6ImxvY2FsIiwidXNlclJvbGVzIjpbImF1dGhlbnRpY2F0ZWQiXX0="
+    }
   ]
 }

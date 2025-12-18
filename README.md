@@ -2,6 +2,25 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Azure Static Web Apps configuration (runtime)
+
+GitHub Actions build steps do not configure runtime environment variables for your deployed API. Configure these in Azure Static Web Apps (Configuration / Application settings) for the `api/` Functions:
+
+- `SQL_CONNECTION_STRING` (required for `log-event`)
+- `SQL_DRIVER` (optional; defaults to `pymssql`)
+- `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
+- `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
+- `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
+- `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
+- `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
+
+## Local debugging note (AzureWebJobsStorage)
+
+If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when starting a debug session, either:
+
+- Run Azurite and keep `AzureWebJobsStorage=UseDevelopmentStorage=true`, or
+- Use real Azure Storage by setting `AzureWebJobsStorage` in `api/local.settings.json` to the same Storage connection string your Function uses in Azure.
+
 ## Available Scripts
 
 In the project directory, you can run:
