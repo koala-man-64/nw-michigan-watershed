@@ -16,7 +16,7 @@ node_modules/
 .pnp
 .pnp.js
 /api/local.settings.json
-
+.vscode/
 .env.local
 .env.development.local
 .env.test.local
