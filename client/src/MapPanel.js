@@ -50,17 +50,17 @@ SetMapBounds.propTypes = {
   bounds: PropTypes.object,
 };
 
-const STORAGE_ACCOUNT = "nwmiwsstorageaccount";
-const CONTAINER_NAME = "nwmiws";
-const SAS_TOKEN =
-  "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T12:14:21Z&st=2025-03-28T04:14:21Z&spr=https&sig=c2vDu7jiNSYQ2FTY5Dr9VEB7G%2BR8wVEHnveaXwNFE5k%3D";
+function apiCsvUrl(blobName) {
+  const blob = encodeURIComponent(blobName);
+  return `/api/read-csv?blob=${blob}&format=csv`;
+}
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
 
   // Fetch locations once
   useEffect(() => {
-    const url = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/locations.csv?${SAS_TOKEN}`;
+    const url = apiCsvUrl("locations.csv");
     fetch(url)
       .then((response) => response.text())
       .then((csvText) => {

@@ -18,18 +18,29 @@
 #   - STORAGE_ACCOUNT_URL (uses default creds/MSI)
 #   plus BLOB_CONTAINER, BLOB_NAME (defaults)
 
-import os, io, json, logging, csv, datetime
+import base64
+import csv
+import datetime
+import io
+import json
+import logging
+import os
 from typing import Optional
 
 import azure.functions as func
 from azure.storage.blob import BlobServiceClient
 from azure.core.credentials import AzureSasCredential
+from azure.core.exceptions import ResourceNotFoundError
 
 # Optional extras
 try:
     import pandas as pd
 except Exception:
     pd = None
+try:
+    from azure.identity import DefaultAzureCredential
+except Exception:
+    DefaultAzureCredential = None
 try:
     import debugpy
 except Exception:
@@ -45,32 +56,40 @@ try:
 except Exception:
     pymssql = None
 
-# TOP OF function_app.py
-import os, logging
-try:
-    import debugpy
-    if os.getenv("ENABLE_DEBUGPY") == "1":
-        host = os.getenv("DEBUGPY_HOST", "127.0.0.1")
-        port = int(os.getenv("DEBUGPY_PORT", "5678"))
-        try:
-            debugpy.listen((host, port))
-            logging.info(f"debugpy listening on {host}:{port}")
-        except RuntimeError:
-            pass  # already listening
-        if os.getenv("WAIT_FOR_DEBUGGER") == "1":
-            logging.info("Waiting for debugger to attach...")
-            debugpy.wait_for_client()
-except Exception as e:
-    logging.warning(f"debugpy not available: {e}")
-    
 # ---------------------------
-# Debugpy (optional attach)
+# CORS (restricted; SWA is usually same-origin)
 # ---------------------------
-def _cors():
+if os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is not None:
+    host = os.getenv("DEBUGPY_HOST", "127.0.0.1")
+    port = int(os.getenv("DEBUGPY_PORT", "5678"))
+    try:
+        debugpy.listen((host, port))
+        logging.info("debugpy listening on %s:%s", host, port)
+    except RuntimeError:
+        pass  # already listening
+    if os.getenv("WAIT_FOR_DEBUGGER") == "1":
+        logging.info("Waiting for debugger to attach...")
+        debugpy.wait_for_client()
+
+def _allowed_origins() -> set[str]:
+    raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    if not raw:
+        # Safe dev defaults (no wildcard).
+        return {"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:4280"}
+    return {o.strip() for o in raw.split(",") if o.strip()}
+
+def _cors_headers(req: func.HttpRequest) -> dict:
+    origin = req.headers.get("Origin")
+    if not origin:
+        return {}
+    if origin not in _allowed_origins():
+        return {}
     return {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": origin,
+        "Vary": "Origin",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "86400",
     }
 
 # ---------------------------
@@ -99,9 +118,23 @@ def _bsc() -> BlobServiceClient:
         )
     url = os.getenv("STORAGE_ACCOUNT_URL")
     if url:
-        logging.info("Auth mode: account URL (default creds/MSI)")
-        return BlobServiceClient(account_url=url)
+        if DefaultAzureCredential is None:
+            raise RuntimeError("STORAGE_ACCOUNT_URL set but azure-identity is missing; add 'azure-identity' or use BLOB_CONN.")
+        logging.info("Auth mode: account URL (DefaultAzureCredential)")
+        return BlobServiceClient(account_url=url, credential=DefaultAzureCredential())
     raise RuntimeError("Missing storage auth: set BLOB_CONN or (STORAGE_ACCOUNT_NAME+SAS_TOKEN) or STORAGE_ACCOUNT_URL")
+
+def _public_container() -> str:
+    return os.getenv("PUBLIC_BLOB_CONTAINER") or os.getenv("BLOB_CONTAINER") or "nwmiws"
+
+def _public_blobs() -> set[str]:
+    raw = os.getenv("PUBLIC_BLOBS", "").strip()
+    if not raw:
+        return {"locations.csv", "info.csv", "NWMIWS_Site_Data_testing_varied.csv"}
+    return {b.strip() for b in raw.split(",") if b.strip()}
+
+def _allow_arbitrary_blob_reads() -> bool:
+    return os.getenv("ALLOW_ARBITRARY_BLOB_READS", "0").strip() == "1"
 
 def _params(req: func.HttpRequest) -> dict:
     qs   = {k.lower(): v for k, v in req.params.items()}
@@ -119,6 +152,28 @@ def _params(req: func.HttpRequest) -> dict:
         "blob":      pick("blob", "BLOB_NAME"),
         "format":   (pick("format") or "csv").lower(),  # csv | json
     }
+
+def _get_swa_principal(req: func.HttpRequest) -> Optional[dict]:
+    b64 = req.headers.get("x-ms-client-principal")
+    if not b64:
+        return None
+    try:
+        decoded = base64.b64decode(b64).decode("utf-8")
+        data = json.loads(decoded)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+def _require_swa_role(req: func.HttpRequest, required_role: str) -> bool:
+    principal = _get_swa_principal(req)
+    if not principal:
+        return False
+    roles = principal.get("userRoles") or []
+    return required_role in roles
+
+def _truncate(value: str, max_len: int) -> str:
+    s = value or ""
+    return s if len(s) <= max_len else s[:max_len]
 
 def _csv_to_rows(data: bytes):
     if pd is not None:
@@ -234,7 +289,7 @@ app = func.FunctionApp()
 def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received chat request.")
     if req.method == "OPTIONS":
-        return func.HttpResponse(status_code=204, headers=_cors())
+        return func.HttpResponse(status_code=204, headers=_cors_headers(req))
 
     try:
         req_body = req.get_json()
@@ -259,7 +314,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
         ),
         status_code=200,
         mimetype="application/json",
-        headers=_cors(),
+        headers=_cors_headers(req),
     )
 
 @app.function_name(name="hello")
@@ -282,57 +337,86 @@ def hello(req: func.HttpRequest) -> func.HttpResponse:
 def read_csv(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("ENTER read_csv method=%s", req.method)
     if req.method == "OPTIONS":
-        return func.HttpResponse(status_code=204, headers=_cors())
+        return func.HttpResponse(status_code=204, headers=_cors_headers(req))
     try:
         p = _params(req)
-        if not p["container"] or not p["blob"]:
+        if not p["blob"]:
             return func.HttpResponse(
-                json.dumps({"error": "Provide container & blob (query/body) or set BLOB_CONTAINER/BLOB_NAME"}),
-                status_code=400, mimetype="application/json", headers=_cors()
+                json.dumps({"error": "Provide blob (query/body) or set BLOB_NAME"}),
+                status_code=400, mimetype="application/json", headers=_cors_headers(req)
             )
+        if _allow_arbitrary_blob_reads():
+            container = p["container"] or _public_container()
+            blob_name = p["blob"]
+        else:
+            container = _public_container()
+            blob_name = p["blob"]
+            if blob_name not in _public_blobs():
+                return func.HttpResponse(
+                    json.dumps({"error": "Blob not allowed"}),
+                    status_code=403,
+                    mimetype="application/json",
+                    headers=_cors_headers(req),
+                )
         bsc = _bsc()
         data = (
-            bsc.get_container_client(p["container"])
-               .get_blob_client(p["blob"])
+            bsc.get_container_client(container)
+               .get_blob_client(blob_name)
                .download_blob(max_concurrency=2)
                .readall()
         )
         if p["format"] == "json":
             rows = _csv_to_rows(data)
-            return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=_cors())
-        return func.HttpResponse(body=data, status_code=200, mimetype="text/csv",
-                                 headers={**_cors(), "Content-Disposition": f'inline; filename="{os.path.basename(p["blob"])}"'})
-    except Exception as e:
+            return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=_cors_headers(req))
+        return func.HttpResponse(
+            body=data,
+            status_code=200,
+            mimetype="text/csv",
+            headers={**_cors_headers(req), "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"'},
+        )
+    except ResourceNotFoundError:
+        return func.HttpResponse(json.dumps({"error": "Blob not found"}), status_code=404, mimetype="application/json", headers=_cors_headers(req))
+    except Exception:
         logging.exception("read_csv failed")
-        return func.HttpResponse(json.dumps({"error": str(e)}), status_code=500, mimetype="application/json", headers=_cors())
+        return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
 
 @app.function_name(name="log_event")
 @app.route(route="log-event", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def log_event(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Received a log event request.")
     if req.method == "OPTIONS":
-        return func.HttpResponse(status_code=204, headers=_cors())
+        return func.HttpResponse(status_code=204, headers=_cors_headers(req))
+
+    required_role = os.getenv("LOG_EVENT_REQUIRED_ROLE", "authenticated")
+    if not _require_swa_role(req, required_role):
+        return func.HttpResponse(
+            json.dumps({"error": "Authentication required"}),
+            status_code=401,
+            mimetype="application/json",
+            headers=_cors_headers(req),
+        )
     try:
         req_body = req.get_json()
     except ValueError:
-        return func.HttpResponse(json.dumps({"error": "Invalid JSON"}), status_code=400, mimetype="application/json", headers=_cors())
+        return func.HttpResponse(json.dumps({"error": "Invalid JSON"}), status_code=400, mimetype="application/json", headers=_cors_headers(req))
 
-    eventType     = (req_body.get("eventType")     or "").strip()
-    targetTag     = (req_body.get("targetTag")     or "").strip()
-    targetId      = (req_body.get("targetId")      or "").strip()
-    targetClasses = (req_body.get("targetClasses") or "").strip()
-    targetText    = (req_body.get("targetText")    or "").strip()
-    clientIp      = (req_body.get("clientIp")      or "").strip()
-    clientUrl     = (req_body.get("clientUrl")     or "").strip()
+    eventType     = _truncate((req_body.get("eventType")     or "").strip(), 50)
+    targetTag     = _truncate((req_body.get("targetTag")     or "").strip(), 50)
+    targetId      = _truncate((req_body.get("targetId")      or "").strip(), 100)
+    targetClasses = _truncate((req_body.get("targetClasses") or "").strip(), 255)
+    targetText    = _truncate((req_body.get("targetText")    or "").strip(), 255)
+    clientIp      = _truncate((req_body.get("clientIp")      or "").strip(), 255)
+    clientUrl     = _truncate((req_body.get("clientUrl")     or "").strip(), 255)
     timestamp     = datetime.datetime.utcnow()
 
     try:
+        driver_choice = os.getenv("SQL_DRIVER", "pyodbc").lower()
         conn = _connect_sql()
         cursor = conn.cursor()
         insert_sql = (
             "INSERT INTO dbo.LogEvent (EventType,TargetTag,TargetID,TargetClasses,TargetText,ClientIp,ClientUrl,Timestamp) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            if pyodbc else
+            if driver_choice != "pymssql" else
             "INSERT INTO dbo.LogEvent (EventType,TargetTag,TargetID,TargetClasses,TargetText,ClientIp,ClientUrl,Timestamp) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
         )
@@ -340,8 +424,8 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
         conn.commit()
         cursor.close()
         conn.close()
-    except Exception as e:
+    except Exception:
         logging.error("Error inserting log data into SQL", exc_info=True)
-        return func.HttpResponse(json.dumps({"error": str(e)}), status_code=500, mimetype="application/json", headers=_cors())
+        return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
 
-    return func.HttpResponse(json.dumps({"status": "ok", "message": "Log data received and inserted."}), status_code=200, mimetype="application/json", headers=_cors())
+    return func.HttpResponse(json.dumps({"status": "ok", "message": "Log data received and inserted."}), status_code=200, mimetype="application/json", headers=_cors_headers(req))

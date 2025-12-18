@@ -1,13 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Papa from "papaparse";
-import { BlobServiceClient } from "@azure/storage-blob";
 
 function Data() {
-  // Page-level configuration variables
-  const storageAccountName = "nwmiwsstorageaccount";
-  const sasToken = "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T11:52:57Z&st=2025-03-28T03:52:57Z&spr=https&sig=3%2Fe9jY4M%2F0yFHftpJmTsuVvlPwpn7B4zQ9ey0bwnQ2w%3D";
-  const containerName = "nwmiws";
-  
   // List of available CSV files in the Azure Blob container.
   const csvFiles = ["locations.csv", "water_quality_data.csv"];
   const [selectedFile, setSelectedFile] = useState(csvFiles[0]);
@@ -18,7 +12,8 @@ function Data() {
   // Function to load CSV file from the Azure Blob container.
   const loadCSV = (fileName) => {
     setLoading(true);
-    const fileUrl = `https://${storageAccountName}.blob.core.windows.net/${containerName}/${fileName}?${sasToken}`;
+    const blob = encodeURIComponent(String(fileName));
+    const fileUrl = `/api/read-csv?blob=${blob}&format=csv`;
     
     fetch(fileUrl)
       .then((response) => response.text())
@@ -81,26 +76,10 @@ function Data() {
 
   // Function to update or create a CSV file in the Azure Blob container.
   const commitSave = async () => {
-    const csv = Papa.unparse(csvData);
-    const blobData = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-
-    const blobServiceClient = new BlobServiceClient(
-      `https://${storageAccountName}.blob.core.windows.net/?${sasToken}`
+    alert(
+      "Saving is disabled until a server-side, authenticated write endpoint is implemented. " +
+        "This avoids shipping Azure SAS tokens to browsers."
     );
-    const containerClient = blobServiceClient.getContainerClient(containerName);
-
-    const blobName = String(selectedFile);
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-
-    try {
-      await blockBlobClient.uploadData(blobData, {
-        blobHTTPHeaders: { blobContentType: "text/csv" },
-      });
-      alert("CSV file uploaded successfully!");
-    } catch (error) {
-      console.error("Error uploading CSV:", error);
-      alert("Error uploading CSV file.");
-    }
   };
 
   if (loading) return <div>Loading CSV data...</div>;

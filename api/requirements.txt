@@ -5,6 +5,7 @@
 azure-functions
 azure-storage-blob
 azure-core
+azure-identity
 pymssql
 PyJWT==2.6.0
 debugpy

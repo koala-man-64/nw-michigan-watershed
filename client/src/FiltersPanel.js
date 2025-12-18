@@ -4,13 +4,10 @@ import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
 
-/**
- * Azure Blob Storage constants
- */
-const STORAGE_ACCOUNT = "nwmiwsstorageaccount";
-const CONTAINER_NAME = "nwmiws";
-const SAS_TOKEN =
-  "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T11:52:57Z&st=2025-03-28T03:52:57Z&spr=https&sig=3%2Fe9jY4M%2F0yFHftpJmTsuVvlPwpn7B4zQ9ey0bwnQ2w%3D";
+function apiCsvUrl(blobName) {
+  const blob = encodeURIComponent(blobName);
+  return `/api/read-csv?blob=${blob}&format=csv`;
+}
 
 /**
  * FiltersPanel
@@ -72,8 +69,8 @@ function FiltersPanel({
    * bubble up the parsed data to App via onDataLoaded.
    */
   useEffect(() => {
-    const dataUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/NWMIWS_Site_Data_testing_varied.csv?${SAS_TOKEN}`;
-    const infoUrl = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/info.csv?${SAS_TOKEN}`;
+    const dataUrl = apiCsvUrl("NWMIWS_Site_Data_testing_varied.csv");
+    const infoUrl = apiCsvUrl("info.csv");
 
     let cancelled = false;
 
