@@ -637,7 +637,18 @@ app = func.FunctionApp()
 @app.function_name(name="chat_rudy")
 @app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
+    debug_console = (os.getenv("CHAT_RUDY_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
+
+    def _console(msg: str) -> None:
+        if not debug_console:
+            return
+        try:
+            print(f"[chat_rudy] {msg}", flush=True)
+        except Exception:
+            pass
+
     logging.info("Received chat request.")
+    _console(f"Received request method={req.method}")
     if req.method == "OPTIONS":
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
 
@@ -648,6 +659,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
 
     user_message = (req_body.get("message") or "").strip()
     if not user_message:
+        _console("Missing/empty message")
         return func.HttpResponse(
             json.dumps({"ok": False, "error": "Provide a non-empty 'message'."}),
             status_code=400,
@@ -656,8 +668,10 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
+        _console(f"Message length={len(user_message)}")
         system_prompt = _rudy_system_prompt()
         top_chunks = _rudy_rag_retrieve(user_message)
+        _console(f"RAG chunks={len(top_chunks)}")
         reference_block = "\n\n".join(
             [f"[Excerpt {i+1}]\n{txt}" for i, txt in enumerate(top_chunks)]
         )
@@ -666,6 +680,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             f"RETRIEVED_CONTEXT:\n{reference_block}\n"
         )
         model = (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
+        _console(f"OpenAI model={model}")
         resp = _openai().responses.create(
             model=model,
             instructions=system_prompt,
@@ -676,6 +691,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             reply = "Sorry — I couldn’t generate a response right now."
     except RuntimeError as e:
         logging.error("Chat configuration error: %s", e)
+        _console(f"RuntimeError: {e}")
         return func.HttpResponse(
             json.dumps({"ok": False, "error": str(e)}),
             status_code=500,
@@ -684,6 +700,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
         )
     except Exception:
         logging.exception("Chat request failed.")
+        _console("Exception: chat request failed (see function logs for traceback)")
         return func.HttpResponse(
             json.dumps({"ok": False, "error": "Chat request failed."}),
             status_code=502,
