@@ -423,25 +423,35 @@ def _normalize_sas(token: Optional[str]) -> Optional[AzureSasCredential]:
         t = t[1:]
     return AzureSasCredential(t)
 
+def _ensure_trailing_slash(url: str) -> str:
+    u = (url or "").strip()
+    if not u:
+        return u
+    return u if u.endswith("/") else (u + "/")
+
 def _bsc() -> BlobServiceClient:
     conn = _env("BLOB_CONN")
     if conn:
-        logging.info("Auth mode: connection string")
-        return BlobServiceClient.from_connection_string(conn)
+        logging.info("storage: auth=connection_string")
+        bsc = BlobServiceClient.from_connection_string(conn)
+        logging.info("storage: account_name=%s", getattr(bsc, "account_name", None))
+        return bsc
     acct = _env("STORAGE_ACCOUNT_NAME")
     sas  = _normalize_sas(_env("SAS_TOKEN"))
     if acct and sas:
-        logging.info("Auth mode: account + SAS")
+        account_url = _ensure_trailing_slash(f"https://{acct}.blob.core.windows.net")
+        logging.info("storage: auth=account+sas account_url=%s", account_url)
         return BlobServiceClient(
-            account_url=f"https://{acct}.blob.core.windows.net",
+            account_url=account_url,
             credential=sas
         )
     url = _env("STORAGE_ACCOUNT_URL")
     if url:
         if DefaultAzureCredential is None:
             raise RuntimeError("STORAGE_ACCOUNT_URL set but azure-identity is missing; add 'azure-identity' or use BLOB_CONN.")
-        logging.info("Auth mode: account URL (DefaultAzureCredential)")
-        return BlobServiceClient(account_url=url, credential=DefaultAzureCredential())
+        account_url = _ensure_trailing_slash(url)
+        logging.info("storage: auth=account_url(DefaultAzureCredential) account_url=%s", account_url)
+        return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
     raise RuntimeError("Missing storage auth: set BLOB_CONN or (STORAGE_ACCOUNT_NAME+SAS_TOKEN) or STORAGE_ACCOUNT_URL")
 
 def _public_container() -> str:
