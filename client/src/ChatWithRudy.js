@@ -8,6 +8,19 @@ function nowIso() {
   }
 }
 
+function TypingIndicator() {
+  return (
+    <span className="chat-typing" aria-label="Rudy is thinking">
+      <span className="chat-typing-text">Rudy is thinking</span>
+      <span className="chat-typing-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+    </span>
+  );
+}
+
 export default function ChatWithRudy() {
   const inputRef = useRef(null);
   const [draft, setDraft] = useState("");
@@ -16,7 +29,7 @@ export default function ChatWithRudy() {
     {
       id: "rudy-welcome",
       role: "bot",
-      text: "Hi, I’m Rudy. Ask me anything about the dashboard.",
+      text: "Hi, I’m Rudy — a hands-on tech lead who ships AI systems end-to-end (RAG/agents, APIs, UI, and Azure). Ask me anything about my projects and approach.",
       ts: nowIso(),
     },
   ]);
@@ -35,7 +48,7 @@ export default function ChatWithRudy() {
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", text, ts: nowIso() },
-      { id: botId, role: "bot", text: "…", ts: nowIso(), pending: true },
+      { id: botId, role: "bot", text: "", ts: nowIso(), pending: true },
     ]);
 
     try {
@@ -75,7 +88,7 @@ export default function ChatWithRudy() {
           {messages.map((m) => (
             <div key={m.id} className={`chat-row ${m.role === "user" ? "user" : "bot"}`}>
               <div className={`chat-bubble ${m.role === "user" ? "user" : "bot"}`}>
-                {m.text}
+                {m.pending ? <TypingIndicator /> : m.text}
               </div>
             </div>
           ))}

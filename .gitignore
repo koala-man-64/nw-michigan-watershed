@@ -19,6 +19,7 @@ node_modules/
 .vscode/
 .env.local
 .env.development.local
+.env
 .env.test.local
 .env.production.local
 *.env

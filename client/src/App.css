@@ -292,6 +292,51 @@ h1, h2, h3, h4,
   color: var(--color-secondary);
 }
 
+.chat-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-typing-text {
+  opacity: 0.85;
+}
+
+.chat-typing-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.chat-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: chatTyping 1.05s infinite ease-in-out;
+}
+
+.chat-typing-dots span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.chat-typing-dots span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes chatTyping {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-3px);
+    opacity: 0.85;
+  }
+}
+
 .chat-composer {
   display: flex;
   gap: 10px;

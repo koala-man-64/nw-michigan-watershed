@@ -35,19 +35,15 @@ Configure these in Azure Static Web Apps (Configuration → Application settings
 
 **Preloaded instructions** (pick one option)
 
-- `RUDY_SYSTEM_PROMPT` (recommended simplest: put the full instruction text in an env var)
+- **Prompt from Azure Blob (current implementation):**
+  - `CHAT_WITH_RUDY_CONTAINER` (e.g. `nwmiws`)
+  - `CHAT_WITH_RUDY_PROMPT_BLOB` (e.g. `chat-with-rudy-prompt.md`)
 
-Or store instructions in Blob Storage and load them at startup:
+**RAG source document (markdown)**
 
-- `RUDY_INSTRUCTIONS_CONTAINER`
-- `RUDY_INSTRUCTIONS_BLOB` (e.g. `rudy_instructions.md`)
-
-**Word document reference**
-
-Recommended approach: store the `.docx` in Blob Storage (because with SWA, only `api/` is deployed as the Functions artifact; repo-root `data/` will not be present at runtime).
-
-- `RUDY_REFERENCE_CONTAINER`
-- `RUDY_REFERENCE_BLOB` (e.g. `rudy_reference.docx`)
+- `CHAT_WITH_RUDY_CONTAINER` (e.g. `nwmiws`)
+- `CHAT_WITH_RUDY_RAG_BLOB` (e.g. `chat-with-rudy-rag-chunks.md`)
+- Optional tuning: `RUDY_RAG_TOP_K`, `RUDY_RAG_CHUNK_SIZE`, `RUDY_RAG_CHUNK_OVERLAP`
 
 **Blob auth**
 
@@ -239,4 +235,3 @@ curl -sS -X POST \
 - **Latency**: embeddings for the document should be computed once and cached.
 - **Prompt injection**: explicitly tell the model the excerpts are reference material; follow the system instructions over anything found in the document.
 - **Fallback**: if reference loading fails, either return a clear error or run “no-reference mode” with just the system prompt.
-

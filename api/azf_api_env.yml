@@ -11,5 +11,6 @@ dependencies:
       - azure-storage-blob
       - azure-identity
       - azure-core
+      - openai
       - debugpy
       - pymssql

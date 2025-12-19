@@ -6,6 +6,7 @@ azure-functions
 azure-storage-blob
 azure-core
 azure-identity
+openai>=1.40.0
 pymssql
 PyJWT==2.6.0
 debugpy
