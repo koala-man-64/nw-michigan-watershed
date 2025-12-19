@@ -121,14 +121,12 @@ def _openai() -> "OpenAI":
     if OpenAI is None:
         raise RuntimeError("OpenAI SDK not installed. Add 'openai' to api/requirements.txt.")
 
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not api_key:
-        raise RuntimeError("Missing required env var: OPENAI_API_KEY")
+    api_key = _required_env("OPENAI_API_KEY")
 
     with _openai_lock:
         if _openai_client is None:
             try:
-                max_retries = int(os.getenv("OPENAI_MAX_RETRIES") or "2")
+                max_retries = _env_int("OPENAI_MAX_RETRIES", 2)
             except Exception:
                 max_retries = 2
             _openai_client = OpenAI(api_key=api_key, max_retries=max_retries)
@@ -149,8 +147,28 @@ def _download_blob_text(container: str, blob_name: str) -> str:
         return data.decode("utf-8", errors="ignore")
 
 
+def _env(name: str, default: Optional[str] = None) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1].strip()
+    return value if value else default
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = _env(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except Exception:
+        return default
+
+
 def _required_env(name: str) -> str:
-    value = (os.getenv(name) or "").strip()
+    value = _env(name)
     if not value:
         raise RuntimeError(f"Missing required env var: {name}")
     return value
@@ -233,8 +251,8 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _embed(texts: list[str]) -> list[list[float]]:
-    model = (os.getenv("OPENAI_EMBEDDING_MODEL") or "text-embedding-3-small").strip()
-    batch_size = int(os.getenv("OPENAI_EMBED_BATCH_SIZE") or "64")
+    model = (_env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") or "text-embedding-3-small").strip()
+    batch_size = _env_int("OPENAI_EMBED_BATCH_SIZE", 64)
     if batch_size < 1:
         batch_size = 64
 
@@ -287,8 +305,8 @@ def _rudy_rag_load() -> tuple[list[str], list[Optional[list[float]]]]:
         container = _required_env("CHAT_WITH_RUDY_CONTAINER")
         blob_name = _required_env("CHAT_WITH_RUDY_RAG_BLOB")
         raw = _download_blob_text(container, blob_name)
-        chunk_size = int(os.getenv("RUDY_RAG_CHUNK_SIZE") or "1200")
-        overlap = int(os.getenv("RUDY_RAG_CHUNK_OVERLAP") or "150")
+        chunk_size = _env_int("RUDY_RAG_CHUNK_SIZE", 1200)
+        overlap = _env_int("RUDY_RAG_CHUNK_OVERLAP", 150)
         chunks = _split_rag_chunks(raw, chunk_size=chunk_size, overlap=overlap)
         if not chunks:
             raise RuntimeError("RAG source produced no chunks.")
@@ -298,14 +316,14 @@ def _rudy_rag_load() -> tuple[list[str], list[Optional[list[float]]]]:
 
 
 def _rudy_rag_retrieve(query: str) -> list[str]:
-    k = int(os.getenv("RUDY_RAG_TOP_K") or "6")
+    k = _env_int("RUDY_RAG_TOP_K", 6)
     if k < 1:
         k = 6
 
     chunks, embeddings = _rudy_rag_load()
 
     try:
-        prefilter_k = int(os.getenv("RUDY_RAG_PREFILTER_K") or "25")
+        prefilter_k = _env_int("RUDY_RAG_PREFILTER_K", 25)
     except Exception:
         prefilter_k = 25
 
@@ -315,7 +333,7 @@ def _rudy_rag_retrieve(query: str) -> list[str]:
     if time.time() < _rudy_rag_embeddings_disabled_until:
         return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
 
-    mode = (os.getenv("RUDY_RAG_MODE") or "embeddings").strip().lower()  # embeddings | lexical
+    mode = (_env("RUDY_RAG_MODE", "embeddings") or "embeddings").strip().lower()  # embeddings | lexical
     if mode == "lexical":
         return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
 
@@ -347,7 +365,7 @@ def _rudy_rag_retrieve(query: str) -> list[str]:
         if _is_openai_rate_limited(e):
             logging.warning("RAG embeddings rate-limited; falling back to lexical retrieval.")
             try:
-                cooldown = int(os.getenv("RUDY_RAG_RATE_LIMIT_COOLDOWN_SEC") or "60")
+                cooldown = _env_int("RUDY_RAG_RATE_LIMIT_COOLDOWN_SEC", 60)
             except Exception:
                 cooldown = 60
             _rudy_rag_embeddings_disabled_until = time.time() + max(0, cooldown)
@@ -360,8 +378,8 @@ def _rudy_rag_retrieve(query: str) -> list[str]:
 # CORS (restricted; SWA is usually same-origin)
 # ---------------------------
 if os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is not None:
-    host = os.getenv("DEBUGPY_HOST", "127.0.0.1")
-    port = int(os.getenv("DEBUGPY_PORT", "5678"))
+    host = _env("DEBUGPY_HOST", "127.0.0.1") or "127.0.0.1"
+    port = _env_int("DEBUGPY_PORT", 5678)
     try:
         debugpy.listen((host, port))
         logging.info("debugpy listening on %s:%s", host, port)
@@ -374,7 +392,7 @@ elif os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is None:
     logging.warning("ENABLE_DEBUGPY=1 but debugpy is not installed in this environment.")
 
 def _allowed_origins() -> set[str]:
-    raw = os.getenv("CORS_ALLOWED_ORIGINS", "").strip()
+    raw = (_env("CORS_ALLOWED_ORIGINS") or "").strip()
     if not raw:
         # Safe dev defaults (no wildcard).
         return {"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:4280"}
@@ -406,19 +424,19 @@ def _normalize_sas(token: Optional[str]) -> Optional[AzureSasCredential]:
     return AzureSasCredential(t)
 
 def _bsc() -> BlobServiceClient:
-    conn = os.getenv("BLOB_CONN")
+    conn = _env("BLOB_CONN")
     if conn:
         logging.info("Auth mode: connection string")
         return BlobServiceClient.from_connection_string(conn)
-    acct = os.getenv("STORAGE_ACCOUNT_NAME")
-    sas  = _normalize_sas(os.getenv("SAS_TOKEN"))
+    acct = _env("STORAGE_ACCOUNT_NAME")
+    sas  = _normalize_sas(_env("SAS_TOKEN"))
     if acct and sas:
         logging.info("Auth mode: account + SAS")
         return BlobServiceClient(
             account_url=f"https://{acct}.blob.core.windows.net",
             credential=sas
         )
-    url = os.getenv("STORAGE_ACCOUNT_URL")
+    url = _env("STORAGE_ACCOUNT_URL")
     if url:
         if DefaultAzureCredential is None:
             raise RuntimeError("STORAGE_ACCOUNT_URL set but azure-identity is missing; add 'azure-identity' or use BLOB_CONN.")
@@ -427,10 +445,10 @@ def _bsc() -> BlobServiceClient:
     raise RuntimeError("Missing storage auth: set BLOB_CONN or (STORAGE_ACCOUNT_NAME+SAS_TOKEN) or STORAGE_ACCOUNT_URL")
 
 def _public_container() -> str:
-    return os.getenv("PUBLIC_BLOB_CONTAINER") or os.getenv("BLOB_CONTAINER") or "nwmiws"
+    return _env("PUBLIC_BLOB_CONTAINER") or _env("BLOB_CONTAINER") or "nwmiws"
 
 def _public_blobs() -> set[str]:
-    raw = os.getenv("PUBLIC_BLOBS", "").strip()
+    raw = (_env("PUBLIC_BLOBS") or "").strip()
     if not raw:
         return {
             "NWMIWS Site Data.csv",
@@ -442,7 +460,7 @@ def _public_blobs() -> set[str]:
     return {b.strip() for b in raw.split(",") if b.strip()}
 
 def _allow_arbitrary_blob_reads() -> bool:
-    return os.getenv("ALLOW_ARBITRARY_BLOB_READS", "0").strip() == "1"
+    return (_env("ALLOW_ARBITRARY_BLOB_READS", "0") or "0").strip() == "1"
 
 def _params(req: func.HttpRequest) -> dict:
     qs   = {k.lower(): v for k, v in req.params.items()}
@@ -454,7 +472,7 @@ def _params(req: func.HttpRequest) -> dict:
                 body = {}
     except Exception:
         body = {}
-    pick = lambda k, env=None, d=None: qs.get(k) or body.get(k) or os.getenv((env or k).upper(), d)
+    pick = lambda k, env=None, d=None: qs.get(k) or body.get(k) or _env((env or k).upper(), d)
     return {
         "container": pick("container", "BLOB_CONTAINER"),
         "blob":      pick("blob", "BLOB_NAME"),
@@ -529,8 +547,8 @@ def _rate_limit_key(req: func.HttpRequest) -> str:
 
 def _is_rate_limited(req: func.HttpRequest) -> bool:
     try:
-        max_events = int(os.getenv("LOG_EVENT_RATE_LIMIT_MAX", "60"))
-        window_sec = int(os.getenv("LOG_EVENT_RATE_LIMIT_WINDOW_SEC", "60"))
+        max_events = _env_int("LOG_EVENT_RATE_LIMIT_MAX", 60)
+        window_sec = _env_int("LOG_EVENT_RATE_LIMIT_WINDOW_SEC", 60)
     except Exception:
         max_events, window_sec = 60, 60
     if max_events <= 0 or window_sec <= 0:
@@ -580,7 +598,7 @@ def _sql_from_env() -> dict:
     - SQL_CONNECTION_STRING (preferred; ADO-style key/value string)
     - Discrete env vars: SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, [SQL_PORT]
     """
-    conn = os.getenv("SQL_CONNECTION_STRING", "").strip()
+    conn = (_env("SQL_CONNECTION_STRING") or "").strip()
     if conn:
         kv = _parse_kv_conn_string(conn)
         server_raw = kv.get("server") or kv.get("data source") or kv.get("address") or kv.get("addr") or kv.get("network address")
@@ -594,14 +612,14 @@ def _sql_from_env() -> dict:
             server, port_str = server_raw.split(",", 1)
             port = int(port_str)
         else:
-            server, port = server_raw, int(os.getenv("SQL_PORT", "1433"))
+            server, port = server_raw, _env_int("SQL_PORT", 1433)
         return {"server": server, "database": database, "user": user, "password": password, "port": port}
 
-    server = os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE")
-    user = os.getenv("SQL_USERNAME")
-    password = os.getenv("SQL_PASSWORD")
-    port = int(os.getenv("SQL_PORT", "1433"))
+    server = _env("SQL_SERVER")
+    database = _env("SQL_DATABASE")
+    user = _env("SQL_USERNAME")
+    password = _env("SQL_PASSWORD")
+    port = _env_int("SQL_PORT", 1433)
     missing = [k for k, v in {"SQL_SERVER": server, "SQL_DATABASE": database, "SQL_USERNAME": user, "SQL_PASSWORD": password}.items() if not v]
     if missing:
         raise RuntimeError(f"Missing required SQL env vars: {', '.join(missing)}")
@@ -609,7 +627,7 @@ def _sql_from_env() -> dict:
 
 
 def _connect_sql():
-    choice = os.getenv("SQL_DRIVER", "pymssql").lower()
+    choice = (_env("SQL_DRIVER", "pymssql") or "pymssql").lower()
     if choice == "pymssql":
         if pymssql is None:
             raise RuntimeError("SQL_DRIVER=pymssql but pymssql is not installed.")
@@ -624,7 +642,7 @@ def _connect_sql():
     # default: pyodbc
     if pyodbc is None:
         raise RuntimeError("pyodbc is not installed and SQL_DRIVER is not set to 'pymssql'.")
-    conn_str = os.getenv("SQLSERVER_CONNSTR") or os.getenv("SQL_CONNECTION_STRING")
+    conn_str = _env("SQLSERVER_CONNSTR") or _env("SQL_CONNECTION_STRING")
     if not conn_str:
         raise RuntimeError("Set SQLSERVER_CONNSTR (ODBC) or SQL_CONNECTION_STRING.")
     return pyodbc.connect(conn_str)
@@ -637,7 +655,7 @@ app = func.FunctionApp()
 @app.function_name(name="chat_rudy")
 @app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
-    debug_console = (os.getenv("CHAT_RUDY_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
+    debug_console = (_env("CHAT_RUDY_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
 
     def _console(msg: str) -> None:
         if not debug_console:
@@ -679,7 +697,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             f"INTERVIEWER_QUESTION: {user_message}\n\n"
             f"RETRIEVED_CONTEXT:\n{reference_block}\n"
         )
-        model = (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
+        model = (_env("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini").strip()
         _console(f"OpenAI model={model}")
         resp = _openai().responses.create(
             model=model,
@@ -739,12 +757,24 @@ def hello(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="read_csv")
 @app.route(route="read-csv", methods=["GET", "POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def read_csv(req: func.HttpRequest) -> func.HttpResponse:
+    debug_console = (_env("READ_CSV_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
+
+    def _console(msg: str) -> None:
+        if not debug_console:
+            return
+        try:
+            print(f"[read_csv] {msg}", flush=True)
+        except Exception:
+            pass
+
     logging.info("ENTER read_csv method=%s", req.method)
+    _console(f"ENTER method={req.method}")
     if req.method == "OPTIONS":
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
     try:
         p = _params(req)
         if not p["blob"]:
+            _console("Missing blob param")
             return func.HttpResponse(
                 json.dumps({"error": "Provide blob (query/body) or set BLOB_NAME"}),
                 status_code=400, mimetype="application/json", headers=_cors_headers(req)
@@ -756,12 +786,14 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
             container = _public_container()
             blob_name = p["blob"]
             if blob_name not in _public_blobs():
+                _console(f"Blob not allowed blob={blob_name!r}")
                 return func.HttpResponse(
                     json.dumps({"error": "Blob not allowed"}),
                     status_code=403,
                     mimetype="application/json",
                     headers=_cors_headers(req),
                 )
+        _console(f"Fetching container={container!r} blob={blob_name!r} format={p['format']!r}")
         bsc = _bsc()
         data = (
             bsc.get_container_client(container)
@@ -771,7 +803,9 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
         )
         if p["format"] == "json":
             rows = _csv_to_rows(data)
+            _console(f"OK json rows={len(rows)} bytes={len(data)}")
             return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=_cors_headers(req))
+        _console(f"OK csv bytes={len(data)}")
         return func.HttpResponse(
             body=data,
             status_code=200,
@@ -779,9 +813,11 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
             headers={**_cors_headers(req), "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"'},
         )
     except ResourceNotFoundError:
+        _console("Blob not found")
         return func.HttpResponse(json.dumps({"error": "Blob not found"}), status_code=404, mimetype="application/json", headers=_cors_headers(req))
     except Exception:
         logging.exception("read_csv failed")
+        _console("Exception: read_csv failed (see function logs for traceback)")
         return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
 
 @app.function_name(name="log_event")
