@@ -1,9 +1,4 @@
-import { useEffect } from "react";
-// import { Link, useNavigate } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-// import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-// // import L from "leaflet";
-import Papa from "papaparse";
 import map_screenshot from './map_screenshot.png';
 import trend_plot_icon from './trend_plot_icon.png';
 import comparison_plot_icon from './comparison_plot_icon.png';
@@ -55,36 +50,6 @@ export default function Home() {
   //   if (/\blake\b/.test(s)) return "lake";
   //   return "lake";
   // };
-
-  useEffect(() => {
-    const STORAGE_ACCOUNT = "nwmiwsstorageaccount";
-    const CONTAINER_NAME = "nwmiws";
-    const SAS_TOKEN =
-      "sv=2024-11-04&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2055-03-28T12:14:21Z&st=2025-03-28T04:14:21Z&spr=https&sig=c2vDu7jiNSYQ2FTY5Dr9VEB7G%2BR8wVEHnveaXwNFE5k%3D";
-
-    const url = `https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/locations.csv?${SAS_TOKEN}`;
-    fetch(url)
-      .then((r) => r.text())
-      .then((csv) =>
-        Papa.parse(csv, {
-          header: true,
-          skipEmptyLines: true,
-          // complete: ({ data }) => {
-          //   // const locs = data
-          //   //   .map((row) => {
-          //   //     const name = row.name || row.Location;
-          //   //     const lat = parseFloat(row.latitude) || parseFloat(row.Latitude);
-          //   //     const lng = parseFloat(row.longitude) || parseFloat(row.Longitude);
-          //   //     if (!name || isNaN(lat) || isNaN(lng)) return null;
-          //   //     return { name, lat, lng };
-          //   //   })
-          //   //   .filter(Boolean);
-          //   // setLocations(locs);
-          // },
-        })
-      )
-      .catch((e) => console.error("Error loading locations:", e));
-  }, []);
 
   // const bounds = useMemo(() => {
   //   if (!locations.length) return null;

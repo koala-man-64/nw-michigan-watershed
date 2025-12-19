@@ -1,32 +1,17 @@
 export async function logClickEvent(event) {
-  // Fetch the client's IP address
-  let clientIp = null;
-  try {
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    clientIp = data.ip;
-  } catch (error) {
-    console.error("Error fetching IP address:", error);
-  }
-
-  // Extract inner text from the element, or default to an empty string
-  const targetText = event.target.innerText || event.target.textContent || "";
-
   const logData = {
     eventType: 'click',
     targetTag: event.target.tagName,
     targetId: event.target.id || null,
     targetClasses: event.target.className || null,
-    targetText,  // Newly added: inner text of the element
-    timestamp: new Date().toISOString(),
-    clientIp,
-    clientUrl: window.location.href
+    // Avoid logging innerText/PII; server may opt-in to capture limited text if desired.
+    clientUrl: window.location.pathname
   };
 
   console.log("User Action Logged:", logData);
 
   try {
-    const result = await fetch('/api/log_event', {
+    const result = await fetch('/api/log-event', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

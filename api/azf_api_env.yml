@@ -9,3 +9,8 @@ dependencies:
   - pip:
       - azure-functions
       - azure-storage-blob
+      - azure-identity
+      - azure-core
+      - openai
+      - debugpy
+      - pymssql

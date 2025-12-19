@@ -12,11 +12,10 @@ export default function Header() {
             <img src={logo} alt="Logo" className="header-logo" />
             <div className="title">Northwest Michigan Watershed Coalition</div>
           </Link>
-          {/* <div className="vertical-separator"></div>
-          <nav className="menu">
-            <Link to="/home">Home</Link>
-            <Link to="/app">Dashboard</Link>
-          </nav> */}
+          <div className="vertical-separator"></div>
+          <nav className="menu" aria-label="Top navigation">
+            <Link to="/chat-rudy">Chat with Rudy</Link>
+          </nav>
         </div>
       </div>
     </header>

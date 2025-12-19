@@ -20,12 +20,8 @@ jobs:
           submodules: true
           lfs: false
 
-      # Set environment variables from GitHub secrets
-      - name: Set SQL Connection String from Secret
-        run: echo "SQL_CONNECTION_STRING=${{ secrets.SQL_CONNECTION_STRING }}" >> $GITHUB_ENV
-
-      - name: Set JWT Secret Key from Secret
-        run: echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> $GITHUB_ENV
+      # Note: runtime secrets for the API (e.g., SQL_CONNECTION_STRING, STORAGE_ACCOUNT_URL)
+      # must be configured in Azure Static Web Apps configuration, not exported here.
 
       - name: Set up Node.js
         uses: actions/setup-node@v3

@@ -8,6 +8,7 @@ import Header from "./Header";
 import Plots from "./Plots";
 import MapPanel from "./MapPanel";
 import PropTypes from "prop-types";
+import ChatWithRudy from "./ChatWithRudy";
 
 /**
  * FilterMapPanel (controlled)
@@ -277,44 +278,46 @@ function App() {
     <Router>
       <div className="app" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
         <Header />
-        <Routes>
-          {/* Redirect root & /home to /app; the welcome lives inside the /app layout */}
-          <Route path="/*" element={<Navigate to="/" replace />} />
+        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <div className="main" style={{ flex: 1, display: "flex", height: "100%", minHeight: 0 }}>
+                  <div className="left">
+                    <FilterMapPanel
+                      filters={filters}
+                      onFiltersChange={onFiltersChange}
+                      onUpdatePlot1={handleUpdatePlot1}
+                      onUpdatePlot2={handleUpdatePlot2}
+                      onDataLoaded={handleDataLoaded}
+                      trendSingleSite={false}
+                      updateEnabled={updateEnabled}
+                    />
+                  </div>
 
-          <Route
-            path="/"
-            element={
-              <div className="main" style={{ flex: 1, display: "flex", height: "100%" }}>
-                <div className="left">
-                  <FilterMapPanel
-                    filters={filters}
-                    onFiltersChange={onFiltersChange}
-                    onUpdatePlot1={handleUpdatePlot1}
-                    onUpdatePlot2={handleUpdatePlot2}
-                    onDataLoaded={handleDataLoaded}
-                    trendSingleSite={false}
-                    updateEnabled={updateEnabled}
-                  />
+                  <div
+                    className="right"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                      minHeight: 0,
+                    }}
+                  >
+                    {RightSide}
+                  </div>
                 </div>
+              }
+            />
 
-                <div
-                  className="right"
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    overflow: "hidden",
-                  }}
-                >
-                  {RightSide}
-                </div>
-              </div>
-            }
-          />
+            <Route path="/chat-rudy" element={<ChatWithRudy />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/app" replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
       </div>
     </Router>
   );
