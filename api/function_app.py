@@ -363,14 +363,14 @@ def _rudy_rag_retrieve(query: str) -> list[str]:
             return [chunks[idx] for _, idx in top]
     except Exception as e:
         if _is_openai_rate_limited(e):
-            logging.warning("RAG embeddings rate-limited; falling back to lexical retrieval.")
+            logging.info("RAG embeddings rate-limited; falling back to lexical retrieval.")
             try:
                 cooldown = _env_int("RUDY_RAG_RATE_LIMIT_COOLDOWN_SEC", 60)
             except Exception:
                 cooldown = 60
             _rudy_rag_embeddings_disabled_until = time.time() + max(0, cooldown)
         else:
-            logging.exception("RAG retrieval failed; falling back to lexical retrieval.")
+            logging.info("RAG retrieval failed; falling back to lexical retrieval.", exc_info=True)
 
     return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
 
@@ -389,7 +389,7 @@ if os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is not None:
         logging.info("Waiting for debugger to attach...")
         debugpy.wait_for_client()
 elif os.getenv("ENABLE_DEBUGPY") == "1" and debugpy is None:
-    logging.warning("ENABLE_DEBUGPY=1 but debugpy is not installed in this environment.")
+    logging.info("ENABLE_DEBUGPY=1 but debugpy is not installed in this environment.")
 
 def _allowed_origins() -> set[str]:
     raw = (_env("CORS_ALLOWED_ORIGINS") or "").strip()
@@ -572,7 +572,7 @@ def _csv_to_rows(data: bytes):
             df = pd.read_csv(io.BytesIO(data))
             return df.to_dict(orient="records")
         except Exception as e:
-            logging.warning("Pandas failed to parse CSV; falling back: %s", e)
+            logging.info("Pandas failed to parse CSV; falling back: %s", e)
     try:
         text = data.decode("utf-8")
     except Exception:
@@ -655,19 +655,9 @@ app = func.FunctionApp()
 @app.function_name(name="chat_rudy")
 @app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
-    debug_console = (_env("CHAT_RUDY_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
-
-    def _console(msg: str) -> None:
-        if not debug_console:
-            return
-        try:
-            print(f"[chat_rudy] {msg}", flush=True)
-        except Exception:
-            pass
-
-    logging.info("Received chat request.")
-    _console(f"Received request method={req.method}")
+    logging.info("chat_rudy: received request method=%s", req.method)
     if req.method == "OPTIONS":
+        logging.info("chat_rudy: OPTIONS preflight")
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
 
     try:
@@ -677,7 +667,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
 
     user_message = (req_body.get("message") or "").strip()
     if not user_message:
-        _console("Missing/empty message")
+        logging.info("chat_rudy: missing/empty message")
         return func.HttpResponse(
             json.dumps({"ok": False, "error": "Provide a non-empty 'message'."}),
             status_code=400,
@@ -686,10 +676,11 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
-        _console(f"Message length={len(user_message)}")
+        logging.info("chat_rudy: message_length=%s", len(user_message))
         system_prompt = _rudy_system_prompt()
+        logging.info("chat_rudy: loaded system prompt length=%s", len(system_prompt))
         top_chunks = _rudy_rag_retrieve(user_message)
-        _console(f"RAG chunks={len(top_chunks)}")
+        logging.info("chat_rudy: rag_chunks=%s", len(top_chunks))
         reference_block = "\n\n".join(
             [f"[Excerpt {i+1}]\n{txt}" for i, txt in enumerate(top_chunks)]
         )
@@ -698,7 +689,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             f"RETRIEVED_CONTEXT:\n{reference_block}\n"
         )
         model = (_env("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini").strip()
-        _console(f"OpenAI model={model}")
+        logging.info("chat_rudy: openai_model=%s", model)
         resp = _openai().responses.create(
             model=model,
             instructions=system_prompt,
@@ -706,10 +697,11 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
         )
         reply = (getattr(resp, "output_text", "") or "").strip()
         if not reply:
+            logging.info("chat_rudy: empty model response; using fallback message")
             reply = "Sorry — I couldn’t generate a response right now."
+        logging.info("chat_rudy: reply_length=%s", len(reply))
     except RuntimeError as e:
-        logging.error("Chat configuration error: %s", e)
-        _console(f"RuntimeError: {e}")
+        logging.info("chat_rudy: configuration error: %s", e, exc_info=True)
         return func.HttpResponse(
             json.dumps({"ok": False, "error": str(e)}),
             status_code=500,
@@ -717,8 +709,7 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             headers=_cors_headers(req),
         )
     except Exception:
-        logging.exception("Chat request failed.")
-        _console("Exception: chat request failed (see function logs for traceback)")
+        logging.info("chat_rudy: request failed", exc_info=True)
         return func.HttpResponse(
             json.dumps({"ok": False, "error": "Chat request failed."}),
             status_code=502,
@@ -757,24 +748,14 @@ def hello(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="read_csv")
 @app.route(route="read-csv", methods=["GET", "POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def read_csv(req: func.HttpRequest) -> func.HttpResponse:
-    debug_console = (_env("READ_CSV_DEBUG_CONSOLE") or "").strip().lower() in ("1", "true", "yes", "on")
-
-    def _console(msg: str) -> None:
-        if not debug_console:
-            return
-        try:
-            print(f"[read_csv] {msg}", flush=True)
-        except Exception:
-            pass
-
-    logging.info("ENTER read_csv method=%s", req.method)
-    _console(f"ENTER method={req.method}")
+    logging.info("read_csv: received request method=%s", req.method)
     if req.method == "OPTIONS":
+        logging.info("read_csv: OPTIONS preflight")
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
     try:
         p = _params(req)
         if not p["blob"]:
-            _console("Missing blob param")
+            logging.info("read_csv: missing blob param")
             return func.HttpResponse(
                 json.dumps({"error": "Provide blob (query/body) or set BLOB_NAME"}),
                 status_code=400, mimetype="application/json", headers=_cors_headers(req)
@@ -786,14 +767,14 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
             container = _public_container()
             blob_name = p["blob"]
             if blob_name not in _public_blobs():
-                _console(f"Blob not allowed blob={blob_name!r}")
+                logging.info("read_csv: blob not allowed blob=%r", blob_name)
                 return func.HttpResponse(
                     json.dumps({"error": "Blob not allowed"}),
                     status_code=403,
                     mimetype="application/json",
                     headers=_cors_headers(req),
                 )
-        _console(f"Fetching container={container!r} blob={blob_name!r} format={p['format']!r}")
+        logging.info("read_csv: fetching container=%r blob=%r format=%r", container, blob_name, p["format"])
         bsc = _bsc()
         data = (
             bsc.get_container_client(container)
@@ -803,9 +784,9 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
         )
         if p["format"] == "json":
             rows = _csv_to_rows(data)
-            _console(f"OK json rows={len(rows)} bytes={len(data)}")
+            logging.info("read_csv: ok json rows=%s bytes=%s", len(rows), len(data))
             return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=_cors_headers(req))
-        _console(f"OK csv bytes={len(data)}")
+        logging.info("read_csv: ok csv bytes=%s", len(data))
         return func.HttpResponse(
             body=data,
             status_code=200,
@@ -813,11 +794,10 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
             headers={**_cors_headers(req), "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"'},
         )
     except ResourceNotFoundError:
-        _console("Blob not found")
+        logging.info("read_csv: blob not found")
         return func.HttpResponse(json.dumps({"error": "Blob not found"}), status_code=404, mimetype="application/json", headers=_cors_headers(req))
     except Exception:
-        logging.exception("read_csv failed")
-        _console("Exception: read_csv failed (see function logs for traceback)")
+        logging.info("read_csv: failed", exc_info=True)
         return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
 
 @app.function_name(name="log_event")
@@ -898,7 +878,7 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
         cursor.close()
         conn.close()
     except Exception:
-        logging.error("Error inserting log data into SQL", exc_info=True)
+        logging.info("Error inserting log data into SQL", exc_info=True)
         return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
 
     return func.HttpResponse(json.dumps({"status": "ok", "message": "Log data received and inserted."}), status_code=200, mimetype="application/json", headers=_cors_headers(req))
