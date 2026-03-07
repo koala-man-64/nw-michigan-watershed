@@ -21,11 +21,10 @@ node_modules/
 .env.development.local
 .env
 artifacts/
-
+.venv/
 .env.test.local
 .env.production.local
 *.env
-client/nginx/ssl/
 
 # ==================================================
 # Logs & Debug

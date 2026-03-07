@@ -1,0 +1,50 @@
+{
+  "routes": [
+    {
+      "route": "/api/health*",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/read-csv*",
+      "allowedRoles": [
+        "anonymous"
+      ]
+    },
+    {
+      "route": "/api/ready*",
+      "allowedRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "route": "/api/log-event*",
+      "allowedRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "route": "/api/chat-rudy*",
+      "allowedRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "route": "/chat-rudy*",
+      "redirect": "/",
+      "statusCode": 302
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/api/*",
+      "/static/*",
+      "/favicon.ico",
+      "/logo*.png",
+      "/manifest.json",
+      "/robots.txt"
+    ]
+  }
+}

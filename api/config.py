@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Optional
 
 
+def skip_local_bootstrap() -> bool:
+    return os.getenv("NWMIWS_SKIP_LOCAL_BOOTSTRAP", "").strip() == "1"
+
+
 def load_local_env_file(base_dir: Optional[str] = None) -> None:
+    if skip_local_bootstrap():
+        return
+
     env_path = Path(base_dir or Path(__file__).resolve().parent) / ".env"
     try:
         raw = env_path.read_text(encoding="utf-8")
@@ -54,6 +61,13 @@ def env_int(name: str, default: int) -> int:
         return int(raw)
     except Exception:
         return default
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = env(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def required_env(name: str) -> str:

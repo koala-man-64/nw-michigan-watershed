@@ -59,10 +59,14 @@ export default function ChatWithRudy() {
       });
 
       const payload = await res.json().catch(() => ({}));
+      const errorText =
+        payload && typeof payload.error === "string"
+          ? `${payload.error}${payload.requestId ? ` (request ${payload.requestId})` : ""}`
+          : "Sorry — I couldn’t reach the server.";
       const replyText =
         res.ok && payload && typeof payload.reply === "string"
           ? payload.reply
-          : "Sorry — I couldn’t reach the server.";
+          : errorText;
 
       setMessages((prev) =>
         prev.map((m) => (m.id === botId ? { ...m, text: replyText, pending: false } : m))

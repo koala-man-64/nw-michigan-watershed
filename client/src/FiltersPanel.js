@@ -3,6 +3,7 @@ import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
 import { fetchCsvText, parseCsvRows } from "./api/csvApi";
 import useCsvData from "./hooks/useCsvData";
+import { formatParameterLabel } from "./parameterMetadata";
 
 /**
  * FiltersPanel
@@ -250,7 +251,7 @@ function FiltersPanel({
                 </option>
                 {parameters.map((p) => (
                   <option key={p} value={p}>
-                    {p}
+                    {formatParameterLabel(p)}
                   </option>
                 ))}
               </select>

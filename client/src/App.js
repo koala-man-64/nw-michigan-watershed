@@ -8,7 +8,6 @@ import Header from "./Header";
 import Plots from "./Plots";
 import MapPanel from "./MapPanel";
 import PropTypes from "prop-types";
-import ChatWithRudy from "./ChatWithRudy";
 
 function normalizePlotConfig(plotFilters) {
   const cfg = { ...plotFilters };
@@ -253,9 +252,6 @@ function App() {
                 </div>
               }
             />
-
-            <Route path="/chat-rudy" element={<ChatWithRudy />} />
-
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

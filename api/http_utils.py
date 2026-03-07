@@ -144,6 +144,10 @@ def get_swa_principal(req: func.HttpRequest) -> Optional[dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
+def is_authenticated_request(req: func.HttpRequest) -> bool:
+    return get_swa_principal(req) is not None
+
+
 def require_swa_role(req: func.HttpRequest, required_role: str) -> bool:
     principal = get_swa_principal(req)
     if not principal:
@@ -197,14 +201,25 @@ def rate_limit_key(req: func.HttpRequest) -> str:
     return principal.get("userId") or principal.get("userDetails") or get_client_ip(req) or "unknown"
 
 
-def is_rate_limited(req: func.HttpRequest) -> bool:
-    max_events = env_int("LOG_EVENT_RATE_LIMIT_MAX", 60)
-    window_sec = env_int("LOG_EVENT_RATE_LIMIT_WINDOW_SEC", 60)
+def elapsed_ms(start_time: float) -> int:
+    return int((time.perf_counter() - start_time) * 1000)
+
+
+def is_rate_limited(
+    req: func.HttpRequest,
+    *,
+    prefix: str = "LOG_EVENT",
+    default_max: int = 60,
+    default_window: int = 60,
+    bucket: str = "default",
+) -> bool:
+    max_events = env_int(f"{prefix}_RATE_LIMIT_MAX", default_max)
+    window_sec = env_int(f"{prefix}_RATE_LIMIT_WINDOW_SEC", default_window)
     if max_events <= 0 or window_sec <= 0:
         return False
 
     now = time.time()
-    key = rate_limit_key(req)
+    key = f"{bucket}:{rate_limit_key(req)}"
     timestamps = _rate_state.get(key, [])
     cutoff = now - window_sec
     timestamps = [timestamp for timestamp in timestamps if timestamp >= cutoff]

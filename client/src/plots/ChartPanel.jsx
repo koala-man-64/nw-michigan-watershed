@@ -11,6 +11,7 @@ import {
 
 import { D3Bar, D3Boxplot } from "./D3Charts";
 import { CHART_FONT, computeYRangeForChart } from "./chartUtils";
+import { formatParameterLabel } from "../parameterMetadata";
 
 function LightModal({ title, body, onClose }) {
   React.useEffect(() => {
@@ -218,6 +219,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [showCounts, setShowCounts] = useState(false);
+  const parameterLabel = formatParameterLabel(cfg?.parameter);
 
   useLayoutEffect(() => {
     let raf1;
@@ -297,7 +299,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
               minWidth: 0,
             }}
           >
-            {slotLabel}: {cfg.parameter}
+            {slotLabel}: {parameterLabel || cfg.parameter}
           </h4>
           {icons}
         </div>
@@ -310,7 +312,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   }
 
   const chartKey = `${chartObj.type}-${cfg.parameter}-${cfg.chartType}-${chartObj.data.labels.length}-${showCounts}`;
-  const title = chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`;
+  const title = chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}${parameterLabel ? `: ${parameterLabel}` : ""}`;
   const headerTitle = title.length > 80 ? `${title.slice(0, 79)}…` : title;
   const range = computeYRangeForChart(chartObj);
   const yDomain = range
@@ -372,7 +374,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
             counts={chartData.datasets[0].customCounts || []}
             color={chartData.datasets[0].borderColor || "#37474f"}
             yDomain={yDomain}
-            yLabel={cfg?.parameter || ""}
+            yLabel={parameterLabel}
           />
         ) : chartObj.type === "d3bar" ? (
           <D3Bar
@@ -392,6 +394,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
                 return { min: Math.max(0, d3Range.min - pad), max: d3Range.max + pad };
               })()
             }
+            yLabel={parameterLabel}
           />
         ) : (
           <ReactChart

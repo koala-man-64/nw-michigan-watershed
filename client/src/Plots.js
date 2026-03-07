@@ -11,6 +11,7 @@ import PropTypes from "prop-types";
 import { buildComparisonChart, buildTrendChart } from "./plots/chartBuilders";
 import { ChartPanel, IconWithTooltip, LightModal } from "./plots/ChartPanel";
 import { defaultColors, makeOptions } from "./plots/chartUtils";
+import { formatParameterLabel } from "./parameterMetadata";
 
 const MOCK_DATA_DISCLAIMER = "Disclaimer: This plot panel is currently displaying mock data.";
 
@@ -36,8 +37,8 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
       : buildComparisonChart(rawData, cfg2, defaultColors);
   }, [rawData, cfg2]);
 
-  const options1 = useMemo(() => makeOptions(cfg1?.parameter, chart1), [cfg1?.parameter, chart1]);
-  const options2 = useMemo(() => makeOptions(cfg2?.parameter, chart2), [cfg2?.parameter, chart2]);
+  const options1 = useMemo(() => makeOptions(formatParameterLabel(cfg1?.parameter), chart1), [cfg1?.parameter, chart1]);
+  const options2 = useMemo(() => makeOptions(formatParameterLabel(cfg2?.parameter), chart2), [cfg2?.parameter, chart2]);
   const [modal, setModal] = useState(null);
 
   const handlePrevSite = (slot) => {

@@ -1,17 +1,22 @@
+from __future__ import annotations
+
 import csv
 import datetime
 import io
 import logging
 import os
+import time
 
 import azure.functions as func
 
-from chat_rudy_service import generate_reply
-from config import load_local_env_file
+from chat_rudy_service import check_chat_assets, check_openai_client, generate_reply
+from config import env, env_bool, env_int, load_local_env_file, skip_local_bootstrap
 from http_utils import (
     bytes_response,
+    elapsed_ms,
     get_client_ip,
     ip_for_storage,
+    is_authenticated_request,
     is_rate_limited,
     json_response,
     log_with_request,
@@ -23,10 +28,13 @@ from http_utils import (
     text_response,
     truncate,
 )
-from sql import write_log_event
+from sql import check_sql_connection, sql_from_env, write_log_event
 from storage import (
     ResourceNotFoundError,
     allow_arbitrary_blob_reads,
+    blob_service_client,
+    check_blob_access,
+    check_storage_connection,
     download_blob,
     public_blobs,
     public_container,
@@ -42,6 +50,8 @@ load_local_env_file()
 
 
 def maybe_enable_debugpy() -> None:
+    if skip_local_bootstrap():
+        return
     if os.getenv("ENABLE_DEBUGPY") != "1":
         return
     if debugpy is None:
@@ -75,6 +85,54 @@ def csv_to_rows(data: bytes):
 app = func.FunctionApp()
 
 
+def require_route_access(
+    req: func.HttpRequest,
+    request_id: str,
+    *,
+    allow_anonymous_env: str,
+    required_role_env: str,
+    default_role: str = "authenticated",
+) -> func.HttpResponse | None:
+    if env_bool(allow_anonymous_env, False):
+        return None
+
+    required_role = env(required_role_env, default_role) or default_role
+    if require_swa_role(req, required_role):
+        return None
+
+    return json_response(
+        req,
+        request_id,
+        {"ok": False, "error": "Authentication required", "requestId": request_id},
+        status_code=401,
+    )
+
+
+def preferred_public_blob() -> str | None:
+    preferred = ("locations.csv", "info.csv")
+    allowed = public_blobs()
+    for blob_name in preferred:
+        if blob_name in allowed:
+            return blob_name
+    return next(iter(allowed), None)
+
+
+def run_readiness_check(name: str, checks: dict[str, dict[str, object]], probe) -> bool:
+    started = time.perf_counter()
+    try:
+        probe()
+    except Exception as exc:
+        checks[name] = {
+            "ok": False,
+            "durationMs": elapsed_ms(started),
+            "error": str(exc),
+        }
+        return False
+
+    checks[name] = {"ok": True, "durationMs": elapsed_ms(started)}
+    return True
+
+
 @app.function_name(name="health")
 @app.route(route="health", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def health(req: func.HttpRequest) -> func.HttpResponse:
@@ -86,32 +144,183 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
+@app.function_name(name="ready")
+@app.route(route="ready", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
+def ready(req: func.HttpRequest) -> func.HttpResponse:
+    request_id = request_id_for(req)
+    authenticated = is_authenticated_request(req)
+    access_response = require_route_access(
+        req,
+        request_id,
+        allow_anonymous_env="READINESS_ALLOW_ANONYMOUS",
+        required_role_env="READINESS_REQUIRED_ROLE",
+    )
+    if access_response is not None:
+        log_with_request("ready: authentication required", request_id, route="ready", authenticated=authenticated)
+        return access_response
+
+    started = time.perf_counter()
+    deep = (req.params.get("deep") or "").strip() == "1"
+    checks: dict[str, dict[str, object]] = {}
+    ok = True
+
+    ok = run_readiness_check("storageClient", checks, blob_service_client) and ok
+    ok = run_readiness_check("openaiClient", checks, check_openai_client) and ok
+
+    if deep:
+        ok = run_readiness_check("storageAccess", checks, check_storage_connection) and ok
+        blob_name = preferred_public_blob()
+        if blob_name:
+            ok = run_readiness_check(
+                "publicBlob",
+                checks,
+                lambda: check_blob_access(public_container(), blob_name),
+            ) and ok
+        ok = run_readiness_check("chatAssets", checks, check_chat_assets) and ok
+
+    if (env("LOG_EVENT_ENABLED", "1") or "1").strip() == "1":
+        sql_probe = check_sql_connection if deep else sql_from_env
+        ok = run_readiness_check("sql", checks, sql_probe) and ok
+
+    status_code = 200 if ok else 503
+    failed_checks = [name for name, result in checks.items() if not result["ok"]]
+    log_with_request(
+        "ready: completed",
+        request_id,
+        route="ready",
+        authenticated=authenticated,
+        deep=deep,
+        ok=ok,
+        failed_checks=failed_checks,
+        duration_ms=elapsed_ms(started),
+    )
+    return json_response(
+        req,
+        request_id,
+        {
+            "ok": ok,
+            "service": "nwmiws-api",
+            "mode": "deep" if deep else "config",
+            "checks": checks,
+            "requestId": request_id,
+        },
+        status_code=status_code,
+    )
+
+
 @app.function_name(name="chat_rudy")
 @app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
     request_id = request_id_for(req)
-    log_with_request("chat_rudy: received request", request_id, method=req.method)
+    authenticated = is_authenticated_request(req)
+    feature_enabled = env_bool("CHAT_ENABLED", False)
+    log_with_request(
+        "chat_rudy: received request",
+        request_id,
+        route="chat-rudy",
+        method=req.method,
+        authenticated=authenticated,
+        feature_enabled=feature_enabled,
+    )
     if req.method == "OPTIONS":
         return text_response(req, request_id, "", status_code=204)
 
+    if not feature_enabled:
+        log_with_request(
+            "chat_rudy: disabled",
+            request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            feature_enabled=feature_enabled,
+        )
+        return json_response(
+            req,
+            request_id,
+            {"ok": False, "error": "Chat is unavailable.", "requestId": request_id},
+            status_code=404,
+        )
+
+    access_response = require_route_access(
+        req,
+        request_id,
+        allow_anonymous_env="CHAT_ALLOW_ANONYMOUS",
+        required_role_env="CHAT_REQUIRED_ROLE",
+    )
+    if access_response is not None:
+        log_with_request(
+            "chat_rudy: authentication required",
+            request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            feature_enabled=feature_enabled,
+        )
+        return access_response
+
+    if is_rate_limited(req, prefix="CHAT", default_max=12, default_window=60, bucket="chat-rudy"):
+        log_with_request(
+            "chat_rudy: rate limited",
+            request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            rate_limited=True,
+            feature_enabled=feature_enabled,
+        )
+        return json_response(
+            req,
+            request_id,
+            {"ok": False, "error": "Too many requests", "requestId": request_id},
+            status_code=429,
+        )
+
     req_body = parse_json_body(req)
     user_message = (req_body.get("message") or "").strip()
+    max_message_chars = env_int("CHAT_MAX_MESSAGE_CHARS", 2000)
     if not user_message:
-        log_with_request("chat_rudy: missing message", request_id)
+        log_with_request(
+            "chat_rudy: missing message",
+            request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            feature_enabled=feature_enabled,
+        )
         return json_response(
             req,
             request_id,
             {"ok": False, "error": "Provide a non-empty 'message'.", "requestId": request_id},
             status_code=400,
         )
+    if len(user_message) > max_message_chars:
+        log_with_request(
+            "chat_rudy: message too large",
+            request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            feature_enabled=feature_enabled,
+            message_chars=len(user_message),
+        )
+        return json_response(
+            req,
+            request_id,
+            {
+                "ok": False,
+                "error": f"Message exceeds {max_message_chars} characters.",
+                "requestId": request_id,
+            },
+            status_code=413,
+        )
 
+    started = time.perf_counter()
     try:
         result = generate_reply(user_message)
         log_with_request(
             "chat_rudy: completed",
             request_id,
+            route="chat-rudy",
+            authenticated=authenticated,
+            feature_enabled=feature_enabled,
             model=result["model"],
             rag_chunks=result["rag_chunks"],
+            duration_ms=elapsed_ms(started),
         )
     except RuntimeError as exc:
         logging.info("chat_rudy: configuration error request_id=%s", request_id, exc_info=True)
@@ -140,21 +349,6 @@ def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
             "requestId": request_id,
         },
     )
-
-
-@app.function_name(name="hello")
-@app.route(route="hello", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
-def hello(req: func.HttpRequest) -> func.HttpResponse:
-    request_id = request_id_for(req)
-    name = req.params.get("name") or parse_json_body(req).get("name")
-    if not name:
-        return text_response(
-            req,
-            request_id,
-            "Please pass a 'name' in query or JSON body.",
-            status_code=400,
-        )
-    return text_response(req, request_id, f"Hello, {name}!")
 
 
 @app.function_name(name="read_csv")
@@ -189,14 +383,25 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
                 status_code=403,
             )
 
+    started = time.perf_counter()
     try:
         data = download_blob(container, blob_name)
         if params["format"] == "json":
             rows = csv_to_rows(data)
-            log_with_request("read_csv: returning json", request_id, rows=len(rows))
+            log_with_request(
+                "read_csv: returning json",
+                request_id,
+                rows=len(rows),
+                duration_ms=elapsed_ms(started),
+            )
             return json_response(req, request_id, rows)
 
-        log_with_request("read_csv: returning csv", request_id, bytes=len(data))
+        log_with_request(
+            "read_csv: returning csv",
+            request_id,
+            bytes=len(data),
+            duration_ms=elapsed_ms(started),
+        )
         return bytes_response(
             req,
             request_id,
@@ -225,6 +430,7 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="log-event", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def log_event(req: func.HttpRequest) -> func.HttpResponse:
     request_id = request_id_for(req)
+    authenticated = is_authenticated_request(req)
     if req.method == "OPTIONS":
         return text_response(req, request_id, "", status_code=204)
 
@@ -233,6 +439,7 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
 
     required_role = os.getenv("LOG_EVENT_REQUIRED_ROLE", "authenticated")
     if not require_swa_role(req, required_role):
+        log_with_request("log_event: authentication required", request_id, route="log-event", authenticated=authenticated)
         return json_response(
             req,
             request_id,
@@ -249,7 +456,8 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
         )
 
-    if is_rate_limited(req):
+    if is_rate_limited(req, prefix="LOG_EVENT", default_max=60, default_window=60, bucket="log-event"):
+        log_with_request("log_event: rate limited", request_id, route="log-event", authenticated=authenticated, rate_limited=True)
         return json_response(
             req,
             request_id,
@@ -278,6 +486,7 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400,
         )
 
+    started = time.perf_counter()
     try:
         write_log_event(
             event_type=event_type,
@@ -298,6 +507,14 @@ def log_event(req: func.HttpRequest) -> func.HttpResponse:
             status_code=500,
         )
 
+    log_with_request(
+        "log_event: completed",
+        request_id,
+        route="log-event",
+        authenticated=authenticated,
+        event_type=event_type,
+        duration_ms=elapsed_ms(started),
+    )
     return json_response(
         req,
         request_id,

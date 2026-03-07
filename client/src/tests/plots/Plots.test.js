@@ -2,19 +2,19 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 
-import Plots from "./Plots";
+import Plots from "../../Plots";
 
-jest.mock("./plots/chartBuilders", () => ({
+jest.mock("../../plots/chartBuilders", () => ({
   buildComparisonChart: jest.fn(() => null),
   buildTrendChart: jest.fn(() => null),
 }));
 
-jest.mock("./plots/chartUtils", () => ({
+jest.mock("../../plots/chartUtils", () => ({
   defaultColors: [],
   makeOptions: jest.fn(() => ({})),
 }));
 
-jest.mock("./plots/ChartPanel", () => ({
+jest.mock("../../plots/ChartPanel", () => ({
   ChartPanel: ({ slotLabel }) => <div data-testid={`chart-panel-${slotLabel}`}>{slotLabel}</div>,
   IconWithTooltip: () => null,
   LightModal: () => null,

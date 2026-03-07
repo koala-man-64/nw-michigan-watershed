@@ -101,6 +101,13 @@ def connect_sql():
     return pyodbc.connect(connection_string)
 
 
+def check_sql_connection() -> None:
+    with closing(connect_sql()) as conn:
+        with closing(conn.cursor()) as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+
+
 def write_log_event(
     *,
     event_type: str,

@@ -95,6 +95,19 @@ def download_blob_text(container: str, blob_name: str) -> str:
         return data.decode("utf-8", errors="ignore")
 
 
+def check_storage_connection() -> None:
+    blob_service_client().get_service_properties()
+
+
+def check_blob_access(container: str, blob_name: str) -> None:
+    (
+        blob_service_client()
+        .get_container_client(container)
+        .get_blob_client(blob_name)
+        .get_blob_properties()
+    )
+
+
 def required_chat_blob_names() -> tuple[str, str]:
     container = required_env("CHAT_WITH_RUDY_CONTAINER")
     prompt_blob = required_env("CHAT_WITH_RUDY_PROMPT_BLOB")
@@ -105,6 +118,8 @@ __all__ = [
     "ResourceNotFoundError",
     "allow_arbitrary_blob_reads",
     "blob_service_client",
+    "check_blob_access",
+    "check_storage_connection",
     "download_blob",
     "download_blob_text",
     "public_blobs",

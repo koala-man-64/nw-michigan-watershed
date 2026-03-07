@@ -1,4 +1,5 @@
 import { round3, wrapLabel } from "./chartUtils";
+import { formatParameterLabel } from "../parameterMetadata";
 
 function quantile(arr, q) {
   if (!arr || arr.length === 0) {
@@ -21,6 +22,7 @@ export function buildTrendChart(rawData, cfg, palette) {
     endYear,
     trendIndex,
   } = cfg;
+  const parameterLabel = formatParameterLabel(parameter);
 
   let site = null;
   if (selectedSites.length) {
@@ -104,14 +106,14 @@ export function buildTrendChart(rawData, cfg, palette) {
   });
 
   return {
-    title: site ? `${parameter} Trend for ${site}` : "Trend",
-    subtitle: parameter ? `${parameter} by year` : "",
+    title: site ? `${parameterLabel} Trend for ${site}` : "Trend",
+    subtitle: parameterLabel ? `${parameterLabel} by year` : "",
     type: "boxplot",
     data: {
       labels: years,
       datasets: [
         {
-          label: parameter,
+          label: parameterLabel,
           data: boxData,
           backgroundColor: palette[0],
           borderColor: palette[0],
@@ -124,6 +126,7 @@ export function buildTrendChart(rawData, cfg, palette) {
 
 export function buildComparisonChart(rawData, cfg, palette) {
   const { parameter, selectedSites = [], startYear, endYear } = cfg;
+  const parameterLabel = formatParameterLabel(parameter);
   const subtitle = `Selected lakes (n): ${new Set(selectedSites).size}`;
 
   const filtered = rawData.filter((row) => {
@@ -163,7 +166,7 @@ export function buildComparisonChart(rawData, cfg, palette) {
   const max = Math.max(...values);
 
   return {
-    title: `${parameter} Comparison by Site`,
+    title: `${parameterLabel} Comparison by Site`,
     type: "d3bar",
     subtitle,
     yMeta: {
@@ -174,7 +177,7 @@ export function buildComparisonChart(rawData, cfg, palette) {
       labels: sites.map((site) => wrapLabel(site, 12)),
       datasets: [
         {
-          label: parameter,
+          label: parameterLabel,
           data: values,
           backgroundColor: sites.map((_, index) => palette[index % palette.length]),
           customCounts: counts,

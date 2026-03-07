@@ -5,7 +5,7 @@ import PropTypes from "prop-types";
 import { FONT_FAMILY, fontScale } from "./chartUtils";
 
 function D3Boxplot({ labels, series, color = "#37474f", yDomain, counts = [], yLabel = "" }) {
-  const margin = { top: 8, right: 8, bottom: 28, left: 42 };
+  const margin = { top: 8, right: 8, bottom: 28, left: 56 };
   const [hover, setHover] = React.useState(null);
   const hideHover = React.useCallback(() => setHover(null), []);
 
@@ -136,8 +136,8 @@ D3Boxplot.defaultProps = {
   yLabel: "",
 };
 
-function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain }) {
-  const margin = { top: 16, right: 8, bottom: 40, left: 48 };
+function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain, yLabel = "" }) {
+  const margin = { top: 16, right: 8, bottom: 40, left: 56 };
   const [hover, setHover] = React.useState(null);
   const hideHover = React.useCallback(() => setHover(null), []);
 
@@ -155,6 +155,7 @@ function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain }) {
           counts={counts}
           color={color}
           yDomain={yDomain}
+          yLabel={yLabel}
           margin={margin}
           width={800}
           height={400}
@@ -222,18 +223,20 @@ D3Bar.propTypes = {
     PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)])
   ).isRequired,
   values: PropTypes.arrayOf(PropTypes.number).isRequired,
-  counts: PropTypes.arrayOf(PropTypes.number),
+  counts: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])])),
   color: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
   yDomain: PropTypes.shape({
     min: PropTypes.number,
     max: PropTypes.number,
   }),
+  yLabel: PropTypes.string,
 };
 
 D3Bar.defaultProps = {
   counts: [],
   color: "#37474f",
   yDomain: undefined,
+  yLabel: "",
 };
 
 function D3BarInner({
@@ -242,6 +245,7 @@ function D3BarInner({
   counts,
   color,
   yDomain,
+  yLabel,
   margin,
   width,
   height,
@@ -281,6 +285,19 @@ function D3BarInner({
           </g>
         );
       })}
+
+      {yLabel ? (
+        <text
+          transform={`translate(-38, ${innerH / 2}) rotate(-90)`}
+          textAnchor="middle"
+          fontSize={14 * fontScale}
+          fill="#37474f"
+          fontFamily={FONT_FAMILY}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {yLabel}
+        </text>
+      ) : null}
 
       {values.map((value, index) => {
         const label = labelKeys[index];
@@ -349,6 +366,7 @@ function D3BarInner({
 D3BarInner.defaultProps = {
   counts: [],
   yDomain: undefined,
+  yLabel: "",
   onHover: undefined,
   onLeave: undefined,
 };
@@ -358,12 +376,13 @@ D3BarInner.propTypes = {
     PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)])
   ).isRequired,
   values: PropTypes.arrayOf(PropTypes.number).isRequired,
-  counts: PropTypes.arrayOf(PropTypes.number),
+  counts: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])])),
   color: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]).isRequired,
   yDomain: PropTypes.shape({
     min: PropTypes.number,
     max: PropTypes.number,
   }),
+  yLabel: PropTypes.string,
   margin: PropTypes.shape({
     top: PropTypes.number.isRequired,
     right: PropTypes.number.isRequired,
@@ -476,11 +495,15 @@ function BoxplotInner({
 
       {yLabel ? (
         <text
-          transform={`translate(-34, ${innerH / 2}) rotate(-90)`}
+          transform={`translate(-38, ${innerH / 2}) rotate(-90)`}
           textAnchor="middle"
           fontSize={14 * fontScale}
           fill="#37474f"
-        />
+          fontFamily={FONT_FAMILY}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {yLabel}
+        </text>
       ) : null}
 
       {series.map((item, index) => {

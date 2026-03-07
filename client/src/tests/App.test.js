@@ -1,22 +1,18 @@
 /* eslint-env jest */
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import App from "./App";
+import App from "../App";
 
-jest.mock("./FiltersPanel", () => function MockFiltersPanel() {
+jest.mock("../FiltersPanel", () => function MockFiltersPanel() {
   return <div data-testid="filters-panel">Filters Panel</div>;
 });
 
-jest.mock("./MapPanel", () => function MockMapPanel() {
+jest.mock("../MapPanel", () => function MockMapPanel() {
   return <div data-testid="map-panel">Map Panel</div>;
 });
 
-jest.mock("./Plots", () => function MockPlots() {
+jest.mock("../Plots", () => function MockPlots() {
   return <div data-testid="plots-panel">Plots Panel</div>;
-});
-
-jest.mock("./ChatWithRudy", () => function MockChatWithRudy() {
-  return <div data-testid="chat-rudy">Chat with Rudy</div>;
 });
 
 describe("App", () => {
@@ -51,11 +47,13 @@ describe("App", () => {
     expect(screen.getByTestId("plots-panel")).toBeInTheDocument();
   });
 
-  test("renders the chat route", () => {
+  test("redirects the retired chat route back to the home experience", () => {
     window.history.pushState({}, "", "/chat-rudy");
 
     render(<App />);
 
-    expect(screen.getByTestId("chat-rudy")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Welcome to the NW Michigan Water Quality Database/i)
+    ).toBeInTheDocument();
   });
 });

@@ -1,18 +1,6 @@
 import { Chart, registerables } from "chart.js";
-import {
-  BoxPlotController,
-  ViolinController,
-  BoxAndWiskers,
-  Violin,
-} from "@sgratzl/chartjs-chart-boxplot";
 
-Chart.register(
-  ...registerables,
-  BoxPlotController,
-  ViolinController,
-  BoxAndWiskers,
-  Violin
-);
+Chart.register(...registerables);
 
 Chart.defaults.font.family =
   'Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
@@ -179,7 +167,11 @@ export function makeOptions(parameterLabel, chartObj) {
           includeBounds: true,
         },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
-        title: { display: false, text: "" },
+        title: {
+          display: Boolean(parameterLabel),
+          text: parameterLabel || "",
+          color: "#37474f",
+        },
       },
       x: {
         offset: true,

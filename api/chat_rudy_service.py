@@ -40,6 +40,10 @@ def openai_client() -> "OpenAI":
     return _openai_client
 
 
+def check_openai_client() -> None:
+    openai_client()
+
+
 def rudy_system_prompt() -> str:
     container = required_env("CHAT_WITH_RUDY_CONTAINER")
     blob_name = required_env("CHAT_WITH_RUDY_PROMPT_BLOB")
@@ -217,6 +221,14 @@ def rudy_rag_retrieve(query: str) -> list[str]:
             _rudy_rag_embeddings_disabled_until = time.time() + cooldown
 
     return [chunks[index] for index in candidate_indexes[:top_k]]
+
+
+def check_chat_assets() -> None:
+    if not rudy_system_prompt():
+        raise RuntimeError("Chat system prompt is empty.")
+    chunks, _ = rudy_rag_load()
+    if not chunks:
+        raise RuntimeError("RAG source produced no chunks.")
 
 
 def generate_reply(user_message: str) -> dict[str, object]:

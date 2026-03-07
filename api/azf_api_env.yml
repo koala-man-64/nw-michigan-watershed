@@ -10,5 +10,4 @@ dependencies:
       - azure-identity
       - azure-core
       - openai
-      - debugpy
       - pymssql
