@@ -1,4 +1,4 @@
-name: Azure Static Web Apps CI/CD
+name: NWMIWS Static Web App Dev
 
 on:
   push:
@@ -8,6 +8,11 @@ on:
     types: [opened, synchronize, reopened, closed]
     branches:
       - dev
+  workflow_dispatch:
+
+concurrency:
+  group: nwmiws-swa-dev-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,9 +20,9 @@ permissions:
 
 jobs:
   build_and_deploy_job:
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Build and Deploy Job
+    name: Build And Deploy Dev
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -182,7 +187,7 @@ jobs:
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
-    name: Close Pull Request Job
+    name: Close Dev Preview
     steps:
       - name: Close Pull Request
         id: closepullrequest
