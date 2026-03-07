@@ -10,6 +10,31 @@ import MapPanel from "./MapPanel";
 import PropTypes from "prop-types";
 import ChatWithRudy from "./ChatWithRudy";
 
+function normalizePlotConfig(plotFilters) {
+  const cfg = { ...plotFilters };
+  if (cfg.chartType !== "trend") {
+    return cfg;
+  }
+
+  const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
+  return {
+    ...cfg,
+    trendIndex: sites.length > 0 ? sites.length - 1 : 0,
+  };
+}
+
+function updatePlotSlot(prevConfigs, slot, plotFilters) {
+  const cfg = normalizePlotConfig(plotFilters);
+  const next = Array.isArray(prevConfigs) ? [...prevConfigs] : [];
+
+  while (next.length <= slot) {
+    next.push(null);
+  }
+
+  next[slot] = cfg;
+  return next;
+}
+
 /**
  * FilterMapPanel (controlled)
  */
@@ -111,26 +136,11 @@ If you have questions or comments, please contact John Ransom at the Benzie Coun
           </p>
       </div>
 
-      {/* Buttons match the Filters panel (reset-btn) */}
-      <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+      <div className="welcome-actions">
         <button
           type="button"
-          className="reset-btn"
-          onClick={() => {
-            // Simple exit behavior; adjust as needed
-            window.location.href = "/";
-          }}
-          style={{ flex: 1, backgroundColor: "gray"}}
-          title="Leave this page"
-        >
-          Exit
-        </button>
-        <div style={{flex: 2}} />
-        <button
-          type="button"
-          className="reset-btn"
+          className="reset-btn welcome-continue-btn"
           onClick={onContinue}
-          style={{ flex: 1 }}
           title="Enable plotting and show the charts panel"
         >
           Continue
@@ -180,80 +190,12 @@ function App() {
     setLoading(false);
   }, []);
 
-  /**
-   * Handler for the "Update Plot 1" button.
-   * - Accepts a `plotFilters` object from your Filter/Control panel.
-   * - Ensures `trendIndex` is set when the chart type is "trend" (so the Trend plot
-   *   knows which site's series to render—by default the last selected site).
-   * - Updates `plotConfigs[0]` immutably.
-   *
-   * Notes:
-   * - `useCallback` keeps the function identity stable (good for passing down as props).
-   * - Empty dependency array means the closure is created once; that's fine because
-   *   `setPlotConfigs` is stable across renders (from React state).
-   */
   const handleUpdatePlot1 = useCallback((plotFilters) => {
-    // Start with a shallow clone so we never mutate incoming props/objects.
-    let cfg = { ...plotFilters };
-
-    // If rendering a Trend chart, compute which site index to show by default.
-    // We pick the *last* selected site (common UX when the user just added one).
-    if (cfg.chartType === "trend") {
-      // Normalize to an array to avoid runtime errors if the field is undefined or a single value.
-      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
-      // Use the last index if there are selected sites; otherwise default to 0.
-      const idx = sites.length > 0 ? sites.length - 1 : 0;
-
-      // Write back the computed index (without mutating the original).
-      cfg = { ...cfg, trendIndex: idx };
-    }
-
-    // Push the new config into the first slot of `plotConfigs`.
-    // This uses the functional form of setState to avoid race conditions.
-    setPlotConfigs((prev) => {
-      // If no configs exist yet, initialize a 2-slot array and set the first slot.
-      if (prev.length === 0) return [cfg, null];
-
-      // Otherwise, clone and replace the first item immutably.
-      const next = [...prev];
-      next[0] = cfg;
-
-      // Ensure the array always has two slots.
-      if (next.length === 1) next.push(null);
-
-      return next;
-    });
+    setPlotConfigs((prev) => updatePlotSlot(prev, 0, plotFilters));
   }, []);
 
-  /**
-   * Handler for the "Update Plot 2" button.
-   * - Same logic as Plot 1, but targets `plotConfigs[1]`.
-   * - If only one config exists, it appends the new one; if none exist, it starts the array.
-   */
   const handleUpdatePlot2 = useCallback((plotFilters) => {
-    // Shallow clone to avoid mutating the caller's object.
-    let cfg = { ...plotFilters };
-
-    // For Trend charts, compute and store which site's series to render by default.
-    if (cfg.chartType === "trend") {
-      const sites = Array.isArray(cfg.selectedSites) ? cfg.selectedSites : [];
-      const idx = sites.length > 0 ? sites.length - 1 : 0;
-      cfg = { ...cfg, trendIndex: idx };
-    }
-
-    // Insert/update the second slot of `plotConfigs` immutably.
-    setPlotConfigs((prev) => {
-      // If no configs exist yet, create a 2-slot array and set the second slot.
-      if (prev.length === 0) return [null, cfg];
-
-      // If only one exists, keep it as the first and set the second.
-      if (prev.length === 1) return [prev[0], cfg];
-
-      // Otherwise, clone and replace the second item immutably.
-      const next = [...prev];
-      next[1] = cfg;
-      return next;
-    });
+    setPlotConfigs((prev) => updatePlotSlot(prev, 1, plotFilters));
   }, []);
 
 
@@ -275,7 +217,7 @@ function App() {
   );
 
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="app" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
         <Header />
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>

@@ -1,8 +1,5 @@
---------------------------------------------------------------------------------------------------------------------------------------
--- Create the LogEvent table
---------------------------------------------------------------------------------------------------------------------------------------
-CREATE TABLE LogEvent (
-    EventID BIGINT IDENTITY(1,1) NOT NULL,
+CREATE TABLE dbo.LogEvent (
+    EventID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     EventType NVARCHAR(50) NOT NULL,
     TargetTag NVARCHAR(50) NOT NULL,
     TargetID NVARCHAR(100) NULL,
@@ -10,38 +7,37 @@ CREATE TABLE LogEvent (
     TargetText NVARCHAR(255) NULL,
     ClientIp NVARCHAR(255) NULL,
     ClientUrl NVARCHAR(255) NULL,
-    Timestamp DATETIME NOT NULL,
-    CONSTRAINT PK_LogEvent PRIMARY KEY (EventID)
+    Timestamp DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
---------------------------------------------------------------------------------------------------------------------------------------
 
-DROP TABLE LogEvent;
+CREATE INDEX IX_LogEvent_Timestamp ON dbo.LogEvent (Timestamp DESC);
 
+-- Example insert for local verification. Use synthetic/non-production values only.
+INSERT INTO dbo.LogEvent (
+    EventType,
+    TargetTag,
+    TargetID,
+    TargetClasses,
+    TargetText,
+    ClientIp,
+    ClientUrl
+)
+VALUES (
+    N'click',
+    N'BUTTON',
+    N'example-submit',
+    N'btn btn-primary',
+    N'',
+    N'203.0.113.10',
+    N'https://example.invalid/app'
+);
 
---------------------------------------------------------------------------------------------------------------------------------------
--- Create the LogEvent table
---------------------------------------------------------------------------------------------------------------------------------------
-INSERT INTO LogEvent (EventType, TargetTag, TargetID, TargetClasses, Timestamp)
-VALUES ('click', 'BUTTON', 'submitBtn', 'btn btn-primary', '2025-03-30 12:00:00');
---------------------------------------------------------------------------------------------------------------------------------------
-
-
---------------------------------------------------------------------------------------------------------------------------------------
--- Create the LogEvent table
---------------------------------------------------------------------------------------------------------------------------------------
-UPDATE LogEvent
-SET EventType = 'updated_event',
-    TargetTag = 'DIV',
-    TargetID = 'updatedId',
-    TargetClasses = 'updated-class another-class',
-    Timestamp = '2025-03-30 13:00:00'
-WHERE EventID = 1;
---------------------------------------------------------------------------------------------------------------------------------------
-
-
---------------------------------------------------------------------------------------------------------------------------------------
--- Create the LogEvent table
---------------------------------------------------------------------------------------------------------------------------------------
-DELETE FROM LogEvent
-WHERE EventID = 1;
---------------------------------------------------------------------------------------------------------------------------------------
+-- Example read query for troubleshooting.
+SELECT TOP (50)
+    EventID,
+    EventType,
+    TargetTag,
+    ClientUrl,
+    Timestamp
+FROM dbo.LogEvent
+ORDER BY Timestamp DESC;

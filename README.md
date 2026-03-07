@@ -1,89 +1,83 @@
-# Getting Started with Create React App
+# Northwest Michigan Watershed Coalition
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This repository contains the Northwest Michigan Watershed Coalition client application and its Azure Functions API. The app loads water-quality CSV data from Azure Blob Storage, renders map and chart views for site comparison/trend analysis, and exposes a `Chat with Rudy` assistant backed by OpenAI and blob-hosted reference content.
 
-## Azure Static Web Apps configuration (runtime)
+## Repository layout
 
-GitHub Actions build steps do not configure runtime environment variables for your deployed API. Configure these in Azure Static Web Apps (Configuration / Application settings) for the `api/` Functions:
+- `client/`: React application for the map, filters, plots, and chat interface.
+- `api/`: Azure Functions Python app for CSV access, event logging, chat, and health checks.
+- `data/`: prompt/RAG source files and supporting project assets.
+- `database/`: reference SQL for the logging and user tables.
+- `.github/workflows/`: Azure Static Web Apps build/deploy workflows for dev and prod.
 
-- `SQL_CONNECTION_STRING` (required for `log-event`)
-- `SQL_DRIVER` (optional; defaults to `pymssql`)
-- `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
-- `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
-- `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
-- `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
-- `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
+## Prerequisites
 
-## Local debugging note (AzureWebJobsStorage)
+- Node.js 18.x with npm
+- Python 3.10
+- Azure Functions Core Tools for local API execution
+- Access to the Azure Blob/OpenAI/SQL resources used by the deployed app
 
-If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when starting a debug session, either:
+## Local development
 
-- Run Azurite and keep `AzureWebJobsStorage=UseDevelopmentStorage=true`, or
-- Use real Azure Storage by setting `AzureWebJobsStorage` in `api/local.settings.json` to the same Storage connection string your Function uses in Azure.
+1. Install client dependencies:
+   ```bash
+   cd client
+   npm install
+   ```
+2. Configure API settings in `api/local.settings.json` or `api/.env`.
+3. Start the Azure Functions host from `api/`.
+4. Start the React client from `client/` with `npm start`.
 
-## Available Scripts
+The React app proxies API requests to `http://localhost:7071`.
 
-In the project directory, you can run:
+## API environment variables
 
-### `npm start`
+Configure these in Azure Static Web Apps application settings for the Functions app:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- `STORAGE_ACCOUNT_URL` plus managed identity, or `BLOB_CONN`
+- `PUBLIC_BLOB_CONTAINER`
+- `PUBLIC_BLOBS`
+- `CHAT_WITH_RUDY_CONTAINER`
+- `CHAT_WITH_RUDY_PROMPT_BLOB`
+- `CHAT_WITH_RUDY_RAG_BLOB`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_EMBEDDING_MODEL`
+- `SQL_CONNECTION_STRING`
+- `SQL_DRIVER`
+- `LOG_EVENT_ENABLED`
+- `LOG_EVENT_REQUIRED_ROLE`
+- `LOG_EVENT_SAMPLE_RATE`
+- `LOG_EVENT_RATE_LIMIT_MAX`
+- `LOG_EVENT_RATE_LIMIT_WINDOW_SEC`
+- `LOG_EVENT_IP_MODE`
+- `LOG_EVENT_CAPTURE_TEXT`
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Current API endpoints:
 
-### `npm test`
+- `GET /api/health`
+- `POST /api/chat-rudy`
+- `GET|POST /api/read-csv`
+- `POST /api/log-event`
+- `GET|POST /api/hello`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Validation and release gates
 
-### `npm run build`
+Run these checks before merging:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+python3 -m py_compile api/*.py
+cd client && npm run lint
+cd client && npm test -- --watchAll=false
+cd client && npm run build
+python3 .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py --mode audit --repo .
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+The drift gate is configured in `.codedrift.yml`. Generated build artifacts and TLS materials under `client/build/` and `client/nginx/ssl/` must not be committed.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Operational notes
 
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- `GET /api/health` is the lightweight readiness probe for the Functions app.
+- `read-csv` only serves approved blobs unless `ALLOW_ARBITRARY_BLOB_READS=1` is explicitly enabled.
+- `log-event` now returns an `X-Request-Id` header on every response and hashes client IPs by default unless `LOG_EVENT_IP_MODE=raw`.
+- If local debugging reports `AzureWebJobsStorage` validation failures, either run Azurite with `UseDevelopmentStorage=true` or point `api/local.settings.json` at a real storage account.

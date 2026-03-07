@@ -1,13 +1,8 @@
-// /client/src/FiltersPanel.js
 import React, { useEffect, useRef, useState } from "react";
-import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
-
-function apiCsvUrl(blobName) {
-  const blob = encodeURIComponent(blobName);
-  return `/api/read-csv?blob=${blob}&format=csv`;
-}
+import { fetchCsvText, parseCsvRows } from "./api/csvApi";
+import useCsvData from "./hooks/useCsvData";
 
 /**
  * FiltersPanel
@@ -32,6 +27,7 @@ function FiltersPanel({
   const [sites, setSites] = useState([]);
   const [parameters, setParameters] = useState([]);
   const [availableYears, setAvailableYears] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
   // Local UI state
   const [filters, setFilters] = useState({
@@ -68,93 +64,69 @@ function FiltersPanel({
    * Fetch CSV(s) once from Azure, populate options, initialize years, and
    * bubble up the parsed data to App via onDataLoaded.
    */
+  const { data: loadedCsvs, error: csvError } = useCsvData(async () => {
+    const [dataCsvText, infoCsvText] = await Promise.all([
+      fetchCsvText("NWMIWS_Site_Data_testing_varied.csv"),
+      fetchCsvText("info.csv").catch(() => ""),
+    ]);
+
+    return {
+      dataRows: parseCsvRows(dataCsvText),
+      infoRows: infoCsvText ? parseCsvRows(infoCsvText) : [],
+    };
+  }, []);
+
   useEffect(() => {
-    const dataUrl = apiCsvUrl("NWMIWS_Site_Data_testing_varied.csv");
-    const infoUrl = apiCsvUrl("info.csv");
-
-    let cancelled = false;
-
-    async function fetchText(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      return res.text();
+    if (!loadedCsvs) {
+      return;
     }
 
-    (async () => {
-      try {
-        const [dataCsvText, infoCsvText] = await Promise.all([
-          fetchText(dataUrl),
-          fetchText(infoUrl).catch(() => ""),
-        ]);
-
-        // Parse main data
-        let dataRows = [];
-        Papa.parse(dataCsvText, {
-          header: true,
-          skipEmptyLines: true,
-          complete: ({ data }) => (dataRows = data),
-        });
-
-        // Parse info CSV (optional)
-        let infoRows = [];
-        if (infoCsvText) {
-          Papa.parse(infoCsvText, {
-            header: true,
-            skipEmptyLines: true,
-            complete: ({ data }) => (infoRows = data),
-          });
-        }
-
-        if (cancelled) return;
-
-        // Build info map keyed by Parameter
-        const infoMap = {};
-        for (const r of infoRows || []) {
-          const key = r?.Parameter ? String(r.Parameter).trim() : "";
-          if (key) infoMap[key] = r;
-        }
-
-        // Build options
-        const allSites = dataRows.map((r) => r.Site).filter(Boolean);
-        const allParameters = dataRows.map((r) => r.Parameter).filter(Boolean);
-        const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
-        const uniqueParameters = [...new Set(allParameters)].sort((a, b) => a.localeCompare(b));
-
-        // Years
-        const yearsNum = dataRows
-          .map((row) => parseInt(row.Year, 10))
-          .filter((y) => Number.isFinite(y));
-        const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
-        const min = uniqueYears[0];
-        const max = uniqueYears[uniqueYears.length - 1];
-
-        setSites(uniqueSites);
-        setParameters(uniqueParameters);
-        setAvailableYears(uniqueYears);
-
-        // Initialize local + parent years once
-        if (!didInitYearsRef.current && uniqueYears.length) {
-          didInitYearsRef.current = true;
-          setFilters((prev) => ({
-            ...prev,
-            startYear: prev.startYear ?? min,
-            endYear: prev.endYear ?? max,
-          }));
-          onFiltersChange({ startYear: min, endYear: max });
-        }
-
-        // Bubble up parsed data for Plots/App-wide state (via ref)
-        onDataLoadedRef.current?.({ rawData: dataRows, infoData: infoMap });
-      } catch (err) {
-        console.error("Error loading CSV(s) from Azure:", err);
-        onDataLoadedRef.current?.({ rawData: [], infoData: {} });
+    const { dataRows, infoRows } = loadedCsvs;
+    const infoMap = {};
+    for (const row of infoRows || []) {
+      const key = row?.Parameter ? String(row.Parameter).trim() : "";
+      if (key) {
+        infoMap[key] = row;
       }
-    })();
+    }
 
-    return () => {
-      cancelled = true;
-    };
-  }, []); // run once
+    const allSites = dataRows.map((row) => row.Site).filter(Boolean);
+    const allParameters = dataRows.map((row) => row.Parameter).filter(Boolean);
+    const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
+    const uniqueParameters = [...new Set(allParameters)].sort((a, b) => a.localeCompare(b));
+    const yearsNum = dataRows
+      .map((row) => parseInt(row.Year, 10))
+      .filter((year) => Number.isFinite(year));
+    const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
+    const min = uniqueYears[0];
+    const max = uniqueYears[uniqueYears.length - 1];
+
+    setSites(uniqueSites);
+    setParameters(uniqueParameters);
+    setAvailableYears(uniqueYears);
+    setLoadError(null);
+
+    if (!didInitYearsRef.current && uniqueYears.length) {
+      didInitYearsRef.current = true;
+      setFilters((prev) => ({
+        ...prev,
+        startYear: prev.startYear ?? min,
+        endYear: prev.endYear ?? max,
+      }));
+      onFiltersChange({ startYear: min, endYear: max });
+    }
+
+    onDataLoadedRef.current?.({ rawData: dataRows, infoData: infoMap });
+  }, [loadedCsvs, onFiltersChange]);
+
+  useEffect(() => {
+    if (!csvError) {
+      return;
+    }
+
+    setLoadError("Unable to load water quality data right now.");
+    onDataLoadedRef.current?.({ rawData: [], infoData: {} });
+  }, [csvError]);
 
   // ---------------- Handlers (user-initiated; safe to notify parent) ----------------
   const handleSitesChange = (updated) => {
@@ -196,6 +168,22 @@ function FiltersPanel({
 
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            borderRadius: 8,
+            background: "#fff4e5",
+            border: "1px solid #f0b429",
+            color: "#8a4b08",
+          }}
+        >
+          {loadError}
+        </div>
+      )}
+
       {/* Sites (multi-select) - always visible */}
       <div className="filter-group site-group">
         <SearchableMultiSelect

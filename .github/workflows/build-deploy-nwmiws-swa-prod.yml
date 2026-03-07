@@ -9,13 +9,17 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
@@ -24,26 +28,24 @@ jobs:
       # must be configured in Azure Static Web Apps configuration, not exported here.
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
 
-      - name: Clean and Install dependencies for Client
+      - name: Install dependencies for Client
         working-directory: ./client
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+        run: npm ci
 
       - name: Build Client App
         working-directory: ./client
-        run: |
-          chmod +x ./node_modules/.bin/react-scripts
-          npm run build
+        run: npm run build
 
-      - name: Fix permissions (optional, for Linux self-hosted runners)
-        if: runner.os == 'Linux'
-        run: chmod +x client/node_modules/.bin/react-scripts
-        
+      - name: Test Client App
+        working-directory: ./client
+        run: npm test -- --watchAll=false
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -52,7 +54,10 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          app_location: "client" #_
+          app_location: "client"
+          api_location: "api"
+          output_location: "build"
+          ###### End of Repository/Build Configurations ######
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -62,6 +67,6 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_COAST_0A9902A1E }}
           action: "close"
           app_location: "client"  # Added required parameter

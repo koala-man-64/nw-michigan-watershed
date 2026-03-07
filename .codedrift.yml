@@ -1,0 +1,108 @@
+baseline:
+  branch: main
+
+standards:
+  lint:
+    - cd client && npm run lint
+  build:
+    - cd client && npm run build
+  test_fast:
+    - cd client && npm test -- --watchAll=false
+  test_full:
+    - cd client && npm test -- --watchAll=false
+  verify_api:
+    - python3 -m py_compile api/*.py
+  benchmark: []
+
+architecture:
+  layers:
+    - name: client-ui
+      path_glob: client/src/**
+      forbid_imports_from:
+        - api/**
+    - name: api-runtime
+      path_glob: api/**/*.py
+      forbid_imports_from:
+        - client/**
+
+dependencies:
+  allowlist:
+    - react
+    - react-dom
+    - react-router-dom
+    - react-scripts
+    - react-chartjs-2
+    - chart.js
+    - d3
+    - leaflet
+    - react-leaflet
+    - papaparse
+    - prop-types
+    - web-vitals
+    - "@fortawesome/fontawesome-svg-core"
+    - "@fortawesome/free-solid-svg-icons"
+    - "@fortawesome/react-fontawesome"
+    - "@sgratzl/chartjs-chart-boxplot"
+    - "@testing-library/jest-dom"
+    - "@testing-library/react"
+    - eslint
+    - eslint-plugin-import
+    - eslint-plugin-react
+    - azure-functions
+    - azure-storage-blob
+    - azure-core
+    - azure-identity
+    - openai
+    - pymssql
+    - pyjwt
+    - debugpy
+  denylist: []
+  lockfile_required: true
+
+api:
+  public_globs:
+    - api/**/*.py
+    - client/src/**/*.js
+    - client/src/**/*.jsx
+  breaking_change_policy: warn
+
+thresholds:
+  drift_score_fail: 35
+
+auto_remediate:
+  enabled: false
+  max_files_changed: 25
+  safe_directories:
+    - client/src
+    - api
+    - .github/workflows
+    - docs
+  commands: []
+
+risk_controls:
+  protected_globs:
+    - client/nginx/ssl/**
+    - client/build/**
+    - api/local.settings.json
+    - api/.env
+    - "**/*.key"
+    - "**/*.crt"
+    - "**/*.pem"
+  require_tests_passing_before_automerge: true
+
+reporting:
+  markdown_path: artifacts/drift_report.md
+  json_path: artifacts/drift_report.json
+  patch_path: artifacts/drift_remediation.patch
+
+detection:
+  lookback_days: 30
+  exclude_globs:
+    - .agent/**
+    - .codex/**
+    - artifacts/**
+    - client/build/**
+    - client/node_modules/**
+    - api/.venv/**
+    - api/__pycache__/**
+    - .vscode/**

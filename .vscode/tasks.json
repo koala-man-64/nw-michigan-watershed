@@ -2,6 +2,31 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "npm: start (client)",
+      "type": "shell",
+      "command": "npm start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting the development server.*",
+          "endsPattern": ".*Compiled successfully.*"
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
+      }
+    },
+    {
       "type": "func",
       "label": "func: host start",
       "command": "host start --verbose",
@@ -10,6 +35,11 @@
       "dependsOn": "pip install (functions)",
       "options": {
         "cwd": "${workspaceFolder}/api"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
       }
     },
     {
@@ -28,6 +58,15 @@
       "options": {
         "cwd": "${workspaceFolder}/api"
       }
+    },
+    {
+      "label": "start full application",
+      "dependsOn": [
+        "func: host start",
+        "npm: start (client)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     }
   ]
 }
