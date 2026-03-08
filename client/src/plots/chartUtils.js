@@ -22,12 +22,13 @@ function getFontScale() {
 
 export const fontScale = getFontScale();
 export const FONT_FAMILY = Chart.defaults.font.family;
-export const CHART_FONT = 12 * fontScale;
+export const CHART_FONT = 13 * fontScale;
+export const CHART_AXIS_FONT = 14 * fontScale;
 export const COUNT_FONT_PX = 14 * fontScale;
-export const COUNT_FONT = `700 ${COUNT_FONT_PX - 4}px ${FONT_FAMILY}`;
+export const COUNT_FONT = `700 ${COUNT_FONT_PX}px ${FONT_FAMILY}`;
 export const defaultColors = ["#37474f", "#6faecb", "#90a4ae", "#b0c4d6", "#5f7d95", "#a5b8c8", "#adb5bd"];
 
-Chart.defaults.font.size = 12 * fontScale;
+Chart.defaults.font.size = CHART_FONT;
 Chart.defaults.color = "#37474f";
 
 export const round3 = (value) => (
@@ -165,12 +166,19 @@ export function makeOptions(parameterLabel, chartObj) {
           color: "#37474f",
           precision: 0,
           includeBounds: true,
+          font: {
+            size: CHART_FONT,
+          },
         },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
         title: {
           display: Boolean(parameterLabel),
           text: parameterLabel || "",
           color: "#37474f",
+          font: {
+            size: CHART_AXIS_FONT,
+            weight: "600",
+          },
         },
       },
       x: {
@@ -182,8 +190,18 @@ export function makeOptions(parameterLabel, chartObj) {
           autoSkip: true,
           autoSkipPadding: 8,
           padding: 10,
+          font: {
+            size: CHART_FONT,
+          },
         },
         grid: { color: "#e5e7eb", tickColor: "#e5e7eb" },
+        title: {
+          color: "#37474f",
+          font: {
+            size: CHART_AXIS_FONT,
+            weight: "600",
+          },
+        },
       },
     },
     plugins: {
@@ -194,6 +212,13 @@ export function makeOptions(parameterLabel, chartObj) {
         font: COUNT_FONT,
       },
       tooltip: {
+        titleFont: {
+          size: CHART_FONT,
+          weight: "700",
+        },
+        bodyFont: {
+          size: CHART_FONT,
+        },
         callbacks: {
           label: (ctx) => {
             if (ctx.chart.config.type === "boxplot") {

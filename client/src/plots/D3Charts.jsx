@@ -4,10 +4,166 @@ import PropTypes from "prop-types";
 
 import { FONT_FAMILY, fontScale } from "./chartUtils";
 
-function D3Boxplot({ labels, series, color = "#37474f", yDomain, counts = [], yLabel = "" }) {
-  const margin = { top: 8, right: 8, bottom: 28, left: 56 };
-  const [hover, setHover] = React.useState(null);
-  const hideHover = React.useCallback(() => setHover(null), []);
+const BOXPLOT_VIEWBOX = { width: 800, height: 420 };
+const D3BAR_VIEWBOX = { width: 800, height: 440 };
+const TOOLTIP_FADE_MS = 180;
+const AXIS_LABEL_ROTATION = -90;
+const TICK_FONT_SIZE = 13 * fontScale;
+const TOOLTIP_FONT_SIZE = 13 * fontScale;
+const COUNT_LABEL_FONT_SIZE = 14 * fontScale;
+const BAR_INTERIOR_LABEL_FONT_SIZE = 14 * fontScale;
+const AXIS_LABEL_FONT_SIZE = 14 * fontScale;
+const AXIS_LABEL_X_OFFSET = -52;
+const X_AXIS_LABEL_FONT_SIZE = 14 * fontScale;
+const D3_CHART_HORIZONTAL_MARGIN = { left: 84, right: 28 };
+
+function wrapLabelLines(label) {
+  const items = (Array.isArray(label) ? label : [label])
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+  return items.length ? items.slice(0, 2) : ["—"];
+}
+
+function flattenLabel(label) {
+  return wrapLabelLines(label).join(" ");
+}
+
+function extractUnits(label) {
+  if (typeof label !== "string") {
+    return "";
+  }
+
+  const match = label.trim().match(/\(([^)]+)\)\s*$/);
+  return match ? match[1].trim() : "";
+}
+
+function formatValueWithUnits(value, units) {
+  return units ? `${value} ${units}` : value;
+}
+
+function getBarLabelColor(fillColor) {
+  if (typeof fillColor !== "string") {
+    return "#ffffff";
+  }
+
+  const normalized = fillColor.trim();
+  const match = normalized.match(/^#([0-9a-f]{6})$/i);
+  if (!match) {
+    return "#ffffff";
+  }
+
+  const hex = match[1];
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.62 ? "#1f2937" : "#ffffff";
+}
+
+function useFadingTooltip() {
+  const [tooltip, setTooltip] = React.useState(null);
+  const tooltipRef = React.useRef(null);
+  const hideTimeoutRef = React.useRef(null);
+
+  const clearHideTimeout = React.useCallback(() => {
+    if (hideTimeoutRef.current != null) {
+      window.clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    tooltipRef.current = tooltip;
+  }, [tooltip]);
+
+  React.useEffect(() => clearHideTimeout, [clearHideTimeout]);
+
+  const showTooltip = React.useCallback((nextTooltip) => {
+    clearHideTimeout();
+    setTooltip({ ...nextTooltip, isFading: false });
+  }, [clearHideTimeout]);
+
+  const hideTooltip = React.useCallback(() => {
+    if (!tooltipRef.current) {
+      return;
+    }
+
+    clearHideTimeout();
+    setTooltip((current) => (current ? { ...current, isFading: true } : current));
+    hideTimeoutRef.current = window.setTimeout(() => {
+      setTooltip(null);
+      hideTimeoutRef.current = null;
+    }, TOOLTIP_FADE_MS);
+  }, [clearHideTimeout]);
+
+  return { tooltip, showTooltip, hideTooltip };
+}
+
+function TooltipOverlay({ tooltip, children, contentStyle = {} }) {
+  if (!tooltip) {
+    return null;
+  }
+
+  const fadeStyle = {
+    opacity: tooltip.isFading ? 0 : 1,
+    transition: `opacity ${TOOLTIP_FADE_MS}ms ease`,
+  };
+
+  return (
+    <>
+      <span
+        role="tooltip"
+        style={{
+          position: "fixed",
+          left: tooltip.x,
+          top: Math.max(8, tooltip.y - 12),
+          transform: "translate(-50%, -100%)",
+          background: "rgba(31, 41, 55, 0.98)",
+          color: "#fff",
+          borderRadius: 6,
+          pointerEvents: "none",
+          zIndex: 999999,
+          boxShadow: "0 6px 18px rgba(0,0,0,.28)",
+          ...fadeStyle,
+          ...contentStyle,
+        }}
+      >
+        {children}
+      </span>
+      <span
+        style={{
+          position: "fixed",
+          left: tooltip.x,
+          top: Math.max(8, tooltip.y - 12),
+          transform: "translate(-50%, -2px)",
+          width: 0,
+          height: 0,
+          borderLeft: "6px solid transparent",
+          borderRight: "6px solid transparent",
+          borderTop: "6px solid rgba(31, 41, 55, 0.98)",
+          pointerEvents: "none",
+          zIndex: 999999,
+          ...fadeStyle,
+        }}
+      />
+    </>
+  );
+}
+
+TooltipOverlay.propTypes = {
+  tooltip: PropTypes.shape({
+    x: PropTypes.number.isRequired,
+    y: PropTypes.number.isRequired,
+    isFading: PropTypes.bool,
+  }),
+  children: PropTypes.node.isRequired,
+  contentStyle: PropTypes.object,
+};
+
+function D3Boxplot({ labels, series, color = "#37474f", yDomain, counts = [], yLabel = "", xLabel = "" }) {
+  const margin = { top: 16, right: D3_CHART_HORIZONTAL_MARGIN.right, bottom: 48, left: D3_CHART_HORIZONTAL_MARGIN.left };
+  const { tooltip: hover, showTooltip, hideTooltip } = useFadingTooltip();
+  const units = React.useMemo(() => extractUnits(yLabel), [yLabel]);
 
   const format = React.useCallback((value) => (
     Number.isFinite(value)
@@ -17,7 +173,12 @@ function D3Boxplot({ labels, series, color = "#37474f", yDomain, counts = [], yL
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="none">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${BOXPLOT_VIEWBOX.width} ${BOXPLOT_VIEWBOX.height}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
         <BoxplotInner
           labels={labels}
           series={series}
@@ -25,84 +186,56 @@ function D3Boxplot({ labels, series, color = "#37474f", yDomain, counts = [], yL
           counts={counts}
           yDomain={yDomain}
           yLabel={yLabel}
+          xLabel={xLabel}
           margin={margin}
-          width={800}
-          height={400}
+          width={BOXPLOT_VIEWBOX.width}
+          height={BOXPLOT_VIEWBOX.height}
           onHover={(event, index, stats, label) => {
-            setHover({
+            showTooltip({
               x: event.clientX,
               y: event.clientY,
               label: Array.isArray(label) ? label.join(" ") : String(label),
               stats,
             });
           }}
-          onLeave={hideHover}
+          onLeave={hideTooltip}
         />
       </svg>
 
-      {hover && (
-        <>
-          <span
-            role="tooltip"
+      <TooltipOverlay
+        tooltip={hover}
+        contentStyle={{
+          fontSize: TOOLTIP_FONT_SIZE,
+          padding: "8px 10px",
+          display: "grid",
+          gridTemplateColumns: "auto auto",
+          columnGap: 10,
+          rowGap: 2,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {hover?.label && (
+          <strong
             style={{
-              position: "fixed",
-              left: hover.x,
-              top: Math.max(8, hover.y - 12),
-              transform: "translate(-50%, -100%)",
-              background: "rgba(31, 41, 55, 0.98)",
-              color: "#fff",
-              fontSize: 14 * fontScale,
-              padding: "8px 10px",
-              borderRadius: 6,
-              pointerEvents: "none",
-              zIndex: 999999,
-              boxShadow: "0 6px 18px rgba(0,0,0,.28)",
-              display: "grid",
-              gridTemplateColumns: "auto auto",
-              columnGap: 10,
-              rowGap: 2,
-              whiteSpace: "nowrap",
+              gridColumn: "1 / -1",
+              marginBottom: 4,
+              fontWeight: 900,
             }}
           >
-            {hover.label && (
-              <strong
-                style={{
-                  gridColumn: "1 / -1",
-                  marginBottom: 4,
-                  fontWeight: 900,
-                }}
-              >
-                {hover.label}
-              </strong>
-            )}
-            <span style={{ textAlign: "right", color: "#fff" }}>Max:</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{format(hover.stats.max)}</span>
-            {Number.isFinite(hover.stats.mean) && (
-              <>
-                <span style={{ textAlign: "right", color: "#fff" }}>Mean:</span>
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>{format(hover.stats.mean)}</span>
-              </>
-            )}
-            <span style={{ textAlign: "right", color: "#fff" }}>Min:</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{format(hover.stats.min)}</span>
-          </span>
-          <span
-            style={{
-              position: "fixed",
-              left: hover.x,
-              top: Math.max(8, hover.y - 12),
-              transform: "translate(-50%, -2px)",
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderTop: "6px solid rgba(31, 41, 55, 0.98)",
-              pointerEvents: "none",
-              zIndex: 999999,
-            }}
-          />
-        </>
-      )}
+            {hover.label}
+          </strong>
+        )}
+        <span style={{ textAlign: "right", color: "#fff" }}>Max:</span>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{hover ? formatValueWithUnits(format(hover.stats.max), units) : ""}</span>
+        {Number.isFinite(hover?.stats?.mean) && (
+          <>
+            <span style={{ textAlign: "right", color: "#fff" }}>Mean:</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatValueWithUnits(format(hover.stats.mean), units)}</span>
+          </>
+        )}
+        <span style={{ textAlign: "right", color: "#fff" }}>Min:</span>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{hover ? formatValueWithUnits(format(hover.stats.min), units) : ""}</span>
+      </TooltipOverlay>
     </div>
   );
 }
@@ -127,19 +260,13 @@ D3Boxplot.propTypes = {
   }),
   counts: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null])])),
   yLabel: PropTypes.string,
+  xLabel: PropTypes.string,
 };
 
-D3Boxplot.defaultProps = {
-  color: "#37474f",
-  yDomain: undefined,
-  counts: [],
-  yLabel: "",
-};
-
-function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain, yLabel = "" }) {
-  const margin = { top: 16, right: 8, bottom: 40, left: 56 };
-  const [hover, setHover] = React.useState(null);
-  const hideHover = React.useCallback(() => setHover(null), []);
+function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain, yLabel = "", xLabel = "" }) {
+  const margin = { top: 20, right: D3_CHART_HORIZONTAL_MARGIN.right, bottom: 40, left: D3_CHART_HORIZONTAL_MARGIN.left };
+  const { tooltip: hover, showTooltip, hideTooltip } = useFadingTooltip();
+  const units = React.useMemo(() => extractUnits(yLabel), [yLabel]);
 
   const format = React.useCallback(
     (value) => (Number.isFinite(value) ? String(Number(value).toFixed(3)).replace(/\.0+$/, "").replace(/\.([^0]*)0+$/, ".$1") : "—"),
@@ -148,7 +275,12 @@ function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain, yLabel
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="none">
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${D3BAR_VIEWBOX.width} ${D3BAR_VIEWBOX.height}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
         <D3BarInner
           labels={labels}
           values={values}
@@ -156,64 +288,36 @@ function D3Bar({ labels, values, counts = [], color = "#37474f", yDomain, yLabel
           color={color}
           yDomain={yDomain}
           yLabel={yLabel}
+          xLabel={xLabel}
           margin={margin}
-          width={800}
-          height={400}
+          width={D3BAR_VIEWBOX.width}
+          height={D3BAR_VIEWBOX.height}
           onHover={(event, index, value, label) => {
-            setHover({
+            showTooltip({
               x: event.clientX,
               y: event.clientY,
               label: Array.isArray(label) ? label.join(" ") : String(label),
               value,
             });
           }}
-          onLeave={hideHover}
+          onLeave={hideTooltip}
         />
       </svg>
 
-      {hover && (
-        <>
-          <span
-            role="tooltip"
-            style={{
-              position: "fixed",
-              left: hover.x,
-              top: Math.max(8, hover.y - 12),
-              transform: "translate(-50%, -100%)",
-              background: "rgba(31, 41, 55, 0.98)",
-              color: "#fff",
-              fontSize: 14 * fontScale,
-              padding: "8px 10px",
-              borderRadius: 6,
-              pointerEvents: "none",
-              zIndex: 999999,
-              boxShadow: "0 6px 18px rgba(0,0,0,.28)",
-              display: "inline-flex",
-              flexDirection: "column",
-              gap: 2,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {hover.label && <strong style={{ marginBottom: 4, fontWeight: 900 }}>{hover.label}</strong>}
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{format(hover.value)}</span>
-          </span>
-          <span
-            style={{
-              position: "fixed",
-              left: hover.x,
-              top: Math.max(8, hover.y - 12),
-              transform: "translate(-50%, -2px)",
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderTop: "6px solid rgba(31, 41, 55, 0.98)",
-              pointerEvents: "none",
-              zIndex: 999999,
-            }}
-          />
-        </>
-      )}
+      <TooltipOverlay
+        tooltip={hover}
+        contentStyle={{
+          fontSize: TOOLTIP_FONT_SIZE,
+          padding: "8px 10px",
+          display: "inline-flex",
+          flexDirection: "column",
+          gap: 2,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {hover?.label && <strong style={{ marginBottom: 4, fontWeight: 900 }}>{hover.label}</strong>}
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{hover ? formatValueWithUnits(format(hover.value), units) : ""}</span>
+      </TooltipOverlay>
     </div>
   );
 }
@@ -230,22 +334,17 @@ D3Bar.propTypes = {
     max: PropTypes.number,
   }),
   yLabel: PropTypes.string,
-};
-
-D3Bar.defaultProps = {
-  counts: [],
-  color: "#37474f",
-  yDomain: undefined,
-  yLabel: "",
+  xLabel: PropTypes.string,
 };
 
 function D3BarInner({
   labels,
   values,
-  counts,
+  counts = [],
   color,
   yDomain,
-  yLabel,
+  yLabel = "",
+  xLabel = "",
   margin,
   width,
   height,
@@ -259,10 +358,12 @@ function D3BarInner({
   const domainMin = Number.isFinite(yDomain?.min) ? yDomain.min : dataMin;
   const domainMax = Number.isFinite(yDomain?.max) ? yDomain.max : dataMax;
   const y = d3.scaleLinear().domain([domainMin, domainMax]).nice().range([innerH, 0]);
-  const labelKeys = labels.map(String);
-  const x = d3.scaleBand().domain(labelKeys).range([0, innerW]).padding(0.2);
+  const labelKeys = labels.map(flattenLabel);
+  const bandPadding = labelKeys.length <= 4 ? 0.08 : labelKeys.length <= 8 ? 0.12 : 0.18;
+  const maxBarWidth = labelKeys.length <= 4 ? 160 : labelKeys.length <= 8 ? 128 : 104;
+  const x = d3.scaleBand().domain(labelKeys).range([0, innerW]).padding(bandPadding);
   const ticks = y.ticks(Math.max(2, Math.floor(innerH / 60)));
-  const barW = Math.max(8, Math.min(48, x.bandwidth()));
+  const barW = Math.max(24, Math.min(maxBarWidth, x.bandwidth() * 0.84));
 
   return (
     <g transform={`translate(${margin.left},${margin.top})`}>
@@ -275,7 +376,7 @@ function D3BarInner({
               x={-10}
               y={3}
               textAnchor="end"
-              fontSize={14 * fontScale}
+              fontSize={TICK_FONT_SIZE}
               fill="#37474f"
               fontFamily={FONT_FAMILY}
               style={{ pointerEvents: "none", userSelect: "none" }}
@@ -288,14 +389,28 @@ function D3BarInner({
 
       {yLabel ? (
         <text
-          transform={`translate(-38, ${innerH / 2}) rotate(-90)`}
+          transform={`translate(${AXIS_LABEL_X_OFFSET}, ${innerH / 2}) rotate(${AXIS_LABEL_ROTATION})`}
           textAnchor="middle"
-          fontSize={14 * fontScale}
+          fontSize={AXIS_LABEL_FONT_SIZE}
           fill="#37474f"
           fontFamily={FONT_FAMILY}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           {yLabel}
+        </text>
+      ) : null}
+
+      {xLabel ? (
+        <text
+          x={innerW / 2}
+          y={innerH + 34 * fontScale}
+          textAnchor="middle"
+          fontSize={X_AXIS_LABEL_FONT_SIZE}
+          fill="#37474f"
+          fontFamily={FONT_FAMILY}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {xLabel}
         </text>
       ) : null}
 
@@ -307,7 +422,8 @@ function D3BarInner({
         const top = y(value);
         const cx = x0 + barW / 2;
         const fillColor = Array.isArray(color) ? color[index % color.length] : color;
-        const labelText = Array.isArray(labels[index]) ? labels[index].join(" ") : labels[index];
+        const labelText = flattenLabel(labels[index]);
+        const labelFill = getBarLabelColor(fillColor);
 
         return (
           <g
@@ -329,9 +445,9 @@ function D3BarInner({
             {Number.isFinite(counts?.[index]) && (
               <text
                 x={cx}
-                y={top - 10 * fontScale}
+                y={Math.max(14 * fontScale, top - 10 * fontScale)}
                 textAnchor="middle"
-                fontSize={14 * fontScale}
+                fontSize={COUNT_LABEL_FONT_SIZE}
                 fontWeight="700"
                 fill="#37474f"
                 fontFamily={FONT_FAMILY}
@@ -341,16 +457,17 @@ function D3BarInner({
               </text>
             )}
 
-            {barHeight > 10 && (
+            {barHeight > 64 && (
               <text
                 x={cx}
                 y={top + barHeight / 2}
                 transform={`rotate(-90, ${cx}, ${top + barHeight / 2})`}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize={14 * fontScale}
+                fontSize={BAR_INTERIOR_LABEL_FONT_SIZE}
+                fontWeight="700"
                 fontFamily={FONT_FAMILY}
-                fill="#ffffff"
+                fill={labelFill}
                 style={{ pointerEvents: "none", userSelect: "none" }}
               >
                 {labelText}
@@ -362,14 +479,6 @@ function D3BarInner({
     </g>
   );
 }
-
-D3BarInner.defaultProps = {
-  counts: [],
-  yDomain: undefined,
-  yLabel: "",
-  onHover: undefined,
-  onLeave: undefined,
-};
 
 D3BarInner.propTypes = {
   labels: PropTypes.arrayOf(
@@ -383,6 +492,7 @@ D3BarInner.propTypes = {
     max: PropTypes.number,
   }),
   yLabel: PropTypes.string,
+  xLabel: PropTypes.string,
   margin: PropTypes.shape({
     top: PropTypes.number.isRequired,
     right: PropTypes.number.isRequired,
@@ -421,9 +531,10 @@ function BoxplotInner({
   labels,
   series,
   color,
-  counts,
+  counts = [],
   yDomain,
-  yLabel,
+  yLabel = "",
+  xLabel = "",
   margin,
   width,
   height,
@@ -437,10 +548,10 @@ function BoxplotInner({
   const domainMin = yDomain?.min ?? dataMin ?? 0;
   const domainMax = yDomain?.max ?? dataMax ?? 1;
   const y = d3.scaleLinear().domain([domainMin, domainMax]).nice().range([innerH, 0]);
-  const labelKeys = labels.map(String);
+  const labelKeys = labels.map(flattenLabel);
   const x = d3.scaleBand().domain(labelKeys).range([0, innerW]).padding(0.15);
-  const xLabelStep = 2;
-  const bw = Math.max(8, Math.min(40, x.bandwidth() * 0.6));
+  const xLabelStep = Math.max(1, Math.ceil(labelKeys.length / 6));
+  const bw = Math.max(16, Math.min(64, x.bandwidth() * 0.65));
   const ticks = y.ticks(Math.max(2, Math.floor(innerH / 60)));
   const points = series
     .map((item, index) => {
@@ -462,7 +573,7 @@ function BoxplotInner({
               x={-10}
               y={3}
               textAnchor="end"
-              fontSize={14 * fontScale}
+              fontSize={TICK_FONT_SIZE}
               fill="#37474f"
               fontFamily={FONT_FAMILY}
               style={{ pointerEvents: "none", userSelect: "none" }}
@@ -474,7 +585,7 @@ function BoxplotInner({
       })}
 
       {labelKeys.map((label, index) => {
-        if (index % xLabelStep !== 0) {
+        if (index % xLabelStep !== 0 && index !== labelKeys.length - 1) {
           return null;
         }
         const cx = (x(label) ?? 0) + x.bandwidth() / 2;
@@ -482,10 +593,11 @@ function BoxplotInner({
           <text
             key={`x-${index}`}
             x={cx}
-            y={innerH + 18 * fontScale}
+            y={innerH + 24 * fontScale}
             textAnchor="middle"
-            fontSize={14 * fontScale}
+            fontSize={TICK_FONT_SIZE}
             fill="#37474f"
+            fontFamily={FONT_FAMILY}
             style={{ pointerEvents: "none", userSelect: "none" }}
           >
             {Array.isArray(labels[index]) ? labels[index].join(" ") : labels[index]}
@@ -495,14 +607,28 @@ function BoxplotInner({
 
       {yLabel ? (
         <text
-          transform={`translate(-38, ${innerH / 2}) rotate(-90)`}
+          transform={`translate(${AXIS_LABEL_X_OFFSET}, ${innerH / 2}) rotate(${AXIS_LABEL_ROTATION})`}
           textAnchor="middle"
-          fontSize={14 * fontScale}
+          fontSize={AXIS_LABEL_FONT_SIZE}
           fill="#37474f"
           fontFamily={FONT_FAMILY}
           style={{ pointerEvents: "none", userSelect: "none" }}
         >
           {yLabel}
+        </text>
+      ) : null}
+
+      {xLabel ? (
+        <text
+          x={innerW / 2}
+          y={innerH + 46 * fontScale}
+          textAnchor="middle"
+          fontSize={X_AXIS_LABEL_FONT_SIZE}
+          fill="#37474f"
+          fontFamily={FONT_FAMILY}
+          style={{ pointerEvents: "none", userSelect: "none" }}
+        >
+          {xLabel}
         </text>
       ) : null}
 
@@ -538,11 +664,12 @@ function BoxplotInner({
             {Number.isFinite(counts[index]) ? (
               <text
                 x={cx}
-                y={yMax - 14 * fontScale}
+                y={Math.max(14 * fontScale, yMax - 14 * fontScale)}
                 textAnchor="middle"
-                fontSize={14 * fontScale}
+                fontSize={COUNT_LABEL_FONT_SIZE}
                 fontWeight="700"
                 fill="#37474f"
+                fontFamily={FONT_FAMILY}
               >
                 {counts[index]}
               </text>
@@ -584,6 +711,7 @@ BoxplotInner.propTypes = {
     max: PropTypes.number.isRequired,
   }),
   yLabel: PropTypes.string,
+  xLabel: PropTypes.string,
   margin: PropTypes.shape({
     top: PropTypes.number.isRequired,
     right: PropTypes.number.isRequired,
@@ -595,12 +723,6 @@ BoxplotInner.propTypes = {
   onHover: PropTypes.func,
   onLeave: PropTypes.func,
   lengthsMatch,
-};
-
-BoxplotInner.defaultProps = {
-  counts: [],
-  yDomain: undefined,
-  yLabel: "",
 };
 
 export { D3Bar, D3Boxplot };

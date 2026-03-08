@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -6,8 +6,6 @@ import marker2x from "leaflet/dist/images/marker-icon-2x.png";
 import marker from "leaflet/dist/images/marker-icon.png";
 import shadow from "leaflet/dist/images/marker-shadow.png";
 import PropTypes from "prop-types";
-import { fetchCsvText, parseCsvRows } from "./api/csvApi";
-import useCsvData from "./hooks/useCsvData";
 
 /** Leaflet default icon fix */
 delete L.Icon.Default.prototype._getIconUrl;
@@ -53,15 +51,8 @@ SetMapBounds.propTypes = {
   bounds: PropTypes.object,
 };
 
-function MapPanel({ selectedSites = [], onMarkerClick }) {
-  const [allLocations, setAllLocations] = useState([]);
-  const [loadError, setLoadError] = useState(null);
+function MapPanel({ selectedSites = [], onMarkerClick, locations = [], loadError = null }) {
   const popupCloseTimersRef = useRef(new Map());
-
-  const { data: locationRows, error: locationError } = useCsvData(async () => {
-    const csvText = await fetchCsvText("locations.csv");
-    return parseCsvRows(csvText);
-  }, []);
 
   const clearPopupCloseTimer = useCallback((siteName) => {
     const timerId = popupCloseTimersRef.current.get(siteName);
@@ -84,53 +75,9 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     popupCloseTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
     popupCloseTimersRef.current.clear();
   }, []);
-
-  useEffect(() => {
-    if (!locationRows) {
-      return;
-    }
-
-    const locations = locationRows
-      .map((row) => {
-        const urlField =
-          row.url ||
-          row.URL ||
-          row.link ||
-          row.Link ||
-          row.website ||
-          row.Website ||
-          "";
-
-        return {
-          name: row.name || row.Location,
-          lat: parseFloat(row.latitude) || parseFloat(row.Latitude),
-          lng: parseFloat(row.longitude) || parseFloat(row.Longitude),
-          avg_depth: row.avg_depth_ft
-            ? `${parseInt(row.avg_depth_ft, 10).toLocaleString()} ft`
-            : "N/A",
-          max_depth: row.max_depth_ft
-            ? `${parseInt(row.max_depth_ft, 10).toLocaleString()} ft`
-            : "N/A",
-          size: row.surface_area_acres
-            ? `${parseInt(row.surface_area_acres, 10).toLocaleString()} acres`
-            : "N/A",
-          description: row.description || "No description available.",
-          url: String(urlField).trim(),
-        };
-      })
-      .filter((loc) => !isNaN(loc.lat) && !isNaN(loc.lng));
-
-    setAllLocations(locations);
-    setLoadError(null);
-  }, [locationRows]);
-
-  useEffect(() => {
-    if (!locationError) {
-      return;
-    }
-
-    setLoadError("Unable to load site locations.");
-  }, [locationError]);
+  const allLocations = useMemo(() => (
+    Array.isArray(locations) ? locations : []
+  ), [locations]);
 
   // Compute bounds if no selection
   const bounds = useMemo(() => {
@@ -144,7 +91,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   const defaultZoom = 8;
 
   return (
-    <div style={{ position: "relative", height: "100%" }}>
+    <div style={{ position: "relative", display: "flex", flex: 1, minHeight: 0 }}>
       {loadError && (
         <div
           role="alert"
@@ -166,7 +113,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
       )}
 
       <MapContainer
-        style={{ height: "100%" }}
+        style={{ flex: 1, height: "100%", width: "100%" }}
         center={bounds ? undefined : defaultCenter}
         zoom={bounds ? undefined : defaultZoom}
         scrollWheelZoom
@@ -211,19 +158,19 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                     <strong>Size:</strong> {loc.size}
                   </p>
                   <p>
-                    <strong>Max Depth:</strong> {loc.max_depth}
+                    <strong>Max Depth:</strong> {loc.maxDepth}
                   </p>
                   <p>
-                    <strong>Average Depth:</strong> {loc.avg_depth}
+                    <strong>Average Depth:</strong> {loc.avgDepth}
                   </p>
                   <p>
                     <strong>Description:</strong> {loc.description}
                   </p>
                   <p>
                     <strong>Website:</strong>{" "}
-                    {loc.url ? (
+                    {loc.href ? (
                       <a
-                        href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
+                        href={loc.href}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -246,6 +193,18 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 MapPanel.propTypes = {
   selectedSites: PropTypes.arrayOf(PropTypes.string).isRequired,
   onMarkerClick: PropTypes.func.isRequired,
+  locations: PropTypes.arrayOf(PropTypes.shape({
+    name: PropTypes.string.isRequired,
+    lat: PropTypes.number.isRequired,
+    lng: PropTypes.number.isRequired,
+    size: PropTypes.string,
+    maxDepth: PropTypes.string,
+    avgDepth: PropTypes.string,
+    description: PropTypes.string,
+    url: PropTypes.string,
+    href: PropTypes.string,
+  })),
+  loadError: PropTypes.string,
 };
 
 export default MapPanel;

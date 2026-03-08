@@ -108,6 +108,7 @@ export function buildTrendChart(rawData, cfg, palette) {
   return {
     title: site ? `${parameterLabel} Trend for ${site}` : "Trend",
     subtitle: parameterLabel ? `${parameterLabel} by year` : "",
+    xLabel: "Year",
     type: "boxplot",
     data: {
       labels: years,
@@ -169,6 +170,7 @@ export function buildComparisonChart(rawData, cfg, palette) {
     title: `${parameterLabel} Comparison by Site`,
     type: "d3bar",
     subtitle,
+    xLabel: "Site",
     yMeta: {
       suggestedMin: round3(min),
       suggestedMax: round3(max),

@@ -54,6 +54,7 @@ describe("chartBuilders", () => {
 
     expect(chart.title).toBe("Total Phosphorus (ug/L) Trend for Lake Alpha");
     expect(chart.subtitle).toBe("Total Phosphorus (ug/L) by year");
+    expect(chart.xLabel).toBe("Year");
     expect(chart.data.datasets[0].label).toBe("Total Phosphorus (ug/L)");
     expect(chart.data.labels).toEqual(["2024", "2025"]);
     expect(chart.data.datasets[0].data).toHaveLength(2);
@@ -93,6 +94,7 @@ describe("chartBuilders", () => {
     );
 
     expect(chart.title).toBe("Conductivity (uS/cm) Comparison by Site");
+    expect(chart.xLabel).toBe("Site");
     expect(chart.data.datasets[0].label).toBe("Conductivity (uS/cm)");
     expect(chart.data.datasets[0].data).toEqual([155.2, 143.6]);
   });
