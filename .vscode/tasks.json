@@ -2,32 +2,132 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "func",
+      "label": "npm: start (client)",
+      "type": "process",
+      "windows": {
+        "command": "cmd.exe",
+        "args": [
+          "/d",
+          "/c",
+          "npm start"
+        ]
+      },
+      "linux": {
+        "command": "npm",
+        "args": [
+          "start"
+        ]
+      },
+      "osx": {
+        "command": "npm",
+        "args": [
+          "start"
+        ]
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting the development server.*",
+          "endsPattern": ".*Compiled successfully.*"
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
+      }
+    },
+    {
+      "type": "process",
       "label": "func: host start",
-      "command": "host start --verbose",
+      "windows": {
+        "command": "cmd.exe",
+        "args": [
+          "/d",
+          "/c",
+          "call ${config:azureFunctions.pythonVenv}\\Scripts\\activate.bat && func host start --verbose"
+        ]
+      },
+      "linux": {
+        "command": "bash",
+        "args": [
+          "-lc",
+          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --verbose"
+        ]
+      },
+      "osx": {
+        "command": "bash",
+        "args": [
+          "-lc",
+          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --verbose"
+        ]
+      },
       "problemMatcher": "$func-python-watch",
       "isBackground": true,
       "dependsOn": "pip install (functions)",
       "options": {
         "cwd": "${workspaceFolder}/api"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
       }
     },
     {
       "label": "pip install (functions)",
-      "type": "shell",
+      "type": "process",
       "osx": {
-        "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
+        "command": "${config:azureFunctions.pythonVenv}/bin/python",
+        "args": [
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements.txt"
+        ]
       },
       "windows": {
-        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\python -m pip install -r requirements.txt"
+        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\python.exe",
+        "args": [
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements.txt"
+        ]
       },
       "linux": {
-        "command": "${config:azureFunctions.pythonVenv}/bin/python -m pip install -r requirements.txt"
+        "command": "${config:azureFunctions.pythonVenv}/bin/python",
+        "args": [
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements.txt"
+        ]
       },
       "problemMatcher": [],
       "options": {
         "cwd": "${workspaceFolder}/api"
       }
+    },
+    {
+      "label": "start full application",
+      "dependsOn": [
+        "func: host start",
+        "npm: start (client)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     }
   ]
 }

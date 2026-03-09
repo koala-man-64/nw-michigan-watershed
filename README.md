@@ -14,6 +14,8 @@ GitHub Actions build steps do not configure runtime environment variables for yo
 - `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
 - `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
 
+For production validation of the `read-csv` endpoint after deployment, use [the prod `read-csv` validation runbook](docs/runbooks/prod-read-csv-validation.md).
+
 ## Local debugging note (AzureWebJobsStorage)
 
 If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when starting a debug session, either:

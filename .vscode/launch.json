@@ -10,6 +10,24 @@
         "port": 9091
       },
       "preLaunchTask": "func: host start"
+    },
+    {
+      "name": "Launch Client in Chrome",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/client",
+      "preLaunchTask": "npm: start (client)"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run Full Application",
+      "configurations": [
+        "Attach to Python Functions",
+        "Launch Client in Chrome"
+      ],
+      "stopAll": true
     }
   ]
 }
