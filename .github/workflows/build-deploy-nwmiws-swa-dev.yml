@@ -24,25 +24,19 @@ jobs:
       # must be configured in Azure Static Web Apps configuration, not exported here.
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
 
-      - name: Clean and Install dependencies for Client
+      - name: Install dependencies for Client
         working-directory: ./client
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
+        run: npm ci
 
       - name: Build Client App
         working-directory: ./client
-        run: |
-          chmod +x ./node_modules/.bin/react-scripts
-          npm run build
-
-      - name: Fix permissions (optional, for Linux self-hosted runners)
-        if: runner.os == 'Linux'
-        run: chmod +x client/node_modules/.bin/react-scripts
+        run: npm run build
 
       - name: Build And Deploy
         id: builddeploy
@@ -52,9 +46,10 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "client"
+          app_location: "client/build"
           api_location: "api"
-          output_location: "build"  # This is relative to the app_location (./client/build)
+          output_location: ""
+          skip_app_build: true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
