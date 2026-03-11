@@ -276,14 +276,14 @@ function App() {
 
   return (
     <Router>
-      <div className="app" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <div className="app">
         <Header />
-        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <div className="app-content">
           <Routes>
             <Route
               path="/"
               element={
-                <div className="main" style={{ flex: 1, display: "flex", height: "100%", minHeight: 0 }}>
+                <div className="main">
                   <div className="left">
                     <FilterMapPanel
                       filters={filters}
@@ -296,16 +296,7 @@ function App() {
                     />
                   </div>
 
-                  <div
-                    className="right"
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      overflow: "hidden",
-                      minHeight: 0,
-                    }}
-                  >
+                  <div className="right">
                     {RightSide}
                   </div>
                 </div>

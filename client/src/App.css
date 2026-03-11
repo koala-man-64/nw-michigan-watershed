@@ -23,6 +23,7 @@
   --color-bg: #f8fafc;           /* page background: very light blue/grey */
   --color-panel-bg: #ffffff;     /* card backgrounds: white */
   --color-border: #e5e7eb;       /* neutral border lines: light grey */
+  --panel-max-width: 980px;      /* max width for the left filter/map column */
   
   /* new */
   --font-scale: 1.125; /* 1 = 100% baseline */
@@ -64,60 +65,77 @@ h1, h2, h3, h4,
 /* =========================================================================
  * Layout Containers
  *
- * The following classes control the overall page layout using CSS grid.
+ * The following classes control the overall page layout using CSS flexbox.
  * The .app wrapper defines the header row and main content area. The
  * .main area splits into a left column for the filter/map and a right
  * column for plots. On narrow screens, the columns stack vertically.
  * ========================================================================= */
 
-/* Grid wrapper holding the header (auto height) and main content (fills remainder) */
+/* Column wrapper holding the header (auto height) and main content (fills remainder) */
 .app {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
-/* Main content uses two columns on large screens and stacks on mobile */
+.app-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Main content uses a stable two-pane flex layout and stacks on mobile */
 .main {
-  display: grid;
-  grid-template-columns: max-content 1fr;
+  display: flex;
+  flex: 1 1 auto;
   align-items: stretch;
   gap: 16px;
-  margin: 16px;
-  height: calc(100% - 32px);
+  padding: 16px;
+  box-sizing: border-box;
   min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 900px) {
   .main {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 
 /* Left column holds the filter panel and map */
 .left {
-  min-height: 0;
-  min-width: 980px;
-  justify-self: start;
-}
-
-/* Right column hosts plots and grows to fill available space */
-.right {
+  flex: 0 1 var(--panel-max-width);
+  width: min(100%, var(--panel-max-width));
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  align-self: stretch;
+}
+
+/* Right column hosts plots and grows to fill available space */
+.right {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  align-self: stretch;
   overflow: hidden;
 }
 
 /* Inside the left column, stack the filters toolbar above the map */
 .filter-map-panel {
   display: grid;
-  grid-template-rows: max-content 1fr;
+  grid-template-rows: max-content minmax(0, 1fr);
   gap: 16px;
-  width: min(100%, var(--panel-max-width));
-  height: 100%;
+  width: 100%;
+  flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
 }
 
 /* =========================================================================
@@ -567,6 +585,19 @@ h1, h2, h3, h4,
 .plot-panel {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.map > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.plots {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 16px;
   overflow: hidden;
 }
 
