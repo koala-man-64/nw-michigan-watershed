@@ -10,7 +10,6 @@ export default function SearchableMultiSelect({
   label = "Sites",
   maxPanelHeight = 280,
   className = "",
-  siteTypeMap = {},
   multiSelect = true,
 }) {
   const [open, setOpen] = useState(false);
@@ -61,19 +60,6 @@ export default function SearchableMultiSelect({
 
   const selectAll = () => onChange?.(Array.from(new Set([...selected, ...filtered])));
   const clearAll = () => onChange?.([]);
-
-  const inferType = (name) => {
-    const t = (siteTypeMap?.[name] || "").toString().toLowerCase();
-    if (t === "lake" || t === "stream") return t;
-    const s = String(name).toLowerCase();
-    if (/\bstream\b|\briver\b|\bcreek\b/.test(s)) return "stream";
-    if (/\blake\b/.test(s)) return "lake";
-    return "";
-  };
-  const selectByType = (type) => {
-    const want = options.filter((n) => inferType(n) === type.toLowerCase());
-    onChange?.(want);
-  };
 
   // Compute a placement rect relative to viewport
   const computePlacement = () => {
@@ -199,22 +185,6 @@ export default function SearchableMultiSelect({
               <button type="button" className="sms-action" onClick={clearAll} title="Clear selection">
                 Clear
               </button>
-              <button
-                type="button"
-                className="sms-action"
-                onClick={() => selectByType("lake")}
-                title="Select all Lakes"
-              >
-                Lakes
-              </button>
-              <button
-                type="button"
-                className="sms-action"
-                onClick={() => selectByType("stream")}
-                title="Select all Streams"
-              >
-                Streams
-              </button>
             </div>
           </div>
 
@@ -272,7 +242,6 @@ SearchableMultiSelect.propTypes = {
   maxPanelHeight: PropTypes.number,
   multiSelect: PropTypes.bool,
   className: PropTypes.string,
-  siteTypeMap: PropTypes.object,
 };
 
 SearchableMultiSelect.defaultProps = {
@@ -280,5 +249,4 @@ SearchableMultiSelect.defaultProps = {
   label: "Select",
   maxPanelHeight: 300,
   className: "",
-  siteTypeMap: {},
 };

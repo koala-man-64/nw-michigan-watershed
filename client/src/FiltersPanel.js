@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
+import { fetchCachedCsvText } from "./utils/csvCache";
 
 function apiCsvUrl(blobName) {
   const blob = encodeURIComponent(blobName);
@@ -13,7 +14,7 @@ function apiCsvUrl(blobName) {
  * FiltersPanel
  * - Manages local UI state for filters
  * - Notifies parent via onFiltersChange from user actions
- * - Fetches CSV(s) from Azure and shares parsed data up via onDataLoaded
+ * - Loads CSV(s) through the cached API path and shares parsed data up via onDataLoaded
  */
 function FiltersPanel({
   selectedSites = [],
@@ -21,6 +22,7 @@ function FiltersPanel({
   onUpdatePlot1 = () => {},
   onUpdatePlot2 = () => {},
   onDataLoaded = () => {}, // lift data up
+  resetSignal = 0,
   /**
    * Whether the Update Plot buttons should be enabled.  When false
    * the buttons are disabled and a helpful tooltip is shown on hover
@@ -44,12 +46,18 @@ function FiltersPanel({
 
   // Guard to ensure CSV-based year initialization runs once
   const didInitYearsRef = useRef(false);
+  const lastResetSignalRef = useRef(resetSignal);
 
   // Keep latest onDataLoaded without depending on function identity in effects
   const onDataLoadedRef = useRef(onDataLoaded);
   useEffect(() => {
     onDataLoadedRef.current = onDataLoaded;
   }, [onDataLoaded]);
+
+  const onFiltersChangeRef = useRef(onFiltersChange);
+  useEffect(() => {
+    onFiltersChangeRef.current = onFiltersChange;
+  }, [onFiltersChange]);
 
   /**
    * Keep local selectedSites in sync with parent prop (no parent updates here).
@@ -64,8 +72,29 @@ function FiltersPanel({
     });
   }, [selectedSites]);
 
+  useEffect(() => {
+    if (lastResetSignalRef.current === resetSignal) {
+      return;
+    }
+
+    lastResetSignalRef.current = resetSignal;
+
+    const minYear = availableYears[0] ?? null;
+    const maxYear = availableYears[availableYears.length - 1] ?? null;
+    const nextFilters = {
+      selectedSites: [],
+      parameter: "",
+      startYear: minYear,
+      endYear: maxYear,
+      chartType: "trend",
+    };
+
+    setFilters(nextFilters);
+    onFiltersChange(nextFilters);
+  }, [availableYears, onFiltersChange, resetSignal]);
+
   /**
-   * Fetch CSV(s) once from Azure, populate options, initialize years, and
+   * Fetch CSV(s) once, populate options, initialize years, and
    * bubble up the parsed data to App via onDataLoaded.
    */
   useEffect(() => {
@@ -74,82 +103,92 @@ function FiltersPanel({
 
     let cancelled = false;
 
-    async function fetchText(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      return res.text();
-    }
+    let latestDataCsvText = "";
+    let latestInfoCsvText = "";
 
-    (async () => {
-      try {
-        const [dataCsvText, infoCsvText] = await Promise.all([
-          fetchText(dataUrl),
-          fetchText(infoUrl).catch(() => ""),
-        ]);
+    const applyLoadedCsvs = () => {
+      if (cancelled || !latestDataCsvText) {
+        return;
+      }
 
-        // Parse main data
-        let dataRows = [];
-        Papa.parse(dataCsvText, {
+      let dataRows = [];
+      Papa.parse(latestDataCsvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: ({ data }) => (dataRows = data),
+      });
+
+      let infoRows = [];
+      if (latestInfoCsvText) {
+        Papa.parse(latestInfoCsvText, {
           header: true,
           skipEmptyLines: true,
-          complete: ({ data }) => (dataRows = data),
+          complete: ({ data }) => (infoRows = data),
         });
-
-        // Parse info CSV (optional)
-        let infoRows = [];
-        if (infoCsvText) {
-          Papa.parse(infoCsvText, {
-            header: true,
-            skipEmptyLines: true,
-            complete: ({ data }) => (infoRows = data),
-          });
-        }
-
-        if (cancelled) return;
-
-        // Build info map keyed by Parameter
-        const infoMap = {};
-        for (const r of infoRows || []) {
-          const key = r?.Parameter ? String(r.Parameter).trim() : "";
-          if (key) infoMap[key] = r;
-        }
-
-        // Build options
-        const allSites = dataRows.map((r) => r.Site).filter(Boolean);
-        const allParameters = dataRows.map((r) => r.Parameter).filter(Boolean);
-        const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
-        const uniqueParameters = [...new Set(allParameters)].sort((a, b) => a.localeCompare(b));
-
-        // Years
-        const yearsNum = dataRows
-          .map((row) => parseInt(row.Year, 10))
-          .filter((y) => Number.isFinite(y));
-        const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
-        const min = uniqueYears[0];
-        const max = uniqueYears[uniqueYears.length - 1];
-
-        setSites(uniqueSites);
-        setParameters(uniqueParameters);
-        setAvailableYears(uniqueYears);
-
-        // Initialize local + parent years once
-        if (!didInitYearsRef.current && uniqueYears.length) {
-          didInitYearsRef.current = true;
-          setFilters((prev) => ({
-            ...prev,
-            startYear: prev.startYear ?? min,
-            endYear: prev.endYear ?? max,
-          }));
-          onFiltersChange({ startYear: min, endYear: max });
-        }
-
-        // Bubble up parsed data for Plots/App-wide state (via ref)
-        onDataLoadedRef.current?.({ rawData: dataRows, infoData: infoMap });
-      } catch (err) {
-        console.error("Error loading CSV(s) from Azure:", err);
-        onDataLoadedRef.current?.({ rawData: [], infoData: {} });
       }
-    })();
+
+      const infoMap = {};
+      for (const r of infoRows || []) {
+        const key = r?.Parameter ? String(r.Parameter).trim() : "";
+        if (key) infoMap[key] = r;
+      }
+
+      const allSites = dataRows.map((r) => r.Site).filter(Boolean);
+      const allParameters = dataRows.map((r) => r.Parameter).filter(Boolean);
+      const uniqueSites = [...new Set(allSites)].sort((a, b) => a.localeCompare(b));
+      const uniqueParameters = [...new Set(allParameters)].sort((a, b) => a.localeCompare(b));
+
+      const yearsNum = dataRows
+        .map((row) => parseInt(row.Year, 10))
+        .filter((y) => Number.isFinite(y));
+      const uniqueYears = [...new Set(yearsNum)].sort((a, b) => a - b);
+      const min = uniqueYears[0];
+      const max = uniqueYears[uniqueYears.length - 1];
+
+      setSites(uniqueSites);
+      setParameters(uniqueParameters);
+      setAvailableYears(uniqueYears);
+
+      if (!didInitYearsRef.current && uniqueYears.length) {
+        didInitYearsRef.current = true;
+        setFilters((prev) => ({
+          ...prev,
+          startYear: prev.startYear ?? min,
+          endYear: prev.endYear ?? max,
+        }));
+        onFiltersChangeRef.current({ startYear: min, endYear: max });
+      }
+
+      onDataLoadedRef.current?.({ rawData: dataRows, infoData: infoMap });
+    };
+
+    const handleDataCsv = (csvText) => {
+      latestDataCsvText = csvText;
+      applyLoadedCsvs();
+    };
+
+    const handleInfoCsv = (csvText) => {
+      latestInfoCsvText = csvText || "";
+      if (latestDataCsvText) {
+        applyLoadedCsvs();
+      }
+    };
+
+    fetchCachedCsvText(dataUrl, { onFreshText: handleDataCsv })
+      .then(handleDataCsv)
+      .catch((err) => {
+        console.error("Error loading data CSV:", err);
+        if (!cancelled) {
+          onDataLoadedRef.current?.({ rawData: [], infoData: {} });
+        }
+      });
+
+    fetchCachedCsvText(infoUrl, { onFreshText: handleInfoCsv })
+      .then(handleInfoCsv)
+      .catch((err) => {
+        console.error("Error loading info CSV:", err);
+        handleInfoCsv("");
+      });
 
     return () => {
       cancelled = true;
@@ -196,117 +235,120 @@ function FiltersPanel({
 
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
-      {/* Sites (multi-select) - always visible */}
-      <div className="filter-group site-group">
-        <SearchableMultiSelect
-          label="Sites"
-          options={sites}
-          selected={filters.selectedSites}
-          onChange={handleSitesChange}
-          placeholder="Search sites…"
-          maxPanelHeight={320}
-          className="w-full"
-        />
+      <div className="filters-controls">
+        {/* Sites (multi-select) - always visible */}
+        <div className="filter-group site-group">
+          <SearchableMultiSelect
+            label="Sites"
+            options={sites}
+            selected={filters.selectedSites}
+            onChange={handleSitesChange}
+            placeholder="Search sites…"
+            maxPanelHeight={320}
+            className="w-full"
+          />
+        </div>
+
+        {/* Render other filter controls only when updateEnabled is true. */}
+        {updateEnabled && (
+          <>
+            {/* Start Year */}
+            <div className="filter-group">
+              <div className="filter-dropdown filter-dropdown-centered">
+                <label className="sms-label">Start Year</label>
+                <select
+                  value={filters.startYear ?? ""}
+                  onChange={handleStartYearChange}
+                  className="year-select"
+                >
+                  {availableYears.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* End Year */}
+            <div className="filter-group">
+              <div className="filter-dropdown filter-dropdown-centered">
+                <label className="sms-label">End Year</label>
+                <select
+                  value={filters.endYear ?? ""}
+                  onChange={handleEndYearChange}
+                  className="year-select"
+                >
+                  {availableYears.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Parameter */}
+            <div className="filter-group">
+              <div className="filter-dropdown filter-dropdown-centered">
+                <label className="sms-label">Parameter</label>
+                <select
+                  value={filters.parameter}
+                  onChange={handleParameterChange}
+                  className="year-select"
+                >
+                  <option value="" disabled>
+                    Select parameter…
+                  </option>
+                  {parameters.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Chart Type */}
+            <div className="filter-group">
+              <div className="filter-dropdown filter-dropdown-centered">
+                <label className="sms-label">Chart Type</label>
+                <select
+                  value={filters.chartType}
+                  onChange={handleChartTypeChange}
+                  className="year-select"
+                >
+                  <option value="trend">Trend</option>
+                  <option value="comparison">Comparison</option>
+                </select>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Render other filter controls only when updateEnabled is true. */}
       {updateEnabled && (
-        <>
-          {/* Start Year */}
-          <div className="filter-group">
-            <div className="filter-dropdown">
-              <label className="sms-label">Start Year</label>
-              <select
-                value={filters.startYear ?? ""}
-                onChange={handleStartYearChange}
-                className="year-select"
-              >
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <div className="filter-group filter-buttons">
+          <button
+            type="button"
+            className="reset-btn"
+            onClick={() => onUpdatePlot1(filters)}
+            disabled={!updateEnabled}
+            title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
+          >
+            Update Plot 1
+          </button>
 
-          {/* End Year */}
-          <div className="filter-group">
-            <div className="filter-dropdown">
-              <label className="sms-label">End Year</label>
-              <select
-                value={filters.endYear ?? ""}
-                onChange={handleEndYearChange}
-                className="year-select"
-              >
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Parameter */}
-          <div className="filter-group">
-            <div className="filter-dropdown">
-              <label className="sms-label">Parameter</label>
-              <select
-                value={filters.parameter}
-                onChange={handleParameterChange}
-                className="year-select"
-              >
-                <option value="" disabled>
-                  Select parameter…
-                </option>
-                {parameters.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Chart Type */}
-          <div className="filter-group">
-            <div className="filter-dropdown">
-              <label className="sms-label">Chart Type</label>
-              <select
-                value={filters.chartType}
-                onChange={handleChartTypeChange}
-                className="year-select"
-              >
-                <option value="trend">Trend</option>
-                <option value="comparison">Comparison</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Actions — stacked vertically to save horizontal space */}
-          <div className="filter-group filter-buttons">
-            <button
-              type="button"
-              className="reset-btn"
-              onClick={() => onUpdatePlot1(filters)}
-              disabled={!updateEnabled}
-              title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
-            >
-              Update Plot 1
-            </button>
-
-            <button
-              type="button"
-              className="reset-btn"
-              onClick={() => onUpdatePlot2(filters)}
-              disabled={!updateEnabled}
-              title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
-            >
-              Update Plot 2
-            </button>
-          </div>
-        </>
+          <button
+            type="button"
+            className="reset-btn"
+            onClick={() => onUpdatePlot2(filters)}
+            disabled={!updateEnabled}
+            title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
+          >
+            Update Plot 2
+          </button>
+        </div>
       )}
     </div>
   );
@@ -317,6 +359,7 @@ FiltersPanel.propTypes = {
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
   onDataLoaded: PropTypes.func, // lifted data
+  resetSignal: PropTypes.number,
   /** Whether the Update Plot buttons should be enabled */
   updateEnabled: PropTypes.bool,
 };

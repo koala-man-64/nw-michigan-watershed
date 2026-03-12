@@ -11,8 +11,13 @@ GitHub Actions build steps do not configure runtime environment variables for yo
 - `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
 - `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
 - `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
+- `READ_CSV_MEMORY_CACHE_TTL_SEC` (optional; function-instance in-memory blob cache, defaults to `300`)
+- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC` (optional; `Cache-Control: max-age`, defaults to `3600`)
+- `READ_CSV_BROWSER_CACHE_SWR_SEC` (optional; `stale-while-revalidate` window, defaults to `86400`)
 - `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
 - `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
+
+The client now persists CSV responses in `localStorage` and revalidates them with `ETag` headers in the background, so repeat app loads can render cached data immediately without redownloading unchanged blobs.
 
 For production validation of the `read-csv` endpoint after deployment, use [the prod `read-csv` validation runbook](docs/runbooks/prod-read-csv-validation.md).
 
@@ -22,6 +27,18 @@ If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when sta
 
 - Run Azurite and keep `AzureWebJobsStorage=UseDevelopmentStorage=true`, or
 - Use real Azure Storage by setting `AzureWebJobsStorage` in `api/local.settings.json` to the same Storage connection string your Function uses in Azure.
+
+## Local development startup
+
+The React client proxies `/api/*` requests to `http://localhost:7071` via `client/package.json`. If nothing is listening on port `7071`, the browser shows `Proxy error ... ECONNREFUSED`.
+
+Use one of these local startup paths on Windows:
+
+- VS Code: run the `start full application` task defined in `.vscode/tasks.json`.
+- Manual API start: run `api\\start-local.cmd` from the repository root, or `cd api && call .venv\\Scripts\\activate.bat && func host start --verbose`.
+- Manual client start: in a second terminal, run `cd client && npm start`.
+
+If `func start` reports that Python `3.14.x` is unsupported, the Functions host was launched outside `api\\.venv`. Activate `api\\.venv` first or use `api\\start-local.cmd`.
 
 ## Available Scripts
 

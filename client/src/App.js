@@ -19,6 +19,7 @@ function FilterMapPanel({
   onUpdatePlot1,
   onUpdatePlot2,
   onDataLoaded, // bubbled up from FiltersPanel
+  resetSignal,
   trendSingleSite = false,
   updateEnabled = false, // disable Update buttons until Continue
 }) {
@@ -42,6 +43,7 @@ function FilterMapPanel({
         onUpdatePlot1={onUpdatePlot1}
         onUpdatePlot2={onUpdatePlot2}
         onDataLoaded={onDataLoaded}
+        resetSignal={resetSignal}
         trendSingleSite={trendSingleSite}
         updateEnabled={updateEnabled}
       />
@@ -67,6 +69,7 @@ FilterMapPanel.propTypes = {
   onUpdatePlot1: PropTypes.func.isRequired,
   onUpdatePlot2: PropTypes.func.isRequired,
   onDataLoaded: PropTypes.func,
+  resetSignal: PropTypes.number.isRequired,
   trendSingleSite: PropTypes.bool,
   updateEnabled: PropTypes.bool,
 };
@@ -115,22 +118,9 @@ If you have questions or comments, please contact John Ransom at the Benzie Coun
       <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
         <button
           type="button"
-          className="reset-btn"
-          onClick={() => {
-            // Simple exit behavior; adjust as needed
-            window.location.href = "/";
-          }}
-          style={{ flex: 1, backgroundColor: "gray"}}
-          title="Leave this page"
-        >
-          Exit
-        </button>
-        <div style={{flex: 2}} />
-        <button
-          type="button"
-          className="reset-btn"
+          className="reset-btn welcome-continue-button"
           onClick={onContinue}
-          style={{ flex: 1 }}
+          style={{ marginLeft: "auto" }}
           title="Enable plotting and show the charts panel"
         >
           Continue
@@ -143,9 +133,8 @@ WelcomePanel.propTypes = {
   onContinue: PropTypes.func.isRequired,
 };
 
-function App() {
-  // Single source of truth for filters used by both sides of the layout
-  const [filters, setFilters] = useState({
+function createInitialFilters() {
+  return {
     selectedSites: [],
     selectedParameters: [], // reserved for future use
     startDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
@@ -154,19 +143,24 @@ function App() {
     endYear: null,
     parameter: "",
     chartType: "trend",
-  });
+  };
+}
+
+function App() {
+  // Single source of truth for filters used by both sides of the layout
+  const [filters, setFilters] = useState(createInitialFilters);
 
   // Plot configurations captured by "Update Plot 1/2"
   const [plotConfigs, setPlotConfigs] = useState([]);
 
   // Data shared app-wide (provided by FiltersPanel)
   const [rawData, setRawData] = useState(null);
-  const [infoData, setInfoData] = useState({});
   const [loading, setLoading] = useState(true);
 
   // UI: show welcome on the right initially, and keep Update buttons disabled
   const [showWelcome, setShowWelcome] = useState(true);
   const [updateEnabled, setUpdateEnabled] = useState(false);
+  const [resetSignal, setResetSignal] = useState(0);
 
   // Accept either partial updates or a full filters object
   const onFiltersChange = useCallback((partialOrFull) => {
@@ -174,10 +168,17 @@ function App() {
   }, []);
 
   // Receive CSV payload from FiltersPanel
-  const handleDataLoaded = useCallback(({ rawData, infoData }) => {
+  const handleDataLoaded = useCallback(({ rawData }) => {
     setRawData(Array.isArray(rawData) ? rawData : []);
-    setInfoData(infoData && typeof infoData === "object" ? infoData : {});
     setLoading(false);
+  }, []);
+
+  const resetToWelcome = useCallback(() => {
+    setFilters(createInitialFilters());
+    setPlotConfigs([]);
+    setShowWelcome(true);
+    setUpdateEnabled(false);
+    setResetSignal((current) => current + 1);
   }, []);
 
   /**
@@ -265,19 +266,40 @@ function App() {
       }}
     />
   ) : (
-    <Plots
-      plotConfigs={plotConfigs}
-      setPlotConfigs={setPlotConfigs}
-      rawData={rawData}
-      infoData={infoData}
-      loading={loading}
-    />
+    <div className="plots-view">
+      <Plots
+        plotConfigs={plotConfigs}
+        setPlotConfigs={setPlotConfigs}
+        rawData={rawData}
+        loading={loading}
+      />
+
+      <div className="plots-footer-actions">
+        <button
+          type="button"
+          className="reset-btn plots-footer-button plots-footer-button-exit"
+          onClick={resetToWelcome}
+          title="Return to the welcome page"
+        >
+          Exit
+        </button>
+
+        <button
+          type="button"
+          className="reset-btn plots-footer-button plots-footer-button-back"
+          onClick={resetToWelcome}
+          title="Return to the welcome page"
+        >
+          Back
+        </button>
+      </div>
+    </div>
   );
 
   return (
     <Router>
       <div className="app">
-        <Header />
+        <Header onHomeClick={resetToWelcome} />
         <div className="app-content">
           <Routes>
             <Route
@@ -291,6 +313,7 @@ function App() {
                       onUpdatePlot1={handleUpdatePlot1}
                       onUpdatePlot2={handleUpdatePlot2}
                       onDataLoaded={handleDataLoaded}
+                      resetSignal={resetSignal}
                       trendSingleSite={false}
                       updateEnabled={updateEnabled}
                     />

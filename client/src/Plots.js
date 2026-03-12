@@ -14,15 +14,12 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faDownload,
-  faInfoCircle,
-  faLightbulb,
-  faQuestionCircle,
-  faTimes,
   faHashtag,
   faArrowLeft,
   faArrowRight,
 } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
+import { getNoDataMessage } from "./utils/plotEmptyState";
 
 // ---------------- Chart.js registration stays for non-boxplot cases -------------
 Chart.register(
@@ -62,7 +59,6 @@ const __fontScale = getFontScale();
 Chart.defaults.font.size = 12 * __fontScale;
 const COUNT_FONT_PX = 14 * __fontScale;
 const COUNT_FONT = `700 ${COUNT_FONT_PX-4}px Lato, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
-const CHART_FONT = 12 * __fontScale;
 Chart.defaults.color = "#37474f";
 
 // ---------- helpers ----------
@@ -419,88 +415,6 @@ function makeOptions(parameterLabel, chartObj) {
     },
   };
 }
-
-// --------------------------- LightModal (unchanged) ----------------------------
-function LightModal({ title, body, onClose }) {
-  React.useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.35)",
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 16,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(720px, 92vw)",
-          maxHeight: "80vh",
-          background: "#ffffff",
-          color: "#1f2937",
-          borderRadius: 12,
-          boxShadow: "0 10px 28px rgba(0,0,0,0.25)",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 16px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <h5 style={{ margin: 0, fontSize: 14 * CHART_FONT, fontWeight: 600, fontFamily: "Poppins, sans-serif" }}>
-            {title}
-          </h5>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              border: 0,
-              background: "transparent",
-              cursor: "pointer",
-              width: 36,
-              height: 36,
-              display: "grid",
-              placeItems: "center",
-            }}
-          >
-            <FontAwesomeIcon icon={faTimes} />
-          </button>
-        </div>
-        <div style={{ padding: 16, overflow: "auto", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-          {body}
-        </div>
-      </div>
-    </div>
-  );
-}
-LightModal.propTypes = {
-  title: PropTypes.string.isRequired,
-  body: PropTypes.oneOfType([PropTypes.string, PropTypes.node]).isRequired,
-  onClose: PropTypes.func.isRequired,
-};
 
 // ---------- D3 Boxplot with fixed-position hover tooltip ----------
 function D3Boxplot({
@@ -1260,6 +1174,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
   }, [chartObj, showCounts]);
 
   if (!cfg) {
+    const noDataMessage = getNoDataMessage();
     return (
       <div className="plot-panel">
         <div className="plot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1279,12 +1194,13 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
           <div className="plot-icons" style={{ opacity: 0.4 }} />
         </div>
         <div className="plot-content">
-          <div className="no-plot-message">Click “Update {slotLabel}” to populate this plot.</div>
+          <div className="no-plot-message">{noDataMessage}</div>
         </div>
       </div>
     );
   }
   if (!chartObj || !chartObj.data?.labels?.length) {
+    const noDataMessage = getNoDataMessage(cfg);
     return (
       <div className="plot-panel">
         <div className="plot-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1305,7 +1221,7 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
         </div>
         {notice && <div className="plot-notice">{notice}</div>}
         <div className="plot-content">
-          <div className="no-plot-message">No data for the current filters.</div>
+          <div className="no-plot-message">{noDataMessage}</div>
         </div>
       </div>
     );
@@ -1328,6 +1244,12 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
     return baseTitle.length > maxLen ? baseTitle.slice(0, maxLen - 1) + '…' : baseTitle;
   };
   const headerTitle = buildHeaderTitle();
+  const navControls = nav && nav.hasMultipleSites ? (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+      <IconWithTooltip icon={faArrowLeft} label="Previous site" onClick={nav.prev} />
+      <IconWithTooltip icon={faArrowRight} label="Next site" onClick={nav.next} />
+    </span>
+  ) : null;
 
   // Build a padded y-domain for the D3 plot using the same helper used by options.
   // Add a bit of breathing room on top and bottom of the data. We pad by 10% of the
@@ -1353,32 +1275,25 @@ function ChartPanel({ chartObj, cfg, slotLabel, options, icons, notice, nav }) {
         className="plot-header"
         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}
       >
-        <h4
-          style={{
-            margin: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flexGrow: 1,
-            flexShrink: 1,
-            minWidth: 0,
-          }}
-          title={chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
-        >
-          {headerTitle}
-        </h4>
-        {/* Icons container: use icons prop passed from parent.  Also include nav arrows and counts toggle. */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8, flex: "1 1 auto", minWidth: 0 }}>
+          <h4
+            style={{
+              margin: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: "0 1 auto",
+              minWidth: 0,
+            }}
+            title={chartObj?.title ? `${slotLabel} — ${chartObj.title}` : `${slotLabel}${cfg?.parameter ? `: ${cfg.parameter}` : ""}`}
+          >
+            {headerTitle}
+          </h4>
+          {navControls}
+        </div>
+        {/* Icons container: use icons prop passed from parent. Keep utility icons on the right. */}
         <div className="plot-icons" style={{ display: "flex", gap: 12, alignItems: "center", opacity: 0.9 }}>
-          {/* Parent icons (download, info, lightbulb, question) */}
           {icons}
-          {/* Navigation arrows for trend charts if multiple sites */}
-          {nav && nav.hasMultipleSites ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <IconWithTooltip icon={faArrowLeft} label="Previous site" onClick={nav.prev} />
-              <IconWithTooltip icon={faArrowRight} label="Next site" onClick={nav.next} />
-            </span>
-          ) : null}
-
           <IconWithTooltip
             icon={faHashtag}
             label={showCounts ? "Hide counts" : "Show counts"}
@@ -1451,7 +1366,7 @@ ChartPanel.propTypes = {
 };
 
 // --------------------------- main Plots (unchanged) ----------------------------
-function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, loading = false }) {
+function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], loading = false }) {
   const cfg1 = plotConfigs[0];
   const cfg2 = plotConfigs[1];
 
@@ -1470,8 +1385,6 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
 
   const options1 = useMemo(() => makeOptions(cfg1?.parameter, chart1), [cfg1?.parameter, chart1]);
   const options2 = useMemo(() => makeOptions(cfg2?.parameter, chart2), [cfg2?.parameter, chart2]);
-
-  const [modal, setModal] = useState(null);
 
   const handlePrevSite = (slot) => {
     if (typeof setPlotConfigs !== "function") return;
@@ -1531,11 +1444,6 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
     URL.revokeObjectURL(url);
   };
 
-  const infoFor = (param, field, fallback) => {
-    const row = param && infoData[param];
-    return (row && row[field]) || fallback;
-  };
-
   if (loading || !rawData || rawData.length === 0) {
     return (
       <section className="plots">
@@ -1546,45 +1454,17 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], infoData = {}, 
     );
   }
 
-const iconsFor = (cfg) => (
-  <div className="plot-icons" style={{ display: "flex", gap: 12 }}>
-    <IconWithTooltip
-      icon={faDownload}
-      label="Download raw data"
-      onClick={() => handleDownload(cfg)}
-    />
-    <IconWithTooltip
-      icon={faInfoCircle}
-      label="Contact information"
-      onClick={() =>
-        setModal({
-          title: "Contact Information",
-          body: infoFor(cfg?.parameter, "ContactInfo", "No contact information available."),
-        })
-      }
-    />
-    <IconWithTooltip
-      icon={faLightbulb}
-      label="Lake association information"
-      onClick={() =>
-        setModal({
-          title: "Lake Association Information",
-          body: infoFor(cfg?.parameter, "AssociationInfo", "No association information available."),
-        })
-      }
-    />
-    <IconWithTooltip
-      icon={faQuestionCircle}
-      label="Parameter information"
-      onClick={() =>
-        setModal({
-          title: "Parameter Information",
-          body: infoFor(cfg?.parameter, "ParameterInfo", "No parameter information available."),
-        })
-      }
-    />
-  </div>
-);
+  const iconsFor = (cfg) => {
+    return (
+      <div className="plot-icons" style={{ display: "flex", gap: 12 }}>
+        <IconWithTooltip
+          icon={faDownload}
+          label="Download raw data"
+          onClick={() => handleDownload(cfg)}
+        />
+      </div>
+    );
+  };
 
 
   const navFor = (cfg, slot) => {
@@ -1620,7 +1500,6 @@ const iconsFor = (cfg) => (
         notice={getNoticeFor(cfg2, 1)}
         nav={navFor(cfg2, 1)}
       />
-      {modal && <LightModal title={modal.title} body={modal.body} onClose={() => setModal(null)} />}
     </div>
   );
 }
@@ -1637,7 +1516,6 @@ Plots.propTypes = {
   ).isRequired,
   setPlotConfigs: PropTypes.func.isRequired,
   rawData: PropTypes.arrayOf(PropTypes.object),
-  infoData: PropTypes.object,
   loading: PropTypes.bool,
 };
 

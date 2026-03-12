@@ -15,10 +15,15 @@
 #   - STORAGE_ACCOUNT_NAME + SAS_TOKEN, or
 #   - STORAGE_ACCOUNT_URL (uses default creds/MSI)
 #   plus: PUBLIC_BLOB_CONTAINER, PUBLIC_BLOBS (allowlist for anonymous reads)
+#   optional cache controls:
+#       READ_CSV_MEMORY_CACHE_TTL_SEC=300
+#       READ_CSV_BROWSER_CACHE_MAX_AGE_SEC=3600
+#       READ_CSV_BROWSER_CACHE_SWR_SEC=86400
 
 import base64
 import csv
 import datetime
+import hashlib
 import io
 import json
 import logging
@@ -28,6 +33,7 @@ import random
 import re
 import threading
 import time
+from email.utils import parsedate_to_datetime
 from typing import Optional
 
 import azure.functions as func
@@ -111,6 +117,12 @@ _rudy_rag_lock = threading.Lock()
 _rudy_rag_chunks_cached: Optional[list[str]] = None
 _rudy_rag_embeddings_cached: Optional[list[Optional[list[float]]]] = None
 _rudy_rag_embeddings_disabled_until: float = 0.0
+
+_blob_service_client_lock = threading.Lock()
+_blob_service_client: Optional[BlobServiceClient] = None
+
+_read_csv_cache_lock = threading.Lock()
+_read_csv_cache: dict[tuple[str, str], dict] = {}
 
 
 def _openai() -> "OpenAI":
@@ -430,28 +442,38 @@ def _ensure_trailing_slash(url: str) -> str:
     return u if u.endswith("/") else (u + "/")
 
 def _bsc() -> BlobServiceClient:
-    conn = _env("BLOB_CONN")
-    if conn:
-        logging.info("storage: auth=connection_string")
-        bsc = BlobServiceClient.from_connection_string(conn)
-        logging.info("storage: account_name=%s", getattr(bsc, "account_name", None))
-        return bsc
-    acct = _env("STORAGE_ACCOUNT_NAME")
-    sas  = _normalize_sas(_env("SAS_TOKEN"))
-    if acct and sas:
-        account_url = _ensure_trailing_slash(f"https://{acct}.blob.core.windows.net")
-        logging.info("storage: auth=account+sas account_url=%s", account_url)
-        return BlobServiceClient(
-            account_url=account_url,
-            credential=sas
-        )
-    url = _env("STORAGE_ACCOUNT_URL")
-    if url:
-        if DefaultAzureCredential is None:
-            raise RuntimeError("STORAGE_ACCOUNT_URL set but azure-identity is missing; add 'azure-identity' or use BLOB_CONN.")
-        account_url = _ensure_trailing_slash(url)
-        logging.info("storage: auth=account_url(DefaultAzureCredential) account_url=%s", account_url)
-        return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
+    global _blob_service_client
+    if _blob_service_client is not None:
+        return _blob_service_client
+
+    with _blob_service_client_lock:
+        if _blob_service_client is not None:
+            return _blob_service_client
+
+        conn = _env("BLOB_CONN")
+        if conn:
+            logging.info("storage: auth=connection_string")
+            _blob_service_client = BlobServiceClient.from_connection_string(conn)
+            logging.info("storage: account_name=%s", getattr(_blob_service_client, "account_name", None))
+            return _blob_service_client
+        acct = _env("STORAGE_ACCOUNT_NAME")
+        sas = _normalize_sas(_env("SAS_TOKEN"))
+        if acct and sas:
+            account_url = _ensure_trailing_slash(f"https://{acct}.blob.core.windows.net")
+            logging.info("storage: auth=account+sas account_url=%s", account_url)
+            _blob_service_client = BlobServiceClient(
+                account_url=account_url,
+                credential=sas,
+            )
+            return _blob_service_client
+        url = _env("STORAGE_ACCOUNT_URL")
+        if url:
+            if DefaultAzureCredential is None:
+                raise RuntimeError("STORAGE_ACCOUNT_URL set but azure-identity is missing; add 'azure-identity' or use BLOB_CONN.")
+            account_url = _ensure_trailing_slash(url)
+            logging.info("storage: auth=account_url(DefaultAzureCredential) account_url=%s", account_url)
+            _blob_service_client = BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
+            return _blob_service_client
     raise RuntimeError("Missing storage auth: set BLOB_CONN or (STORAGE_ACCOUNT_NAME+SAS_TOKEN) or STORAGE_ACCOUNT_URL")
 
 def _public_container() -> str:
@@ -589,6 +611,169 @@ def _csv_to_rows(data: bytes):
         text = data.decode("latin-1")
     reader = csv.DictReader(io.StringIO(text))
     return [dict(row) for row in reader]
+
+
+def _read_csv_memory_cache_ttl_sec() -> int:
+    return max(0, _env_int("READ_CSV_MEMORY_CACHE_TTL_SEC", 300))
+
+
+def _read_csv_browser_cache_max_age_sec() -> int:
+    return max(0, _env_int("READ_CSV_BROWSER_CACHE_MAX_AGE_SEC", 3600))
+
+
+def _read_csv_browser_cache_swr_sec() -> int:
+    return max(0, _env_int("READ_CSV_BROWSER_CACHE_SWR_SEC", 86400))
+
+
+def _normalize_http_etag(value: Optional[str]) -> str:
+    s = (value or "").strip()
+    if s.startswith("W/"):
+        s = s[2:].strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        s = s[1:-1]
+    return s.strip()
+
+
+def _quote_http_etag(value: Optional[str]) -> Optional[str]:
+    normalized = _normalize_http_etag(value)
+    return f'"{normalized}"' if normalized else None
+
+
+def _etag_matches(header_value: Optional[str], etag: Optional[str]) -> bool:
+    normalized = _normalize_http_etag(etag)
+    if not header_value or not normalized:
+        return False
+    for token in header_value.split(","):
+        candidate = token.strip()
+        if candidate == "*":
+            return True
+        if _normalize_http_etag(candidate) == normalized:
+            return True
+    return False
+
+
+def _format_http_datetime(value: Optional[datetime.datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    dt = value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    else:
+        dt = dt.astimezone(datetime.timezone.utc)
+    return dt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+
+def _is_not_modified(req: func.HttpRequest, etag: Optional[str], last_modified: Optional[datetime.datetime]) -> bool:
+    if _etag_matches(req.headers.get("If-None-Match"), etag):
+        return True
+
+    header_value = req.headers.get("If-Modified-Since")
+    if not header_value or last_modified is None:
+        return False
+
+    try:
+        since = parsedate_to_datetime(header_value)
+    except Exception:
+        return False
+
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=datetime.timezone.utc)
+
+    blob_last_modified = last_modified
+    if blob_last_modified.tzinfo is None:
+        blob_last_modified = blob_last_modified.replace(tzinfo=datetime.timezone.utc)
+    else:
+        blob_last_modified = blob_last_modified.astimezone(datetime.timezone.utc)
+
+    # HTTP-date precision is seconds.
+    return blob_last_modified.replace(microsecond=0) <= since.astimezone(datetime.timezone.utc).replace(microsecond=0)
+
+
+def _read_csv_cache_control() -> str:
+    max_age = _read_csv_browser_cache_max_age_sec()
+    swr = _read_csv_browser_cache_swr_sec()
+    if max_age <= 0 and swr <= 0:
+        return "no-store"
+
+    parts = ["public", f"max-age={max_age}"]
+    if swr > 0:
+        parts.append(f"stale-while-revalidate={swr}")
+    return ", ".join(parts)
+
+
+def _read_csv_response_headers(blob_name: str, etag: Optional[str], last_modified: Optional[datetime.datetime]) -> dict:
+    headers = {
+        "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"',
+        "Cache-Control": _read_csv_cache_control(),
+    }
+    quoted_etag = _quote_http_etag(etag)
+    if quoted_etag:
+        headers["ETag"] = quoted_etag
+    last_modified_http = _format_http_datetime(last_modified)
+    if last_modified_http:
+        headers["Last-Modified"] = last_modified_http
+    return headers
+
+
+def _read_csv_cache_key(container: str, blob_name: str) -> tuple[str, str]:
+    return (container, blob_name)
+
+
+def _read_csv_cache_get(container: str, blob_name: str) -> Optional[dict]:
+    ttl = _read_csv_memory_cache_ttl_sec()
+    if ttl <= 0:
+        return None
+
+    key = _read_csv_cache_key(container, blob_name)
+    now = time.time()
+    with _read_csv_cache_lock:
+        entry = _read_csv_cache.get(key)
+        if entry is None:
+            return None
+        if now - float(entry.get("cached_at", 0.0)) > ttl:
+            _read_csv_cache.pop(key, None)
+            return None
+        return entry
+
+
+def _read_csv_cache_put(container: str, blob_name: str, entry: dict) -> dict:
+    ttl = _read_csv_memory_cache_ttl_sec()
+    if ttl <= 0:
+        return entry
+
+    key = _read_csv_cache_key(container, blob_name)
+    with _read_csv_cache_lock:
+        _read_csv_cache[key] = entry
+    return entry
+
+
+def _read_csv_load_blob(container: str, blob_name: str) -> tuple[dict, bool]:
+    cached = _read_csv_cache_get(container, blob_name)
+    if cached is not None:
+        logging.info("read_csv_cache: hit container=%r blob=%r", container, blob_name)
+        return cached, True
+
+    blob_client = _bsc().get_container_client(container).get_blob_client(blob_name)
+    props = blob_client.get_blob_properties()
+    data = blob_client.download_blob(max_concurrency=2).readall()
+    etag = getattr(props, "etag", None) or hashlib.sha256(data).hexdigest()
+    entry = {
+        "data": data,
+        "etag": etag,
+        "last_modified": getattr(props, "last_modified", None),
+        "cached_at": time.time(),
+        "rows": None,
+    }
+    logging.info("read_csv_cache: miss container=%r blob=%r bytes=%s", container, blob_name, len(data))
+    return _read_csv_cache_put(container, blob_name, entry), False
+
+
+def _read_csv_rows(entry: dict):
+    rows = entry.get("rows")
+    if rows is None:
+        rows = _csv_to_rows(entry["data"])
+        entry["rows"] = rows
+    return rows
 
 # ---------------------------
 # SQL helpers
@@ -784,24 +969,28 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
                     mimetype="application/json",
                     headers=_cors_headers(req),
                 )
-        logging.info("read_csv: fetching container=%r blob=%r format=%r", container, blob_name, p["format"])
-        bsc = _bsc()
-        data = (
-            bsc.get_container_client(container)
-               .get_blob_client(blob_name)
-               .download_blob(max_concurrency=2)
-               .readall()
-        )
+        logging.info("read_csv: loading container=%r blob=%r format=%r", container, blob_name, p["format"])
+        entry, cache_hit = _read_csv_load_blob(container, blob_name)
+        headers = {
+            **_cors_headers(req),
+            **_read_csv_response_headers(blob_name, entry.get("etag"), entry.get("last_modified")),
+        }
+
+        if req.method == "GET" and _is_not_modified(req, entry.get("etag"), entry.get("last_modified")):
+            logging.info("read_csv: not modified blob=%r cache_hit=%s", blob_name, cache_hit)
+            return func.HttpResponse(status_code=304, headers=headers)
+
+        data = entry["data"]
         if p["format"] == "json":
-            rows = _csv_to_rows(data)
-            logging.info("read_csv: ok json rows=%s bytes=%s", len(rows), len(data))
-            return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=_cors_headers(req))
-        logging.info("read_csv: ok csv bytes=%s", len(data))
+            rows = _read_csv_rows(entry)
+            logging.info("read_csv: ok json rows=%s bytes=%s cache_hit=%s", len(rows), len(data), cache_hit)
+            return func.HttpResponse(json.dumps(rows, default=str), status_code=200, mimetype="application/json", headers=headers)
+        logging.info("read_csv: ok csv bytes=%s cache_hit=%s", len(data), cache_hit)
         return func.HttpResponse(
             body=data,
             status_code=200,
             mimetype="text/csv",
-            headers={**_cors_headers(req), "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"'},
+            headers=headers,
         )
     except ResourceNotFoundError:
         logging.info("read_csv: blob not found")

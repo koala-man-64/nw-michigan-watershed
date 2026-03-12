@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Papa from "papaparse";
+import { fetchCachedCsvText } from "./utils/csvCache";
 
 function Data() {
   // List of available CSV files in the Azure Blob container.
@@ -20,10 +21,8 @@ function Data() {
     setLoading(true);
     const blob = encodeURIComponent(String(fileName));
     const fileUrl = `/api/read-csv?blob=${blob}&format=csv`;
-    
-    fetch(fileUrl)
-      .then((response) => response.text())
-      .then((csvText) => {
+
+    const applyCsvText = (csvText) => {
         Papa.parse(csvText, {
           header: true,
           complete: (result) => {
@@ -38,7 +37,10 @@ function Data() {
             setLoading(false);
           },
         });
-      })
+    };
+
+    fetchCachedCsvText(fileUrl, { onFreshText: applyCsvText })
+      .then(applyCsvText)
       .catch((error) => {
         console.error("Error loading CSV:", error);
         setLoading(false);
