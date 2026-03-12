@@ -77,6 +77,11 @@ function FiltersPanel({
       rawData: dataRows,
       infoData: infoMap,
       yearBounds,
+      catalog: {
+        sites: uniqueSites,
+        parameters: uniqueParameters,
+        yearBounds,
+      },
     });
   }, [loadedCsvs]);
 
@@ -86,7 +91,16 @@ function FiltersPanel({
     }
 
     setLoadError("Unable to load water quality data right now.");
-    onDataLoadedRef.current?.({ rawData: [], infoData: {}, yearBounds: null });
+    onDataLoadedRef.current?.({
+      rawData: [],
+      infoData: {},
+      yearBounds: null,
+      catalog: {
+        sites: [],
+        parameters: [],
+        yearBounds: null,
+      },
+    });
   }, [csvError]);
 
   const handleSitesChange = (selectedSites) => {

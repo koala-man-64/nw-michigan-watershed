@@ -4,9 +4,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 const markerProps = [];
 const popupProps = [];
+const mapContainerProps = [];
 
 jest.mock("react-leaflet", () => ({
-  MapContainer: ({ children }) => <div data-testid="map-container">{children}</div>,
+  MapContainer: (props) => {
+    mapContainerProps.push(props);
+    return <div data-testid="map-container">{props.children}</div>;
+  },
   TileLayer: () => null,
   Marker: (props) => {
     markerProps.push(props);
@@ -41,6 +45,7 @@ describe("MapPanel popup hover behavior", () => {
   beforeEach(() => {
     markerProps.length = 0;
     popupProps.length = 0;
+    mapContainerProps.length = 0;
     jest.useFakeTimers();
   });
 
@@ -95,6 +100,13 @@ describe("MapPanel popup hover behavior", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Unable to load site locations.");
+  });
+
+  test("defaults the map center to Silver Lake coordinates", () => {
+    render(<MapPanel locations={[]} selectedSites={[]} onMarkerClick={jest.fn()} />);
+
+    expect(mapContainerProps[0].center).toEqual([44.695508, -85.685679]);
+    expect(mapContainerProps[0].zoom).toBe(8);
   });
 
   test("normalizes popup links and highlights selected markers with a different icon", async () => {

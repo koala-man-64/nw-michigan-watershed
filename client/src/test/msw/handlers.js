@@ -25,6 +25,9 @@ export const handlers = [
     return res(
       ctx.status(200),
       ctx.set('Content-Type', 'text/csv'),
+      ctx.set('ETag', `"etag-${blob}"`),
+      ctx.set('Last-Modified', 'Wed, 11 Mar 2026 12:00:00 GMT'),
+      ctx.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400'),
       ctx.set('X-Request-Id', requestId),
       ctx.body(body)
     );

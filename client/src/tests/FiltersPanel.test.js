@@ -53,6 +53,11 @@ describe("FiltersPanel", () => {
     expect(payload.rawData).toHaveLength(5);
     expect(payload.infoData["Total Phosphorus"].ContactInfo).toBe("Call Alice");
     expect(payload.yearBounds).toEqual({ min: 2024, max: 2025 });
+    expect(payload.catalog).toEqual({
+      sites: ["Boardman River", "Lake Alpha", "Lake Gamma", "Platte River"],
+      parameters: ["Conductivity", "Total Phosphorus"],
+      yearBounds: { min: 2024, max: 2025 },
+    });
   });
 
   test("keeps loading when info.csv fails and sends empty metadata", async () => {
@@ -86,6 +91,11 @@ describe("FiltersPanel", () => {
       rawData: expect.any(Array),
       infoData: {},
       yearBounds: { min: 2024, max: 2025 },
+      catalog: {
+        sites: ["Boardman River", "Lake Alpha", "Lake Gamma", "Platte River"],
+        parameters: ["Conductivity", "Total Phosphorus"],
+        yearBounds: { min: 2024, max: 2025 },
+      },
     });
   });
 
@@ -120,6 +130,11 @@ describe("FiltersPanel", () => {
       rawData: [],
       infoData: {},
       yearBounds: null,
+      catalog: {
+        sites: [],
+        parameters: [],
+        yearBounds: null,
+      },
     });
   });
 

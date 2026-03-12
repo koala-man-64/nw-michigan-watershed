@@ -18,6 +18,7 @@ if str(API_DIR) not in sys.path:
 
 import chat_rudy_service  # noqa: E402
 import http_utils  # noqa: E402
+import storage  # noqa: E402
 
 
 CONTROLLED_ENV_VARS = (
@@ -48,6 +49,9 @@ CONTROLLED_ENV_VARS = (
     "OPENAI_MODEL",
     "PUBLIC_BLOB_CONTAINER",
     "PUBLIC_BLOBS",
+    "READ_CSV_BROWSER_CACHE_MAX_AGE_SEC",
+    "READ_CSV_BROWSER_CACHE_SWR_SEC",
+    "READ_CSV_MEMORY_CACHE_TTL_SEC",
     "READINESS_ALLOW_ANONYMOUS",
     "READINESS_REQUIRED_ROLE",
     "RUDY_RAG_CHUNK_OVERLAP",
@@ -131,6 +135,7 @@ def reset_test_state(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
     http_utils._rate_state.clear()
+    storage.reset_storage_caches()
     chat_rudy_service._openai_client = None
     chat_rudy_service._rudy_prompt_cached = None
     chat_rudy_service._rudy_rag_chunks_cached = None
@@ -138,6 +143,7 @@ def reset_test_state(monkeypatch: pytest.MonkeyPatch) -> None:
     chat_rudy_service._rudy_rag_embeddings_disabled_until = 0.0
     yield
     http_utils._rate_state.clear()
+    storage.reset_storage_caches()
     chat_rudy_service._openai_client = None
     chat_rudy_service._rudy_prompt_cached = None
     chat_rudy_service._rudy_rag_chunks_cached = None

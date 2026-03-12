@@ -37,6 +37,8 @@ const greenIcon = new L.Icon({
 });
 
 const POPUP_CLOSE_DELAY_MS = 200;
+const DEFAULT_MAP_CENTER = [44.695508, -85.685679];
+const DEFAULT_MAP_ZOOM = 8;
 
 function SetMapBounds({ bounds }) {
   const map = useMap();
@@ -87,9 +89,6 @@ function MapPanel({ selectedSites = [], onMarkerClick, locations = [], loadError
     return null;
   }, [selectedSites, allLocations]);
 
-  const defaultCenter = [42.5, -86.0];
-  const defaultZoom = 8;
-
   return (
     <div style={{ position: "relative", display: "flex", flex: 1, minHeight: 0 }}>
       {loadError && (
@@ -114,8 +113,8 @@ function MapPanel({ selectedSites = [], onMarkerClick, locations = [], loadError
 
       <MapContainer
         style={{ flex: 1, height: "100%", width: "100%" }}
-        center={bounds ? undefined : defaultCenter}
-        zoom={bounds ? undefined : defaultZoom}
+        center={DEFAULT_MAP_CENTER}
+        zoom={DEFAULT_MAP_ZOOM}
         scrollWheelZoom
       >
         <TileLayer

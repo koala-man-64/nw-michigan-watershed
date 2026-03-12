@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import time
+from email.utils import parsedate_to_datetime
 
 import azure.functions as func
 
@@ -24,6 +25,7 @@ from http_utils import (
     request_id_for,
     request_params,
     require_swa_role,
+    response_headers,
     should_sample,
     text_response,
     truncate,
@@ -35,7 +37,7 @@ from storage import (
     blob_service_client,
     check_blob_access,
     check_storage_connection,
-    download_blob,
+    download_blob_cached,
     public_blobs,
     public_container,
 )
@@ -80,6 +82,95 @@ def csv_to_rows(data: bytes):
         text = data.decode("latin-1")
     reader = csv.DictReader(io.StringIO(text))
     return [dict(row) for row in reader]
+
+
+def read_csv_browser_cache_max_age_sec() -> int:
+    return max(0, env_int("READ_CSV_BROWSER_CACHE_MAX_AGE_SEC", 3600))
+
+
+def read_csv_browser_cache_swr_sec() -> int:
+    return max(0, env_int("READ_CSV_BROWSER_CACHE_SWR_SEC", 86400))
+
+
+def normalize_http_etag(value: str | None) -> str:
+    candidate = (value or "").strip()
+    if candidate.startswith("W/"):
+        candidate = candidate[2:].strip()
+    if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in {"'", '"'}:
+        candidate = candidate[1:-1]
+    return candidate.strip()
+
+
+def quote_http_etag(value: str | None) -> str | None:
+    normalized = normalize_http_etag(value)
+    return f'"{normalized}"' if normalized else None
+
+
+def etag_matches(header_value: str | None, etag: str | None) -> bool:
+    normalized = normalize_http_etag(etag)
+    if not header_value or not normalized:
+        return False
+
+    for token in header_value.split(","):
+        candidate = token.strip()
+        if candidate == "*":
+            return True
+        if normalize_http_etag(candidate) == normalized:
+            return True
+    return False
+
+
+def format_http_datetime(value: datetime.datetime | None) -> str | None:
+    if value is None:
+        return None
+
+    as_utc = value.astimezone(datetime.timezone.utc) if value.tzinfo else value.replace(tzinfo=datetime.timezone.utc)
+    return as_utc.strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+
+def is_not_modified(req: func.HttpRequest, etag: str | None, last_modified: datetime.datetime | None) -> bool:
+    if etag_matches(req.headers.get("If-None-Match"), etag):
+        return True
+
+    if_modified_since = req.headers.get("If-Modified-Since")
+    if not if_modified_since or last_modified is None:
+        return False
+
+    try:
+        requested_time = parsedate_to_datetime(if_modified_since)
+    except Exception:
+        return False
+
+    if requested_time.tzinfo is None:
+        requested_time = requested_time.replace(tzinfo=datetime.timezone.utc)
+    blob_time = last_modified.astimezone(datetime.timezone.utc) if last_modified.tzinfo else last_modified.replace(tzinfo=datetime.timezone.utc)
+    return blob_time.replace(microsecond=0) <= requested_time.astimezone(datetime.timezone.utc).replace(microsecond=0)
+
+
+def read_csv_cache_control() -> str:
+    max_age = read_csv_browser_cache_max_age_sec()
+    stale_while_revalidate = read_csv_browser_cache_swr_sec()
+    if max_age <= 0 and stale_while_revalidate <= 0:
+        return "no-store"
+
+    directives = ["public", f"max-age={max_age}"]
+    if stale_while_revalidate > 0:
+        directives.append(f"stale-while-revalidate={stale_while_revalidate}")
+    return ", ".join(directives)
+
+
+def read_csv_response_headers(blob_name: str, etag: str | None, last_modified: datetime.datetime | None) -> dict[str, str]:
+    headers = {
+        "Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"',
+        "Cache-Control": read_csv_cache_control(),
+    }
+    quoted_etag = quote_http_etag(etag)
+    if quoted_etag:
+        headers["ETag"] = quoted_etag
+    last_modified_header = format_http_datetime(last_modified)
+    if last_modified_header:
+        headers["Last-Modified"] = last_modified_header
+    return headers
 
 
 app = func.FunctionApp()
@@ -385,21 +476,35 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
 
     started = time.perf_counter()
     try:
-        data = download_blob(container, blob_name)
+        blob = download_blob_cached(container, blob_name)
+        headers = read_csv_response_headers(blob_name, blob.etag, blob.last_modified)
+
+        if req.method == "GET" and is_not_modified(req, blob.etag, blob.last_modified):
+            log_with_request(
+                "read_csv: returning not modified",
+                request_id,
+                cache_hit=blob.cache_hit,
+                duration_ms=elapsed_ms(started),
+            )
+            return func.HttpResponse(status_code=304, headers=response_headers(req, request_id, headers))
+
+        data = blob.data
         if params["format"] == "json":
             rows = csv_to_rows(data)
             log_with_request(
                 "read_csv: returning json",
                 request_id,
                 rows=len(rows),
+                cache_hit=blob.cache_hit,
                 duration_ms=elapsed_ms(started),
             )
-            return json_response(req, request_id, rows)
+            return json_response(req, request_id, rows, extra_headers=headers)
 
         log_with_request(
             "read_csv: returning csv",
             request_id,
             bytes=len(data),
+            cache_hit=blob.cache_hit,
             duration_ms=elapsed_ms(started),
         )
         return bytes_response(
@@ -407,7 +512,7 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
             request_id,
             data,
             mimetype="text/csv",
-            extra_headers={"Content-Disposition": f'inline; filename="{os.path.basename(blob_name)}"'},
+            extra_headers=headers,
         )
     except ResourceNotFoundError:
         return json_response(

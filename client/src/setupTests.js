@@ -55,6 +55,7 @@ beforeAll(() => {
 
 afterEach(() => {
   server.resetHandlers();
+  window.localStorage.clear();
 });
 
 afterAll(() => {

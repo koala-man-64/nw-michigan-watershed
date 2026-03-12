@@ -1,0 +1,67 @@
+{
+  "generated_at_utc": "2026-03-12T02:41:10.617233+00:00",
+  "git": {
+    "branch": "dev",
+    "commit": "ffcdc9af4b25913171da1b0f43c7f8d9a332c7f4",
+    "status_porcelain": "M .agent/skills/architecture-review-agent/SKILL.md\n M .agent/skills/architecture-review-agent/references/agent.md\n M .agent/skills/code-hygiene-agent/SKILL.md\n M .agent/skills/code-hygiene-agent/references/agent.md\n M .agent/skills/delivery-engineer-agent/SKILL.md\n M .agent/skills/delivery-engineer-agent/references/agent.md\n M .agent/skills/delivery-orchestrator-agent/SKILL.md\n M .agent/skills/frontend-design/LICENSE.txt\n M .agent/skills/frontend-design/SKILL.md\n M .agent/skills/gateway-bookkeeper/SKILL.md\n M .agent/skills/project-workflow-auditor-agent/SKILL.md\n M .agent/skills/project-workflow-auditor-agent/references/agent.md\n M .agent/skills/project-workflow-auditor-agent/references/checklists.md\n M .agent/skills/project-workflow-auditor-agent/scripts/audit_snapshot.py\n M .agent/skills/qa-release-gate-agent/SKILL.md\n M .agent/skills/qa-release-gate-agent/references/agent.md\n M .agent/skills/technical-writer-dev-advocate/SKILL.md\n M .agent/skills/technical-writer-dev-advocate/assets/docs/_templates/api-endpoint.md\n M .agent/skills/technical-writer-dev-advocate/assets/docs/_templates/concept.md\n M .agent/skills/technical-writer-dev-advocate/assets/docs/_templates/howto.md\n M .agent/skills/technical-writer-dev-advocate/assets/docs/_templates/release-notes.md\n M .agent/skills/technical-writer-dev-advocate/assets/docs/_templates/troubleshooting.md\n M .codedrift.yml\n M .codex/config.toml\n M .codex/gateway/ledger.md\n M .codex/mcp.json\n M .codex/skills/architecture-review-agent/SKILL.md\n M .codex/skills/architecture-review-agent/references/agent.md\n M .codex/skills/cloud-cost-optimization-efficiency-architect/SKILL.md\n M .codex/skills/cloud-cost-optimization-efficiency-architect/agents/openai.yaml\n M .codex/skills/cloud-security-vulnerability-expert/SKILL.md\n M .codex/skills/cloud-security-vulnerability-expert/agents/openai.yaml\n M .codex/skills/cloud-security-vulnerability-expert/references/agent.md\n M .codex/skills/code-drift-sentinel/SKILL.md\n M .codex/skills/code-drift-sentinel/agents/openai.yaml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/01-style-drift.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/02-dependency-drift.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/03-api-drift.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/04-architecture-drift.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/05-test-drift.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/06-multi-agent-inconsistency.yml\n M .codex/skills/code-drift-sentinel/codedrift_scenarios/README.md\n M .codex/skills/code-drift-sentinel/references/agent.md\n M .codex/skills/code-drift-sentinel/references/codedrift-yml-schema.md\n M .codex/skills/code-drift-sentinel/references/codedrift.schema.json\n M .codex/skills/code-drift-sentinel/scripts/codedrift_sentinel.py\n M .codex/skills/code-drift-sentinel/scripts/run_scenarios.py\n M .codex/skills/code-hygiene-agent/SKILL.md\n M .codex/skills/code-hygiene-agent/references/agent.md\n M .codex/skills/delivery-engineer-agent/SKILL.md\n M .codex/skills/delivery-engineer-agent/references/agent.md\n M .codex/skills/delivery-orchestrator-agent/SKILL.md\n M .codex/skills/forensic-debugger/SKILL.md\n M .codex/skills/forensic-debugger/agents/openai.yaml\n M .codex/skills/forensic-debugger/references/agent.md\n M .codex/skills/frontend-design/LICENSE.txt\n M .codex/skills/frontend-design/SKILL.md\n M .codex/skills/gateway-bookkeeper/SKILL.md\n M .codex/skills/legacy-cleanup-change-debris-auditor/SKILL.md\n M .codex/skills/legacy-cleanup-change-debris-auditor/agents/openai.yaml\n M .codex/skills/maintainability-steward/SKILL.md\n M .codex/skills/maintainability-steward/agents/openai.yaml\n M .codex/skills/maintainability-steward/references/validation-prompts.md\n M .codex/skills/project-workflow-auditor-agent/SKILL.md\n M .codex/skills/project-workflow-auditor-agent/references/agent.md\n M .codex/skills/project-workflow-auditor-agent/references/checklists.md\n M .codex/skills/project-workflow-auditor-agent/scripts/audit_snapshot.py\n M .codex/skills/qa-release-gate-agent/SKILL.md\n M .codex/skills/qa-release-gate-agent/references/agent.md\n M .codex/skills/software-testing-validation-architect/SKILL.md\n M .codex/skills/software-testing-validation-architect/agents/openai.yaml\n M .codex/skills/software-testing-validation-architect/references/agent.md\n M .codex/skills/software-testing-validation-architect/references/system-patterns.md\n M .codex/skills/technical-writer-dev-advocate/SKILL.md\n M .codex/skills/technical-writer-dev-advocate/assets/docs/_templates/api-endpoint.md\n M .codex/skills/technical-writer-dev-advocate/assets/docs/_templates/concept.md\n M .codex/skills/technical-writer-dev-advocate/assets/docs/_templates/howto.md\n M .codex/skills/technical-writer-dev-advocate/assets/docs/_templates/release-notes.md\n M .codex/skills/technical-writer-dev-advocate/assets/docs/_templates/troubleshooting.md\n M .codex/skills/ui-testing-expert/SKILL.md\n M .codex/skills/ui-testing-expert/agents/openai.yaml\n M .codex/skills/ui-testing-expert/references/agent.md\n M .codex/skills/ui-testing-expert/references/validation-prompts.md\n M .github/workflows/build-deploy-nwmiws-swa-dev.yml\n M .github/workflows/build-deploy-nwmiws-swa-prod.yml\n M .gitignore\n M .vscode/extensions.json\n M .vscode/tasks.json\n M README.md\n M api/.env.example\n M api/.funcignore\n M api/.gitignore\n M api/azf_api_env.yml\n M api/chat_rudy_service.py\n M api/config.py\n M api/function_app.py\n M api/function_app_postman_collection.json\n M api/host.json\n M api/http_utils.py\n M api/requirements-dev.txt\n M api/requirements.txt\n M api/runtime.txt\n M api/sql.py\n M api/storage.py\n M api/tests/conftest.py\n M api/tests/test_chat_rudy_service.py\n M api/tests/test_function_app_chat_rudy.py\n M api/tests/test_function_app_log_event.py\n M api/tests/test_function_app_read_csv.py\n M api/tests/test_function_app_ready.py\n M api/tests/test_http_utils.py\n M api/tests/test_sql.py\n M api/tests/test_storage.py\n M client/.eslintrc.json\n M client/__mocks__/fileMock.js\n M client/lint\n M client/package-lock.json\n M client/package.json\n M client/public/index.html\n M client/public/manifest.json\n M client/public/robots.txt\n M client/public/staticwebapp.config.json\n M client/src/App.css\n M client/src/App.js\n M client/src/ChatWithRudy.js\n M client/src/FiltersPanel.js\n M client/src/Header.js\n M client/src/MapPanel.js\n M client/src/Plots.js\n M client/src/SearchableMultiselect.jsx\n M client/src/api/csvApi.js\n M client/src/api/csvApi.test.js\n M client/src/hooks/useCsvData.js\n M client/src/hooks/useCsvData.test.js\n M client/src/hooks/useSiteLocations.js\n M client/src/index.css\n M client/src/index.js\n M client/src/parameterMetadata.js\n M client/src/plots/ChartPanel.jsx\n M client/src/plots/D3Charts.jsx\n M client/src/plots/chartBuilders.js\n M client/src/plots/chartUtils.js\n M client/src/plots/plotSummary.js\n M client/src/plots/plotWorkspaceState.js\n M client/src/reportWebVitals.js\n M client/src/setupTests.js\n M client/src/siteLocations.js\n M client/src/test/msw/fixtures.js\n M client/src/test/msw/handlers.js\n M client/src/test/msw/server.js\n M client/src/tests/App.test.js\n M client/src/tests/ChatWithRudy.test.js\n M client/src/tests/FiltersPanel.test.js\n M client/src/tests/MapPanel.test.js\n M client/src/tests/parameterMetadata.test.js\n M client/src/tests/plots/ChartPanel.test.jsx\n M client/src/tests/plots/D3Charts.test.jsx\n M client/src/tests/plots/Plots.interaction.test.js\n M client/src/tests/plots/Plots.test.js\n M client/src/tests/plots/chartBuilders.test.js\n M client/src/tests/plots/chartUtils.test.js\n M client/src/tests/plots/plotSummary.test.js\n M client/src/tests/plots/plotWorkspaceState.test.js\n M data/chat-api-openai.md\n M data/chat-with-rudy-prompt.md\n M data/chat-with-rudy-rag-chunks.md\n M data/clear_npm_cache.ps1\n M data/package-lock.json\n M database/log_event_queries.sql\n M database/user_table_queries.sql\n M ops/config-matrix.md\n M ops/follow-ups.md\n M ops/history-remediation.md\n M ops/release-checklist.md\n M pytest.ini\n M scripts/cleanup_stale_workflows.py"
+  },
+  "github": {
+    ".github/workflows": true,
+    ".github/workflows/deploy.yml": false,
+    ".github/workflows/run_tests.yml": false
+  },
+  "instruction_files": {
+    "AGENTS.md": [],
+    "CONTRIBUTING.md": [],
+    "SECURITY.md": []
+  },
+  "project_files": {
+    ".editorconfig": false,
+    ".github/CODEOWNERS": false,
+    ".github/dependabot.yml": false,
+    ".pre-commit-config.yaml": false,
+    "CODEOWNERS": false,
+    "Dockerfile": false,
+    "LICENSE": false,
+    "Makefile": false,
+    "README.md": true,
+    "docker-compose.yml": false,
+    "pyproject.toml": false,
+    "requirements-dev.txt": false,
+    "requirements.txt": false
+  },
+  "repo_root": "/mnt/c/Users/rdpro/Projects/NW Michigan Watershed Coalition",
+  "workflows": {
+    "files": [
+      {
+        "path": ".github/workflows/build-deploy-nwmiws-swa-dev.yml",
+        "signals": {
+          "has_curl_pipe_shell": false,
+          "has_permissions": false,
+          "has_pull_request_target": false,
+          "has_wget_pipe_shell": false,
+          "has_write_all": false,
+          "uses_count": 0,
+          "uses_pinned_count": 0,
+          "uses_unpinned_count": 0,
+          "uses_unpinned_sample": []
+        }
+      },
+      {
+        "path": ".github/workflows/build-deploy-nwmiws-swa-prod.yml",
+        "signals": {
+          "has_curl_pipe_shell": false,
+          "has_permissions": false,
+          "has_pull_request_target": false,
+          "has_wget_pipe_shell": false,
+          "has_write_all": false,
+          "uses_count": 0,
+          "uses_pinned_count": 0,
+          "uses_unpinned_count": 0,
+          "uses_unpinned_sample": []
+        }
+      }
+    ],
+    "path": ".github/workflows"
+  }
+}

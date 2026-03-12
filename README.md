@@ -39,6 +39,9 @@ Configure these in Azure Static Web Apps application settings for the Functions 
 - `PUBLIC_BLOB_CONTAINER`
 - `PUBLIC_BLOBS`
 - `ALLOW_ARBITRARY_BLOB_READS`
+- `READ_CSV_MEMORY_CACHE_TTL_SEC`
+- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC`
+- `READ_CSV_BROWSER_CACHE_SWR_SEC`
 - `CHAT_WITH_RUDY_CONTAINER`
 - `CHAT_WITH_RUDY_PROMPT_BLOB`
 - `CHAT_WITH_RUDY_RAG_BLOB`
@@ -95,6 +98,7 @@ The drift gate is configured in `.codedrift.yml`. The GitHub workflows pin actio
 - `client/public/staticwebapp.config.json` is the primary edge-auth contract for Azure Static Web Apps. Non-local testing must use the SWA hostname, not a direct `*.azurewebsites.net` Function App hostname.
 - `chat-rudy` is disabled by default and returns `404` unless `CHAT_ENABLED=1`. When enabled, it requires SWA authentication unless `CHAT_ALLOW_ANONYMOUS=1` is explicitly configured.
 - `read-csv` only serves approved blobs unless `ALLOW_ARBITRARY_BLOB_READS=1` is explicitly enabled.
+- `read-csv` supports browser revalidation via `ETag` and `Last-Modified`, and the client persists CSV responses in `localStorage` for fast repeat loads.
 - `log-event` now returns an `X-Request-Id` header on every response and hashes client IPs by default unless `LOG_EVENT_IP_MODE=raw`.
 - `api/.env` and `api/local.settings.json` are for local use only and must not be committed or deployed.
 - `debugpy` is no longer installed by default. Install it only in a local developer environment if you need remote debugging.

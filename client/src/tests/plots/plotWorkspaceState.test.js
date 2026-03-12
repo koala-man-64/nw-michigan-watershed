@@ -2,10 +2,14 @@
 import {
   cloneDraft,
   createEmptyDraft,
+  createInitialPlotState,
   draftMatchesApplied,
+  getNextWorkspaceNumber,
   getWorkspaceTabLabel,
+  hasRequiredPlotFields,
   hydrateDraftWithYearBounds,
   normalizeAppliedPlot,
+  sanitizePlotState,
 } from "../../plots/plotWorkspaceState";
 
 describe("plotWorkspaceState", () => {
@@ -84,6 +88,158 @@ describe("plotWorkspaceState", () => {
         trendIndex: 1,
       })
     ).toBe(false);
+  });
+
+  test("sanitizes restored plot state against the current catalog", () => {
+    expect(
+      sanitizePlotState(
+        {
+          plotWorkspaces: [
+            {
+              id: "plot-2",
+              draft: {
+                selectedSites: ["Lake Alpha", "Lake Alpha", "Missing Site"],
+                parameter: "Conductivity",
+                startYear: 2018,
+                endYear: 2030,
+                chartType: "comparison",
+              },
+              applied: {
+                selectedSites: ["Lake Alpha", "Missing Site"],
+                parameter: "Conductivity",
+                startYear: 2018,
+                endYear: 2030,
+                chartType: "trend",
+                trendIndex: 9,
+              },
+            },
+            {
+              id: "plot-3",
+              draft: {
+                selectedSites: ["Missing Site"],
+                parameter: "Missing Parameter",
+                startYear: 2010,
+                endYear: 2011,
+                chartType: "trend",
+              },
+              applied: {
+                selectedSites: ["Missing Site"],
+                parameter: "Missing Parameter",
+                startYear: 2010,
+                endYear: 2011,
+                chartType: "trend",
+                trendIndex: 0,
+              },
+            },
+          ],
+          activePlotId: "missing-plot",
+        },
+        {
+          sites: ["Lake Alpha", "Lake Gamma"],
+          parameters: ["Conductivity"],
+          yearBounds: { min: 2024, max: 2025 },
+        }
+      )
+    ).toEqual({
+      plotWorkspaces: [
+        {
+          id: "plot-2",
+          draft: {
+            selectedSites: ["Lake Alpha"],
+            parameter: "Conductivity",
+            startYear: 2024,
+            endYear: 2025,
+            chartType: "comparison",
+          },
+          applied: {
+            selectedSites: ["Lake Alpha"],
+            parameter: "Conductivity",
+            startYear: 2024,
+            endYear: 2025,
+            chartType: "trend",
+            trendIndex: 0,
+          },
+        },
+        {
+          id: "plot-3",
+          draft: {
+            selectedSites: [],
+            parameter: "",
+            startYear: 2024,
+            endYear: 2024,
+            chartType: "trend",
+          },
+          applied: null,
+        },
+      ],
+      activePlotId: "plot-2",
+    });
+  });
+
+  test("collapses fully invalid restored workspaces to a single empty draft", () => {
+    expect(
+      sanitizePlotState(
+        {
+          plotWorkspaces: [
+            {
+              id: "plot-2",
+              draft: {
+                selectedSites: ["Missing Site"],
+                parameter: "Missing Parameter",
+                startYear: 2010,
+                endYear: 2011,
+                chartType: "trend",
+              },
+              applied: {
+                selectedSites: ["Missing Site"],
+                parameter: "Missing Parameter",
+                startYear: 2010,
+                endYear: 2011,
+                chartType: "trend",
+                trendIndex: 0,
+              },
+            },
+          ],
+          activePlotId: "plot-2",
+        },
+        {
+          sites: ["Lake Alpha"],
+          parameters: ["Conductivity"],
+          yearBounds: { min: 2024, max: 2025 },
+        }
+      )
+    ).toEqual(createInitialPlotState({ min: 2024, max: 2025 }, "plot-2"));
+  });
+
+  test("reports required plot fields and calculates the next workspace number", () => {
+    expect(
+      hasRequiredPlotFields({
+        selectedSites: ["Lake Alpha"],
+        parameter: "Conductivity",
+        startYear: 2024,
+        endYear: 2025,
+        chartType: "trend",
+      })
+    ).toBe(true);
+
+    expect(
+      hasRequiredPlotFields({
+        selectedSites: [],
+        parameter: "",
+        startYear: 2024,
+        endYear: 2025,
+        chartType: "trend",
+      })
+    ).toBe(false);
+
+    expect(
+      getNextWorkspaceNumber({
+        plotWorkspaces: [
+          { id: "plot-2" },
+          { id: "plot-9" },
+        ],
+      })
+    ).toBe(10);
   });
 
   test("returns descriptive tab labels for saved plots and new plot labels for drafts", () => {

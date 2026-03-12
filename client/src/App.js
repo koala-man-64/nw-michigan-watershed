@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
 
@@ -13,10 +13,15 @@ import useSiteLocations from "./hooks/useSiteLocations";
 import {
   cloneDraft,
   createEmptyDraft,
+  createInitialPlotState,
   draftMatchesApplied,
+  getNextWorkspaceNumber,
+  hasRequiredPlotFields,
   hydrateDraftWithYearBounds,
   normalizeAppliedPlot,
+  sanitizePlotState,
 } from "./plots/plotWorkspaceState";
+import { readSession, writeSession } from "./plots/plotSessionStorage";
 
 function mergeDraft(draft, partial) {
   return {
@@ -152,23 +157,28 @@ WelcomePanel.propTypes = {
 
 function App() {
   const { data: siteLocationsData, error: siteLocationsError } = useSiteLocations();
-  const nextWorkspaceIdRef = useRef(2);
+  const [bootSession] = useState(() => {
+    const restoredSession = readSession();
+    if (!restoredSession) {
+      return {
+        showWelcome: true,
+        plotState: createInitialPlotState(),
+      };
+    }
+
+    return {
+      showWelcome: restoredSession.showWelcome,
+      plotState: sanitizePlotState(restoredSession.plotState),
+    };
+  });
+  const nextWorkspaceIdRef = useRef(getNextWorkspaceNumber(bootSession.plotState));
   const [yearBounds, setYearBounds] = useState(null);
-  const [plotState, setPlotState] = useState(() => ({
-    plotWorkspaces: [
-      {
-        id: "plot-1",
-        draft: createEmptyDraft(),
-        applied: null,
-      },
-    ],
-    activePlotId: "plot-1",
-  }));
+  const [plotState, setPlotState] = useState(() => bootSession.plotState);
   const [rawData, setRawData] = useState(null);
   const [infoData, setInfoData] = useState({});
   const [loading, setLoading] = useState(true);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [updateEnabled, setUpdateEnabled] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => bootSession.showWelcome);
+  const updateEnabled = !showWelcome;
 
   const createWorkspace = useCallback((seedDraft = null, nextYearBounds = yearBounds) => ({
     id: `plot-${nextWorkspaceIdRef.current++}`,
@@ -191,12 +201,7 @@ function App() {
   const activeDraft = activeWorkspace?.draft || createEmptyDraft(yearBounds);
   const activeApplied = activeWorkspace?.applied || null;
   const emptyDraft = useMemo(() => createEmptyDraft(yearBounds), [yearBounds]);
-  const hasRequiredDraftFields = Boolean(
-    activeDraft?.parameter &&
-    activeDraft?.selectedSites?.length &&
-    activeDraft?.startYear != null &&
-    activeDraft?.endYear != null
-  );
+  const hasRequiredDraftFields = hasRequiredPlotFields(activeDraft);
   const hasDraftChanges = activeApplied
     ? !draftMatchesApplied(activeDraft, activeApplied)
     : !draftMatchesApplied(activeDraft, emptyDraft);
@@ -221,6 +226,13 @@ function App() {
           ? "Select sites, years, and a parameter before saving this plot as a new plot."
           : "Save current changes as a new plot and keep the original plot unchanged.";
 
+  useEffect(() => {
+    writeSession({
+      showWelcome,
+      plotState,
+    });
+  }, [showWelcome, plotState]);
+
   const handleFiltersChange = useCallback((partialOrFull) => {
     setPlotState((prev) => ({
       ...prev,
@@ -232,9 +244,24 @@ function App() {
     }));
   }, []);
 
-  const handleDataLoaded = useCallback(({ rawData: nextRawData, infoData: nextInfoData, yearBounds: nextYearBounds }) => {
+  const handleDataLoaded = useCallback(({
+    rawData: nextRawData,
+    infoData: nextInfoData,
+    yearBounds: nextYearBounds,
+    catalog: nextCatalog,
+  }) => {
     const normalizedYearBounds = Number.isFinite(nextYearBounds?.min) && Number.isFinite(nextYearBounds?.max)
       ? nextYearBounds
+      : null;
+    const normalizedCatalog = normalizedYearBounds &&
+      nextCatalog &&
+      Array.isArray(nextCatalog.sites) &&
+      Array.isArray(nextCatalog.parameters)
+      ? {
+        sites: nextCatalog.sites,
+        parameters: nextCatalog.parameters,
+        yearBounds: normalizedYearBounds,
+      }
       : null;
 
     setRawData(Array.isArray(nextRawData) ? nextRawData : []);
@@ -242,25 +269,11 @@ function App() {
     setYearBounds(normalizedYearBounds);
     setLoading(false);
 
-    if (!normalizedYearBounds) {
+    if (!normalizedCatalog) {
       return;
     }
 
-    setPlotState((prev) => {
-      let changed = false;
-      const nextWorkspaces = prev.plotWorkspaces.map((workspace) => {
-        const nextDraft = hydrateDraftWithYearBounds(workspace.draft, normalizedYearBounds);
-        const draftChanged = !draftMatchesApplied(nextDraft, workspace.draft);
-        if (draftChanged) {
-          changed = true;
-        }
-        return draftChanged
-          ? { ...workspace, draft: nextDraft }
-          : workspace;
-      });
-
-      return changed ? { ...prev, plotWorkspaces: nextWorkspaces } : prev;
-    });
+    setPlotState((prev) => sanitizePlotState(prev, normalizedCatalog));
   }, []);
 
   const handleApplyPlot = useCallback(() => {
@@ -285,12 +298,7 @@ function App() {
         return prev;
       }
 
-      const hasCompleteDraft = Boolean(
-        sourceWorkspace.draft?.parameter &&
-        sourceWorkspace.draft?.selectedSites?.length &&
-        sourceWorkspace.draft?.startYear != null &&
-        sourceWorkspace.draft?.endYear != null
-      );
+      const hasCompleteDraft = hasRequiredPlotFields(sourceWorkspace.draft);
       if (!hasCompleteDraft) {
         return prev;
       }
@@ -387,7 +395,6 @@ function App() {
     <WelcomePanel
       onContinue={() => {
         setShowWelcome(false);
-        setUpdateEnabled(true);
       }}
     />
   ) : (
