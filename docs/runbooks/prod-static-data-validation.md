@@ -4,26 +4,33 @@ Use this runbook after a dev or prod deployment to verify the application is ser
 
 ## Prerequisites
 
-- A deployed application base URL such as `https://<app>.azurestaticapps.net`
+- `STATIC_CUTOVER_VALIDATION_BASE_URLS` populated in `.env`, `.env.local`, or `api/.env`
+- Or a deployed application base URL such as `https://<app>.azurestaticapps.net` passed with `--base-url`
 - Python 3.9+ available locally
 
 ## Safe validation command
 
 ```bash
-python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
+python scripts/validate_static_data.py
 ```
 
 Expected result:
 
 ```text
-static data validation passed
+static data validation passed for 2 site(s)
+```
+
+To validate a single site directly:
+
+```bash
+python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
 ```
 
 ## What the script verifies
 
-1. `GET /data/NWMIWS_Site_Data_testing_varied.csv` returns `200`.
-2. `GET /data/info.csv` returns `200`.
-3. `GET /data/locations.csv` returns `200`.
+1. For every configured site, `GET /data/NWMIWS_Site_Data_testing_varied.csv` returns `200`.
+2. For every configured site, `GET /data/info.csv` returns `200`.
+3. For every configured site, `GET /data/locations.csv` returns `200`.
 4. All three responses include `Content-Type: text/csv`.
 5. All three responses include the expected `Cache-Control` header.
 6. A request for a missing CSV returns `404`.

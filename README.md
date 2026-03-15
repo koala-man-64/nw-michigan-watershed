@@ -76,6 +76,12 @@ Use the static-data runbook after each deployment:
 Or run the helper directly:
 
 ```bash
+python scripts/validate_static_data.py
+```
+
+The script reads `STATIC_CUTOVER_VALIDATION_BASE_URLS` from `.env`, `.env.local`, or `api/.env` by default. To validate a single site explicitly:
+
+```bash
 python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
 ```
 
