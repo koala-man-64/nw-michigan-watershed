@@ -1,18 +1,17 @@
 @{
-  SubscriptionId = "<subscription-id>"
-  TenantId = "<tenant-id>"
-  ResourceGroupName = "<azure-resource-group>"
+  SubscriptionId = "eabd0bb1-8f36-4f27-ad86-8b33e02aaeb9"
+  TenantId = "355ae10d-1fc8-4e87-bb01-7822419d7c3b"
+  ResourceGroupName = "nwmiws-rg"
   Location = "eastus"
-  StaticWebAppName = "<existing-prod-static-web-app-name>"
-  StaticWebAppResourceGroupName = "<existing-prod-static-web-app-resource-group>"
-  ApplicationInsightsName = "<existing-prod-application-insights-name>"
-  ApplicationInsightsResourceGroupName = "<existing-prod-application-insights-resource-group>"
+  StaticWebAppName = "ambitious-coast-0a9902a1e"
+  StaticWebAppResourceGroupName = "nwmiws-rg"
+  ApplicationInsightsName = "appi-nwmiws-prod"
+  ApplicationInsightsResourceGroupName = "nwmiws-rg"
   AzureMapsAccountName = "nwmiws-prod-maps"
   ManagedIdentityName = "nwmiws-prod-maps-uami"
   AppRegistrationDisplayName = "nwmiws-azure-maps-prod"
   AllowedOrigins = @(
-    "https://<prod-static-web-app>.azurestaticapps.net"
-    "https://<custom-domain>"
+    "https://ambitious-coast-0a9902a1e.6.azurestaticapps.net"
   )
   SasTtlMinutes = 30
   SasMaxRps = 500

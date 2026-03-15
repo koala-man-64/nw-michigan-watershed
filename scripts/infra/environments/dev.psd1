@@ -1,18 +1,18 @@
 @{
-  SubscriptionId = "<subscription-id>"
-  TenantId = "<tenant-id>"
-  ResourceGroupName = "<azure-resource-group>"
+  SubscriptionId = "eabd0bb1-8f36-4f27-ad86-8b33e02aaeb9"
+  TenantId = "355ae10d-1fc8-4e87-bb01-7822419d7c3b"
+  ResourceGroupName = "nwmiws-rg"
   Location = "eastus"
-  StaticWebAppName = "<existing-dev-static-web-app-name>"
-  StaticWebAppResourceGroupName = "<existing-dev-static-web-app-resource-group>"
-  ApplicationInsightsName = "<existing-dev-application-insights-name>"
-  ApplicationInsightsResourceGroupName = "<existing-dev-application-insights-resource-group>"
+  StaticWebAppName = "nice-ocean-0f03a230f"
+  StaticWebAppResourceGroupName = "nwmiws-rg"
+  ApplicationInsightsName = "appi-nwmiws-dev"
+  ApplicationInsightsResourceGroupName = "nwmiws-rg"
   AzureMapsAccountName = "nwmiws-dev-maps"
   ManagedIdentityName = "nwmiws-dev-maps-uami"
   AppRegistrationDisplayName = "nwmiws-azure-maps-dev"
   AllowedOrigins = @(
     "http://localhost:4280"
-    "https://<dev-static-web-app>.azurestaticapps.net"
+    "https://nice-ocean-0f03a230f.6.azurestaticapps.net"
   )
   SasTtlMinutes = 30
   SasMaxRps = 500
