@@ -53,21 +53,21 @@
         "args": [
           "/d",
           "/c",
-          "call ${config:azureFunctions.pythonVenv}\\Scripts\\activate.bat && func host start --verbose"
+          "call start-local.cmd"
         ]
       },
       "linux": {
         "command": "bash",
         "args": [
           "-lc",
-          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --verbose"
+          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --port 9091 --verbose"
         ]
       },
       "osx": {
         "command": "bash",
         "args": [
           "-lc",
-          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --verbose"
+          ". ${config:azureFunctions.pythonVenv}/bin/activate && func host start --port 9091 --verbose"
         ]
       },
       "problemMatcher": "$func-python-watch",
@@ -86,7 +86,7 @@
       "label": "pip install (functions)",
       "type": "process",
       "osx": {
-        "command": "${config:azureFunctions.pythonVenv}/bin/python",
+        "command": "${workspaceFolder}/api/.venv/bin/python",
         "args": [
           "-m",
           "pip",
@@ -96,17 +96,15 @@
         ]
       },
       "windows": {
-        "command": "${config:azureFunctions.pythonVenv}\\Scripts\\python.exe",
+        "command": "cmd.exe",
         "args": [
-          "-m",
-          "pip",
-          "install",
-          "-r",
-          "requirements.txt"
+          "/d",
+          "/c",
+          "call install-local-deps.cmd"
         ]
       },
       "linux": {
-        "command": "${config:azureFunctions.pythonVenv}/bin/python",
+        "command": "${workspaceFolder}/api/.venv/bin/python",
         "args": [
           "-m",
           "pip",

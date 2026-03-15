@@ -1,4 +1,4 @@
-# function_app.py
+﻿# function_app.py
 # v2 Function App with:
 #   - hello       : simple greeting
 #   - read_csv    : get blob as CSV/JSON
@@ -27,7 +27,6 @@ import hashlib
 import io
 import json
 import logging
-import math
 import os
 import random
 import re
@@ -74,12 +73,6 @@ def _load_local_env_file() -> None:
 
 _load_local_env_file()
 
-# OpenAI (optional until dependency is installed)
-try:
-    from openai import OpenAI
-except Exception:
-    OpenAI = None
-
 # Optional extras
 try:
     import pandas as pd
@@ -104,59 +97,11 @@ try:
 except Exception:
     pymssql = None
 
-# ---------------------------
-# OpenAI helpers (chat-rudy)
-# ---------------------------
-_openai_lock = threading.Lock()
-_openai_client = None
-
-_rudy_prompt_lock = threading.Lock()
-_rudy_prompt_cached: Optional[str] = None
-
-_rudy_rag_lock = threading.Lock()
-_rudy_rag_chunks_cached: Optional[list[str]] = None
-_rudy_rag_embeddings_cached: Optional[list[Optional[list[float]]]] = None
-_rudy_rag_embeddings_disabled_until: float = 0.0
-
 _blob_service_client_lock = threading.Lock()
 _blob_service_client: Optional[BlobServiceClient] = None
 
 _read_csv_cache_lock = threading.Lock()
 _read_csv_cache: dict[tuple[str, str], dict] = {}
-
-
-def _openai() -> "OpenAI":
-    global _openai_client
-    if _openai_client is not None:
-        return _openai_client
-
-    if OpenAI is None:
-        raise RuntimeError("OpenAI SDK not installed. Add 'openai' to api/requirements.txt.")
-
-    api_key = _required_env("OPENAI_API_KEY")
-
-    with _openai_lock:
-        if _openai_client is None:
-            try:
-                max_retries = _env_int("OPENAI_MAX_RETRIES", 2)
-            except Exception:
-                max_retries = 2
-            _openai_client = OpenAI(api_key=api_key, max_retries=max_retries)
-    return _openai_client
-
-
-def _download_blob_text(container: str, blob_name: str) -> str:
-    data = (
-        _bsc()
-        .get_container_client(container)
-        .get_blob_client(blob_name)
-        .download_blob(max_concurrency=2)
-        .readall()
-    )
-    try:
-        return data.decode("utf-8")
-    except Exception:
-        return data.decode("utf-8", errors="ignore")
 
 
 def _env(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -177,214 +122,6 @@ def _env_int(name: str, default: int) -> int:
         return int(raw)
     except Exception:
         return default
-
-
-def _required_env(name: str) -> str:
-    value = _env(name)
-    if not value:
-        raise RuntimeError(f"Missing required env var: {name}")
-    return value
-
-
-def _rudy_system_prompt() -> str:
-    container = _required_env("CHAT_WITH_RUDY_CONTAINER")
-    blob_name = _required_env("CHAT_WITH_RUDY_PROMPT_BLOB")
-
-    global _rudy_prompt_cached
-    if _rudy_prompt_cached is not None:
-        return _rudy_prompt_cached
-
-    with _rudy_prompt_lock:
-        if _rudy_prompt_cached is None:
-            _rudy_prompt_cached = _download_blob_text(container, blob_name).strip()
-    return _rudy_prompt_cached or ""
-
-
-def _chunk_text(text: str, chunk_size: int = 1200, overlap: int = 150) -> list[str]:
-    t = " ".join(text.split())
-    if not t:
-        return []
-    chunks = []
-    start = 0
-    while start < len(t):
-        end = min(len(t), start + chunk_size)
-        chunks.append(t[start:end])
-        if end == len(t):
-            break
-        start = max(0, end - overlap)
-    return chunks
-
-
-def _split_rag_chunks(text: str, chunk_size: int, overlap: int) -> list[str]:
-    lines = text.splitlines()
-    preamble: list[str] = []
-    chunks: list[str] = []
-    current: list[str] = []
-    saw_chunk_marker = False
-
-    for line in lines:
-        if line.startswith("CHUNK:"):
-            if not saw_chunk_marker:
-                saw_chunk_marker = True
-                pre = "\n".join(preamble).strip()
-                if pre:
-                    chunks.append(pre)
-                preamble = []
-            if current:
-                chunks.append("\n".join(current).strip())
-                current = []
-        if saw_chunk_marker:
-            current.append(line)
-        else:
-            preamble.append(line)
-
-    if saw_chunk_marker and current:
-        chunks.append("\n".join(current).strip())
-
-    if not saw_chunk_marker:
-        chunks = _chunk_text(text, chunk_size=chunk_size, overlap=overlap)
-
-    out: list[str] = []
-    for c in chunks:
-        if not c:
-            continue
-        if len(c) > chunk_size * 2:
-            out.extend(_chunk_text(c, chunk_size=chunk_size, overlap=overlap))
-        else:
-            out.append(c)
-    return out
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    return dot / (na * nb + 1e-12)
-
-
-def _embed(texts: list[str]) -> list[list[float]]:
-    model = (_env("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small") or "text-embedding-3-small").strip()
-    batch_size = _env_int("OPENAI_EMBED_BATCH_SIZE", 64)
-    if batch_size < 1:
-        batch_size = 64
-
-    vectors: list[list[float]] = []
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        r = _openai().embeddings.create(model=model, input=batch)
-        vectors.extend([d.embedding for d in r.data])
-    return vectors
-
-
-def _is_openai_rate_limited(exc: Exception) -> bool:
-    status = getattr(exc, "status_code", None)
-    if status == 429:
-        return True
-    response = getattr(exc, "response", None)
-    if response is not None and getattr(response, "status_code", None) == 429:
-        return True
-    return "429" in str(exc) or "rate limit" in str(exc).lower() or "too many requests" in str(exc).lower()
-
-
-def _tokenize_for_rag(text: str) -> set[str]:
-    # Keep this tiny/fast; it's a fallback and a pre-filter.
-    words = re.findall(r"[a-z0-9]{2,}", (text or "").lower())
-    return set(words)
-
-
-def _lexical_prefilter(query: str, chunks: list[str], take: int) -> list[int]:
-    q = _tokenize_for_rag(query)
-    if not q:
-        return list(range(min(take, len(chunks))))
-    scored: list[tuple[int, int]] = []
-    for i, chunk in enumerate(chunks):
-        c = _tokenize_for_rag(chunk)
-        scored.append((len(q & c), i))
-    scored.sort(reverse=True)
-    return [i for _, i in scored[: min(take, len(scored))]]
-
-
-def _rudy_rag_load() -> tuple[list[str], list[Optional[list[float]]]]:
-    global _rudy_rag_chunks_cached, _rudy_rag_embeddings_cached
-
-    if _rudy_rag_chunks_cached is not None and _rudy_rag_embeddings_cached is not None:
-        return _rudy_rag_chunks_cached, _rudy_rag_embeddings_cached
-
-    with _rudy_rag_lock:
-        if _rudy_rag_chunks_cached is not None and _rudy_rag_embeddings_cached is not None:
-            return _rudy_rag_chunks_cached, _rudy_rag_embeddings_cached
-
-        container = _required_env("CHAT_WITH_RUDY_CONTAINER")
-        blob_name = _required_env("CHAT_WITH_RUDY_RAG_BLOB")
-        raw = _download_blob_text(container, blob_name)
-        chunk_size = _env_int("RUDY_RAG_CHUNK_SIZE", 1200)
-        overlap = _env_int("RUDY_RAG_CHUNK_OVERLAP", 150)
-        chunks = _split_rag_chunks(raw, chunk_size=chunk_size, overlap=overlap)
-        if not chunks:
-            raise RuntimeError("RAG source produced no chunks.")
-        _rudy_rag_chunks_cached = chunks
-        _rudy_rag_embeddings_cached = [None] * len(chunks)
-        return _rudy_rag_chunks_cached, _rudy_rag_embeddings_cached
-
-
-def _rudy_rag_retrieve(query: str) -> list[str]:
-    k = _env_int("RUDY_RAG_TOP_K", 6)
-    if k < 1:
-        k = 6
-
-    chunks, embeddings = _rudy_rag_load()
-
-    try:
-        prefilter_k = _env_int("RUDY_RAG_PREFILTER_K", 25)
-    except Exception:
-        prefilter_k = 25
-
-    candidate_idxs = _lexical_prefilter(query, chunks, take=max(k, prefilter_k))
-
-    global _rudy_rag_embeddings_disabled_until
-    if time.time() < _rudy_rag_embeddings_disabled_until:
-        return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
-
-    mode = (_env("RUDY_RAG_MODE", "embeddings") or "embeddings").strip().lower()  # embeddings | lexical
-    if mode == "lexical":
-        return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
-
-    try:
-        query_vec = _embed([query])[0]
-
-        missing_texts: list[str] = []
-        missing_idxs: list[int] = []
-        for idx in candidate_idxs:
-            if embeddings[idx] is None:
-                missing_idxs.append(idx)
-                missing_texts.append(chunks[idx])
-        if missing_texts:
-            new_vecs = _embed(missing_texts)
-            for idx, vec in zip(missing_idxs, new_vecs):
-                embeddings[idx] = vec
-
-        scored: list[tuple[float, int]] = []
-        for idx in candidate_idxs:
-            vec = embeddings[idx]
-            if vec is None:
-                continue
-            scored.append((_cosine(query_vec, vec), idx))
-        scored.sort(reverse=True)
-        top = scored[: min(k, len(scored))]
-        if top:
-            return [chunks[idx] for _, idx in top]
-    except Exception as e:
-        if _is_openai_rate_limited(e):
-            logging.info("RAG embeddings rate-limited; falling back to lexical retrieval.")
-            try:
-                cooldown = _env_int("RUDY_RAG_RATE_LIMIT_COOLDOWN_SEC", 60)
-            except Exception:
-                cooldown = 60
-            _rudy_rag_embeddings_disabled_until = time.time() + max(0, cooldown)
-        else:
-            logging.info("RAG retrieval failed; falling back to lexical retrieval.", exc_info=True)
-
-    return [chunks[i] for i in candidate_idxs[: min(k, len(candidate_idxs))]]
 
 # ---------------------------
 # CORS (restricted; SWA is usually same-origin)
@@ -846,84 +583,6 @@ def _connect_sql():
 # v2 FunctionApp + routes
 # ---------------------------
 app = func.FunctionApp()
-
-@app.function_name(name="chat_rudy")
-@app.route(route="chat-rudy", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
-def chat_rudy(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("chat_rudy: received request method=%s", req.method)
-    if req.method == "OPTIONS":
-        logging.info("chat_rudy: OPTIONS preflight")
-        return func.HttpResponse(status_code=204, headers=_cors_headers(req))
-
-    try:
-        req_body = req.get_json()
-    except ValueError:
-        req_body = {}
-
-    user_message = (req_body.get("message") or "").strip()
-    if not user_message:
-        logging.info("chat_rudy: missing/empty message")
-        return func.HttpResponse(
-            json.dumps({"ok": False, "error": "Provide a non-empty 'message'."}),
-            status_code=400,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-
-    try:
-        logging.info("chat_rudy: message_length=%s", len(user_message))
-        system_prompt = _rudy_system_prompt()
-        logging.info("chat_rudy: loaded system prompt length=%s", len(system_prompt))
-        top_chunks = _rudy_rag_retrieve(user_message)
-        logging.info("chat_rudy: rag_chunks=%s", len(top_chunks))
-        reference_block = "\n\n".join(
-            [f"[Excerpt {i+1}]\n{txt}" for i, txt in enumerate(top_chunks)]
-        )
-        user_input = (
-            f"INTERVIEWER_QUESTION: {user_message}\n\n"
-            f"RETRIEVED_CONTEXT:\n{reference_block}\n"
-        )
-        model = (_env("OPENAI_MODEL", "gpt-4o-mini") or "gpt-4o-mini").strip()
-        logging.info("chat_rudy: openai_model=%s", model)
-        resp = _openai().responses.create(
-            model=model,
-            instructions=system_prompt,
-            input=user_input,
-        )
-        reply = (getattr(resp, "output_text", "") or "").strip()
-        if not reply:
-            logging.info("chat_rudy: empty model response; using fallback message")
-            reply = "Sorry — I couldn’t generate a response right now."
-        logging.info("chat_rudy: reply_length=%s", len(reply))
-    except RuntimeError as e:
-        logging.info("chat_rudy: configuration error: %s", e, exc_info=True)
-        return func.HttpResponse(
-            json.dumps({"ok": False, "error": str(e)}),
-            status_code=500,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-    except Exception:
-        logging.info("chat_rudy: request failed", exc_info=True)
-        return func.HttpResponse(
-            json.dumps({"ok": False, "error": "Chat request failed."}),
-            status_code=502,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-
-    return func.HttpResponse(
-        json.dumps(
-            {
-                "ok": True,
-                "message": user_message,
-                "reply": reply,
-            }
-        ),
-        status_code=200,
-        mimetype="application/json",
-        headers=_cors_headers(req),
-    )
 
 @app.function_name(name="hello")
 @app.route(route="hello", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)

@@ -30,15 +30,31 @@ If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when sta
 
 ## Local development startup
 
-The React client proxies `/api/*` requests to `http://localhost:7071` via `client/package.json`. If nothing is listening on port `7071`, the browser shows `Proxy error ... ECONNREFUSED`.
+The React client proxies `/api/*` requests to `http://localhost:9091` via `client/package.json`. If nothing is listening on port `9091`, the browser shows `Proxy error ... ECONNREFUSED`.
+
+This repo expects a repo-local virtual environment at `api/.venv`. Azure Functions currently supports Python `3.14` in preview, but on Windows a bare `func host start` can still bypass repo-local dependencies. `3.10`, `3.12`, or `3.13` are the lower-risk choices; if you stay on `3.14`, use `api\\start-local.cmd` or the VS Code tasks.
 
 Use one of these local startup paths on Windows:
 
 - VS Code: run the `start full application` task defined in `.vscode/tasks.json`.
-- Manual API start: run `api\\start-local.cmd` from the repository root, or `cd api && call .venv\\Scripts\\activate.bat && func host start --verbose`.
+- Manual API start: run `api\\start-local.cmd` from the repository root. The script pins the Python worker to `api\\.venv\\Scripts\\python.exe`, enables `PYTHON_ISOLATE_WORKER_DEPENDENCIES=1`, and binds the local Functions host to port `9091`.
 - Manual client start: in a second terminal, run `cd client && npm start`.
 
-If `func start` reports that Python `3.14.x` is unsupported, the Functions host was launched outside `api\\.venv`. Activate `api\\.venv` first or use `api\\start-local.cmd`.
+The Windows dependency install task now populates both `api\\.venv` and `api\\.python_packages`. That helps Core Tools dependency resolution, but on Python `3.14` preview you should still prefer `api\\start-local.cmd` over a bare `func host start`.
+
+If `api\\.venv` does not exist yet, create it with a supported interpreter first:
+
+- `py -0p` to list installed Python versions
+- `cd api`
+- `py -3.14 -m venv .venv`
+- `.venv\\Scripts\\python.exe -m pip install -r requirements.txt`
+
+If `api\\.venv` already exists but was created with the wrong interpreter or has broken dependencies, delete and recreate it:
+
+- `cd api`
+- `rmdir /s /q .venv`
+- `py -3.14 -m venv .venv`
+- `.venv\\Scripts\\python.exe -m pip install -r requirements.txt`
 
 ## Available Scripts
 
