@@ -4,6 +4,22 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import App from "./App";
 
+jest.mock("react-router-dom", () => {
+  const React = require("react");
+
+  return {
+    BrowserRouter: ({ children }) => <>{children}</>,
+    Routes: ({ children }) => <>{children}</>,
+    Route: ({ element }) => element,
+    Navigate: () => null,
+    Link: ({ children, to = "/", ...props }) => (
+      <a href={to} {...props}>
+        {children}
+      </a>
+    ),
+  };
+}, { virtual: true });
+
 jest.mock("./FiltersPanel", () => {
   const React = require("react");
 

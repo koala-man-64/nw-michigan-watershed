@@ -3,7 +3,7 @@
     "name": "NW Michigan Watershed Coalition — Azure Functions API",
     "_postman_id": "f0a6b2d2-9e1a-44b3-8b3a-6d7c2a9b0b11",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Requests for `api/function_app.py` routes.\n\n- Local: set `baseUrl` to `localBaseUrl` (default)\n- Dev/Prod: set `baseUrl` to `devBaseUrl` / `prodBaseUrl`\n\nRoutes:\n- `GET|POST /api/hello`\n- `GET|POST /api/read-csv`\n- `POST /api/log-event`"
+    "description": "Requests for `api/function_app.py` routes.\n\n- Local: set `baseUrl` to `localBaseUrl` (default)\n- Dev/Prod: set `baseUrl` to `devBaseUrl` / `prodBaseUrl`\n\nRoutes:\n- `GET|POST /api/hello`\n- `GET|POST /api/read-csv`\n- `POST /api/log-event` (410 deprecation stub)"
   },
   "item": [
     {
@@ -30,11 +30,20 @@
       "name": "hello — POST JSON (200)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"name\": \"{{hello_name}}\"\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/api/hello"
       },
@@ -75,7 +84,12 @@
       "name": "read-csv — missing blob (400)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Accept", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
         "url": "{{baseUrl}}/api/read-csv?format=json"
       },
       "event": [
@@ -96,7 +110,12 @@
       "name": "read-csv — forbidden blob (403; no storage needed)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Accept", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
         "url": "{{baseUrl}}/api/read-csv?blob={{read_csv_forbidden_blob}}&format=json"
       },
       "event": [
@@ -117,7 +136,12 @@
       "name": "read-csv — allowlisted blob JSON (200; requires storage config)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Accept", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
         "url": "{{baseUrl}}/api/read-csv?blob={{read_csv_allowlisted_blob}}&format=json"
       },
       "event": [
@@ -144,47 +168,27 @@
       ]
     },
     {
-      "name": "log-event — unauthenticated (401; no SQL needed)",
+      "name": "log-event - deprecated (410)",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"eventType\": \"click\",\n  \"targetTag\": \"button\",\n  \"targetId\": \"sample\",\n  \"targetClasses\": \"btn\",\n  \"targetText\": \"\",\n  \"clientUrl\": \"{{log_event_client_url}}\"\n}",
-          "options": { "raw": { "language": "json" } }
-        },
-        "url": "{{baseUrl}}/api/log-event"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status is 401', function () { pm.response.to.have.status(401); });",
-              "const body = pm.response.json();",
-              "pm.test('Has error', function () { pm.expect(body).to.have.property('error'); });"
-            ]
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
           }
-        }
-      ]
-    },
-    {
-      "name": "log-event — authenticated (200/429/500; requires SQL + config)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json" },
-          { "key": "x-ms-client-principal", "value": "{{swaClientPrincipalB64}}" }
         ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"eventType\": \"click\",\n  \"targetTag\": \"button\",\n  \"targetId\": \"sample\",\n  \"targetClasses\": \"btn\",\n  \"targetText\": \"\",\n  \"clientUrl\": \"{{log_event_client_url}}\"\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/api/log-event"
       },
@@ -194,14 +198,11 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status is 200/429/500', function () { pm.expect([200, 429, 500]).to.include(pm.response.code); });",
-              "pm.test('JSON response', function () {",
-              "  const ct = (pm.response.headers.get('Content-Type') || '').toLowerCase();",
-              "  pm.expect(ct).to.include('application/json');",
-              "});",
+              "pm.test('Status is 410', function () { pm.response.to.have.status(410); });",
               "const body = pm.response.json();",
-              "pm.test('Has status or error', function () {",
-              "  pm.expect(body).to.satisfy(b => Object.prototype.hasOwnProperty.call(b, 'status') || Object.prototype.hasOwnProperty.call(b, 'error'));",
+              "pm.test('Has deprecation message', function () {",
+              "  pm.expect(body.error).to.eql('Endpoint removed');",
+              "  pm.expect(body.message).to.include('Application Insights');",
               "});"
             ]
           }
@@ -210,17 +211,37 @@
     }
   ],
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:9091" },
-    { "key": "localBaseUrl", "value": "http://localhost:9091" },
-    { "key": "devBaseUrl", "value": "https://<your-dev-function-app>.azurewebsites.net" },
-    { "key": "prodBaseUrl", "value": "https://<your-prod-function-app>.azurewebsites.net" },
-    { "key": "hello_name", "value": "World" },
-    { "key": "read_csv_forbidden_blob", "value": "not-allowed.csv" },
-    { "key": "read_csv_allowlisted_blob", "value": "locations.csv" },
-    { "key": "log_event_client_url", "value": "http://localhost:3000/" },
     {
-      "key": "swaClientPrincipalB64",
-      "value": "eyJpZGVudGl0eVByb3ZpZGVyIjoibG9jYWwiLCJ1c2VySWQiOiIwMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDAiLCJ1c2VyRGV0YWlscyI6ImxvY2FsIiwidXNlclJvbGVzIjpbImF1dGhlbnRpY2F0ZWQiXX0="
+      "key": "baseUrl",
+      "value": "http://localhost:9091"
+    },
+    {
+      "key": "localBaseUrl",
+      "value": "http://localhost:9091"
+    },
+    {
+      "key": "devBaseUrl",
+      "value": "https://<your-dev-function-app>.azurewebsites.net"
+    },
+    {
+      "key": "prodBaseUrl",
+      "value": "https://<your-prod-function-app>.azurewebsites.net"
+    },
+    {
+      "key": "hello_name",
+      "value": "World"
+    },
+    {
+      "key": "read_csv_forbidden_blob",
+      "value": "not-allowed.csv"
+    },
+    {
+      "key": "read_csv_allowlisted_blob",
+      "value": "locations.csv"
+    },
+    {
+      "key": "log_event_client_url",
+      "value": "http://localhost:3000/"
     }
   ]
 }

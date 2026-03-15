@@ -1,3 +1,5 @@
+import { trackEvent, trackException } from "./telemetry";
+
 const CSV_CACHE_PREFIX = "nwmiws:csv-cache:v1:";
 
 function cacheKeyFor(url) {
@@ -80,7 +82,10 @@ async function requestLatestText(url, cachedEntry) {
   }
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${url}`);
+    const error = new Error(`HTTP ${response.status} for ${url}`);
+    error.name = "ReadCsvHttpError";
+    error.status = response.status;
+    throw error;
   }
 
   const text = await response.text();
@@ -107,6 +112,14 @@ export async function fetchCachedCsvText(url, { onFreshText } = {}) {
       return latestText;
     })
     .catch((error) => {
+      const telemetryProperties = {
+        url,
+        cachedFallback: cachedEntry?.text != null,
+        status: error?.status,
+      };
+      trackEvent("read_csv_fetch_failed", telemetryProperties);
+      trackException(error, telemetryProperties);
+
       if (cachedEntry?.text != null) {
         console.warn(`Using cached CSV after fetch failed for ${url}`, error);
         return cachedEntry.text;

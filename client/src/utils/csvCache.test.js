@@ -1,6 +1,12 @@
 /* eslint-env jest */
+jest.mock("./telemetry", () => ({
+  trackEvent: jest.fn(),
+  trackException: jest.fn(),
+}));
+
 import { waitFor } from "@testing-library/react";
 import { fetchCachedCsvText, readCachedCsvText } from "./csvCache";
+import { trackEvent, trackException } from "./telemetry";
 
 function createResponse({ status = 200, text = "", headers = {} } = {}) {
   const normalizedHeaders = Object.fromEntries(
@@ -109,5 +115,13 @@ describe("fetchCachedCsvText", () => {
       "Site,Latitude\nDuck Lake,44.1"
     );
     await waitFor(() => expect(console.warn).toHaveBeenCalled());
+    expect(trackEvent).toHaveBeenCalledWith(
+      "read_csv_fetch_failed",
+      expect.objectContaining({
+        url,
+        cachedFallback: true,
+      })
+    );
+    expect(trackException).toHaveBeenCalled();
   });
 });

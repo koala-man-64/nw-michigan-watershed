@@ -2,13 +2,7 @@
 # v2 Function App with:
 #   - hello       : simple greeting
 #   - read_csv    : get blob as CSV/JSON
-#   - log_event   : write UI events to SQL Server (SWA-auth required)
-#
-# SQL env:
-#   - Preferred: SQL_CONNECTION_STRING = "Server=tcp:...,...;Database=...;User ID=...;Password=...;"
-#   - Or discrete vars: SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, [optional] SQL_PORT=1433
-#   - Driver choice:
-#       SQL_DRIVER=pymssql (default; pure-Python) or SQL_DRIVER=pyodbc (requires ODBC driver present in the host)
+#   - log_event   : temporary deprecation stub returning 410 Gone
 #
 # Storage env for read_csv (pick one auth path):
 #   - BLOB_CONN  (connection string), or
@@ -20,7 +14,6 @@
 #       READ_CSV_BROWSER_CACHE_MAX_AGE_SEC=3600
 #       READ_CSV_BROWSER_CACHE_SWR_SEC=86400
 
-import base64
 import csv
 import datetime
 import hashlib
@@ -28,7 +21,6 @@ import io
 import json
 import logging
 import os
-import random
 import re
 import threading
 import time
@@ -86,16 +78,6 @@ try:
     import debugpy
 except Exception:
     debugpy = None
-
-# Attempt drivers
-try:
-    import pyodbc  # preferred
-except Exception:
-    pyodbc = None
-try:
-    import pymssql  # fallback
-except Exception:
-    pymssql = None
 
 _blob_service_client_lock = threading.Lock()
 _blob_service_client: Optional[BlobServiceClient] = None
@@ -247,93 +229,6 @@ def _params(req: func.HttpRequest) -> dict:
         "blob":      pick("blob", "BLOB_NAME"),
         "format":   (pick("format") or "csv").lower(),  # csv | json
     }
-
-def _get_swa_principal(req: func.HttpRequest) -> Optional[dict]:
-    b64 = req.headers.get("x-ms-client-principal")
-    if not b64:
-        return None
-    try:
-        decoded = base64.b64decode(b64).decode("utf-8")
-        data = json.loads(decoded)
-        return data if isinstance(data, dict) else None
-    except Exception:
-        return None
-
-def _require_swa_role(req: func.HttpRequest, required_role: str) -> bool:
-    principal = _get_swa_principal(req)
-    if not principal:
-        return False
-    roles = principal.get("userRoles") or []
-    return required_role in roles
-
-def _truncate(value: str, max_len: int) -> str:
-    s = value or ""
-    return s if len(s) <= max_len else s[:max_len]
-
-_rate_lock = threading.Lock()
-_rate_state: dict[str, list[float]] = {}
-
-def _get_client_ip(req: func.HttpRequest) -> str:
-    xff = req.headers.get("x-forwarded-for") or req.headers.get("X-Forwarded-For")
-    if xff:
-        return xff.split(",")[0].strip()
-    for header in ("x-azure-clientip", "X-Azure-ClientIP", "client-ip", "Client-IP"):
-        v = req.headers.get(header)
-        if v:
-            return v.strip()
-    return ""
-
-def _ip_for_storage(raw_ip: str) -> str:
-    mode = os.getenv("LOG_EVENT_IP_MODE", "raw").strip().lower()  # raw | hash | none
-    if mode == "none":
-        return ""
-    ip = raw_ip or ""
-    if mode == "hash":
-        import hashlib
-        return hashlib.sha256(ip.encode("utf-8")).hexdigest()
-    return ip
-
-def _should_sample() -> bool:
-    raw = os.getenv("LOG_EVENT_SAMPLE_RATE", "1.0").strip()
-    try:
-        rate = float(raw)
-    except Exception:
-        rate = 1.0
-    if rate >= 1.0:
-        return True
-    if rate <= 0.0:
-        return False
-    return random.random() < rate
-
-def _rate_limit_key(req: func.HttpRequest) -> str:
-    principal = _get_swa_principal(req) or {}
-    return (
-        principal.get("userId")
-        or principal.get("userDetails")
-        or _get_client_ip(req)
-        or "unknown"
-    )
-
-def _is_rate_limited(req: func.HttpRequest) -> bool:
-    try:
-        max_events = _env_int("LOG_EVENT_RATE_LIMIT_MAX", 60)
-        window_sec = _env_int("LOG_EVENT_RATE_LIMIT_WINDOW_SEC", 60)
-    except Exception:
-        max_events, window_sec = 60, 60
-    if max_events <= 0 or window_sec <= 0:
-        return False
-    now = time.time()
-    key = _rate_limit_key(req)
-    with _rate_lock:
-        timestamps = _rate_state.get(key, [])
-        cutoff = now - window_sec
-        timestamps = [t for t in timestamps if t >= cutoff]
-        if len(timestamps) >= max_events:
-            _rate_state[key] = timestamps
-            return True
-        timestamps.append(now)
-        _rate_state[key] = timestamps
-        return False
 
 def _csv_to_rows(data: bytes):
     if pd is not None:
@@ -513,76 +408,13 @@ def _read_csv_rows(entry: dict):
     return rows
 
 # ---------------------------
-# SQL helpers
-# ---------------------------
-def _parse_kv_conn_string(conn_str: str) -> dict:
-    items: dict[str, str] = {}
-    for part in (conn_str or "").split(";"):
-        if not part.strip() or "=" not in part:
-            continue
-        k, v = part.split("=", 1)
-        items[k.strip().lower()] = v.strip()
-    return items
-
-def _sql_from_env() -> dict:
-    """
-    Supports:
-    - SQL_CONNECTION_STRING (preferred; ADO-style key/value string)
-    - Discrete env vars: SQL_SERVER, SQL_DATABASE, SQL_USERNAME, SQL_PASSWORD, [SQL_PORT]
-    """
-    conn = (_env("SQL_CONNECTION_STRING") or "").strip()
-    if conn:
-        kv = _parse_kv_conn_string(conn)
-        server_raw = kv.get("server") or kv.get("data source") or kv.get("address") or kv.get("addr") or kv.get("network address")
-        database = kv.get("database") or kv.get("initial catalog")
-        user = kv.get("user id") or kv.get("uid") or kv.get("user")
-        password = kv.get("password") or kv.get("pwd")
-        if not (server_raw and database and user and password):
-            raise RuntimeError("SQL_CONNECTION_STRING missing required keys (server, database, user id, password).")
-        server_raw = server_raw.replace("tcp:", "")
-        if "," in server_raw:
-            server, port_str = server_raw.split(",", 1)
-            port = int(port_str)
-        else:
-            server, port = server_raw, _env_int("SQL_PORT", 1433)
-        return {"server": server, "database": database, "user": user, "password": password, "port": port}
-
-    server = _env("SQL_SERVER")
-    database = _env("SQL_DATABASE")
-    user = _env("SQL_USERNAME")
-    password = _env("SQL_PASSWORD")
-    port = _env_int("SQL_PORT", 1433)
-    missing = [k for k, v in {"SQL_SERVER": server, "SQL_DATABASE": database, "SQL_USERNAME": user, "SQL_PASSWORD": password}.items() if not v]
-    if missing:
-        raise RuntimeError(f"Missing required SQL env vars: {', '.join(missing)}")
-    return {"server": server.replace("tcp:", ""), "database": database, "user": user, "password": password, "port": port}
-
-
-def _connect_sql():
-    choice = (_env("SQL_DRIVER", "pymssql") or "pymssql").lower()
-    if choice == "pymssql":
-        if pymssql is None:
-            raise RuntimeError("SQL_DRIVER=pymssql but pymssql is not installed.")
-        params = _sql_from_env()
-        return pymssql.connect(
-            server=params["server"],
-            user=params["user"],
-            password=params["password"],
-            database=params["database"],
-            port=params["port"],
-        )
-    # default: pyodbc
-    if pyodbc is None:
-        raise RuntimeError("pyodbc is not installed and SQL_DRIVER is not set to 'pymssql'.")
-    conn_str = _env("SQLSERVER_CONNSTR") or _env("SQL_CONNECTION_STRING")
-    if not conn_str:
-        raise RuntimeError("Set SQLSERVER_CONNSTR (ODBC) or SQL_CONNECTION_STRING.")
-    return pyodbc.connect(conn_str)
-
-# ---------------------------
 # v2 FunctionApp + routes
 # ---------------------------
 app = func.FunctionApp()
+LOG_EVENT_DEPRECATION_MESSAGE = (
+    "The /api/log-event endpoint has been retired. "
+    "Use client-side Application Insights telemetry instead."
+)
 
 @app.function_name(name="hello")
 @app.route(route="hello", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
@@ -661,82 +493,32 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="log_event")
 @app.route(route="log-event", methods=["POST", "OPTIONS"], auth_level=func.AuthLevel.ANONYMOUS)
 def log_event(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Received a log event request.")
     if req.method == "OPTIONS":
         return func.HttpResponse(status_code=204, headers=_cors_headers(req))
 
-    if os.getenv("LOG_EVENT_ENABLED", "1").strip() != "1":
-        return func.HttpResponse(
-            json.dumps({"status": "disabled"}),
-            status_code=200,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-
-    required_role = os.getenv("LOG_EVENT_REQUIRED_ROLE", "authenticated")
-    if not _require_swa_role(req, required_role):
-        return func.HttpResponse(
-            json.dumps({"error": "Authentication required"}),
-            status_code=401,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
+    client_url = ""
     try:
         req_body = req.get_json()
     except ValueError:
-        return func.HttpResponse(json.dumps({"error": "Invalid JSON"}), status_code=400, mimetype="application/json", headers=_cors_headers(req))
+        req_body = {}
 
-    if _is_rate_limited(req):
-        return func.HttpResponse(
-            json.dumps({"error": "Too many requests"}),
-            status_code=429,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
+    if isinstance(req_body, dict):
+        client_url = str(req_body.get("clientUrl") or "").strip()[:255]
 
-    if not _should_sample():
-        return func.HttpResponse(
-            json.dumps({"status": "sampled_out"}),
-            status_code=200,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-
-    eventType     = _truncate((req_body.get("eventType")     or "").strip(), 50)
-    targetTag     = _truncate((req_body.get("targetTag")     or "").strip(), 50)
-    targetId      = _truncate((req_body.get("targetId")      or "").strip(), 100)
-    targetClasses = _truncate((req_body.get("targetClasses") or "").strip(), 255)
-    capture_text  = os.getenv("LOG_EVENT_CAPTURE_TEXT", "0").strip() == "1"
-    targetText    = _truncate((req_body.get("targetText")    or "").strip(), 255) if capture_text else ""
-    clientIp      = _truncate(_ip_for_storage(_get_client_ip(req)), 255)
-    clientUrl     = _truncate((req_body.get("clientUrl")     or "").strip(), 255)
-    timestamp     = datetime.datetime.utcnow()
-
-    if not eventType or not targetTag:
-        return func.HttpResponse(
-            json.dumps({"error": "Missing required fields: eventType, targetTag"}),
-            status_code=400,
-            mimetype="application/json",
-            headers=_cors_headers(req),
-        )
-
-    try:
-        driver_choice = os.getenv("SQL_DRIVER", "pymssql").lower()
-        conn = _connect_sql()
-        cursor = conn.cursor()
-        insert_sql = (
-            "INSERT INTO dbo.LogEvent (EventType,TargetTag,TargetID,TargetClasses,TargetText,ClientIp,ClientUrl,Timestamp) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            if driver_choice != "pymssql" else
-            "INSERT INTO dbo.LogEvent (EventType,TargetTag,TargetID,TargetClasses,TargetText,ClientIp,ClientUrl,Timestamp) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        )
-        cursor.execute(insert_sql, (eventType, targetTag, targetId, targetClasses, targetText, clientIp, clientUrl, timestamp))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception:
-        logging.info("Error inserting log data into SQL", exc_info=True)
-        return func.HttpResponse(json.dumps({"error": "Internal server error"}), status_code=500, mimetype="application/json", headers=_cors_headers(req))
-
-    return func.HttpResponse(json.dumps({"status": "ok", "message": "Log data received and inserted."}), status_code=200, mimetype="application/json", headers=_cors_headers(req))
+    logging.warning(
+        "log_event_deprecated_call: origin=%r referer=%r client_url=%r",
+        req.headers.get("Origin"),
+        req.headers.get("Referer"),
+        client_url,
+    )
+    return func.HttpResponse(
+        json.dumps(
+            {
+                "error": "Endpoint removed",
+                "message": LOG_EVENT_DEPRECATION_MESSAGE,
+            }
+        ),
+        status_code=410,
+        mimetype="application/json",
+        headers=_cors_headers(req),
+    )

@@ -1,12 +1,12 @@
 # Do not include azure-functions-worker in this file
 # The Python Worker is managed by the Azure Functions platform
 # Manually managing azure-functions-worker may cause unexpected issues
+# azure-functions-runtime is only for Python 3.13+ runtime selection and
+# breaks Oryx installs on the 3.11 build image used by this app today.
 
 azure-functions
-azure-functions-runtime
 azure-storage-blob
 azure-core
 azure-identity
-pymssql
 PyJWT==2.6.0
 debugpy

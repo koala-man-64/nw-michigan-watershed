@@ -20,6 +20,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
 import { getNoDataMessage } from "./utils/plotEmptyState";
+import { trackEvent } from "./utils/telemetry";
 
 // ---------------- Chart.js registration stays for non-boxplot cases -------------
 Chart.register(
@@ -1433,6 +1434,14 @@ function Plots({ plotConfigs = [], setPlotConfigs, rawData = [], loading = false
         (startYear == null || yearNum >= startYear) &&
         (endYear == null || yearNum <= endYear)
       );
+    });
+    trackEvent("data_downloaded", {
+      parameter,
+      chartType,
+      selectedSiteCount: selectedSites.length,
+      rowCount: rows.length,
+      startYear,
+      endYear,
     });
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

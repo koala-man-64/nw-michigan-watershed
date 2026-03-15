@@ -1,8 +1,22 @@
 /* eslint-env jest */
+/* eslint-disable react/prop-types */
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Header from "./Header";
+
+jest.mock("react-router-dom", () => {
+  const React = require("react");
+
+  return {
+    MemoryRouter: ({ children }) => <>{children}</>,
+    Link: ({ children, to = "/", ...props }) => (
+      <a href={to} {...props}>
+        {children}
+      </a>
+    ),
+  };
+}, { virtual: true });
 
 describe("Header", () => {
   it("opens and closes the audio placeholder dialog", () => {

@@ -20,7 +20,7 @@ jobs:
           submodules: true
           lfs: false
 
-      # Note: runtime secrets for the API (e.g., SQL_CONNECTION_STRING, STORAGE_ACCOUNT_URL)
+      # Note: runtime secrets for the API (e.g., STORAGE_ACCOUNT_URL, APPLICATIONINSIGHTS_CONNECTION_STRING)
       # must be configured in Azure Static Web Apps configuration, not exported here.
 
       - name: Set up Node.js
@@ -36,6 +36,8 @@ jobs:
 
       - name: Build Client App
         working-directory: ./client
+        env:
+          REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV }}
         run: npm run build
 
       - name: Build And Deploy

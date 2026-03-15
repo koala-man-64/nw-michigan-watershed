@@ -12,4 +12,3 @@ dependencies:
       - azure-identity
       - azure-core
       - debugpy
-      - pymssql

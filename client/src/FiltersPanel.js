@@ -4,6 +4,7 @@ import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
 import { fetchCachedCsvText } from "./utils/csvCache";
+import { trackEvent } from "./utils/telemetry";
 
 function apiCsvUrl(blobName) {
   const blob = encodeURIComponent(blobName);
@@ -199,6 +200,11 @@ function FiltersPanel({
   const handleSitesChange = (updated) => {
     setFilters((prev) => ({ ...prev, selectedSites: updated }));
     onFiltersChange({ selectedSites: updated });
+    trackEvent("site_selected", {
+      selectedSiteCount: updated.length,
+      chartType: filters.chartType,
+      parameter: filters.parameter || "unselected",
+    });
   };
 
   const handleStartYearChange = (e) => {
@@ -232,6 +238,17 @@ function FiltersPanel({
   };
 
   const disabledHint = "Click Continue in the welcome panel to enable plotting.";
+
+  const trackPlotUpdate = (slot) => {
+    trackEvent("plot_updated", {
+      slot,
+      chartType: filters.chartType,
+      parameter: filters.parameter || "unselected",
+      selectedSiteCount: filters.selectedSites.length,
+      startYear: filters.startYear,
+      endYear: filters.endYear,
+    });
+  };
 
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
@@ -332,7 +349,10 @@ function FiltersPanel({
           <button
             type="button"
             className="reset-btn"
-            onClick={() => onUpdatePlot1(filters)}
+            onClick={() => {
+              trackPlotUpdate("plot1");
+              onUpdatePlot1(filters);
+            }}
             disabled={!updateEnabled}
             title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
           >
@@ -342,7 +362,10 @@ function FiltersPanel({
           <button
             type="button"
             className="reset-btn"
-            onClick={() => onUpdatePlot2(filters)}
+            onClick={() => {
+              trackPlotUpdate("plot2");
+              onUpdatePlot2(filters);
+            }}
             disabled={!updateEnabled}
             title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
           >

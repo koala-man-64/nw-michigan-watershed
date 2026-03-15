@@ -6,18 +6,26 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 GitHub Actions build steps do not configure runtime environment variables for your deployed API. Configure these in Azure Static Web Apps (Configuration / Application settings) for the `api/` Functions:
 
-- `SQL_CONNECTION_STRING` (required for `log-event`)
-- `SQL_DRIVER` (optional; defaults to `pymssql`)
 - `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
 - `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
 - `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
 - `READ_CSV_MEMORY_CACHE_TTL_SEC` (optional; function-instance in-memory blob cache, defaults to `300`)
 - `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC` (optional; `Cache-Control: max-age`, defaults to `3600`)
 - `READ_CSV_BROWSER_CACHE_SWR_SEC` (optional; `stale-while-revalidate` window, defaults to `86400`)
-- `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
-- `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` (optional but recommended for Functions-side request/dependency/error telemetry)
+
+The client-side telemetry hook is build-time configuration, not runtime configuration. The React bundle reads:
+
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING`
+
+The included GitHub Actions workflows map that variable from these repository secrets during `npm run build`:
+
+- Dev: `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
+- Prod: `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
 
 The client now persists CSV responses in `localStorage` and revalidates them with `ETag` headers in the background, so repeat app loads can render cached data immediately without redownloading unchanged blobs.
+
+`POST /api/log-event` no longer writes to SQL Server. During the deprecation window it returns `410 Gone` and logs a warning to Application Insights so unknown callers can be identified before the route is removed entirely.
 
 For production validation of the `read-csv` endpoint after deployment, use [the prod `read-csv` validation runbook](docs/runbooks/prod-read-csv-validation.md).
 
@@ -77,6 +85,8 @@ See the section about [running tests](https://facebook.github.io/create-react-ap
 
 Builds the app for production to the `build` folder.\
 It correctly bundles React in production mode and optimizes the build for the best performance.
+
+If you want browser telemetry in the built SPA, set `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING` in the shell before running the build.
 
 The build is minified and the filenames include the hashes.\
 Your app is ready to be deployed!
