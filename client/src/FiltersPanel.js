@@ -11,7 +11,7 @@ import { trackEvent } from "./utils/telemetry";
  * FiltersPanel
  * - Manages local UI state for filters
  * - Notifies parent via onFiltersChange from user actions
- * - Loads CSV(s) through the cached API path and shares parsed data up via onDataLoaded
+ * - Loads static CSV assets through the cached fetch path and shares parsed data up via onDataLoaded
  */
 function FiltersPanel({
   selectedSites = [],

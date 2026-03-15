@@ -11,6 +11,12 @@ client/build/
 # ==================================================
 **/__pycache__/
 **/client/build/
+**/.python_packages/
+**/.venv/
+**/venv/
+**/env/
+api/local.settings.json
+api/.codex-func*.log
 # ==================================================
 # Configuration & Environment
 # ==================================================

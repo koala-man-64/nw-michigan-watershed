@@ -3,20 +3,15 @@ import markerSelected from "../assets/map-marker-green.svg";
 
 const env =
   typeof globalThis !== "undefined" && globalThis.process ? globalThis.process.env : {};
+const STATIC_DATA_BASE_PATH = "/data";
 
 function parsePositiveInt(value, fallback) {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
-
-function normalizeBaseUrl(value) {
-  return String(value || "").trim().replace(/\/+$/, "");
-}
-
-export const PUBLIC_DATA_BASE_URL = normalizeBaseUrl(env.REACT_APP_PUBLIC_DATA_BASE_URL);
 export const DEFAULT_DATA_REVALIDATE_AFTER_MS = parsePositiveInt(
   env.REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS,
-  3600000
+  86400000
 );
 
 export const DATA_BLOBS = Object.freeze({
@@ -30,19 +25,6 @@ export const MAP_MARKER_ASSETS = Object.freeze({
   selected: markerSelected,
 });
 
-export function buildReadCsvUrl(blobName, format = "csv") {
-  const search = new URLSearchParams({
-    blob: String(blobName),
-    format,
-  });
-
-  return `/api/read-csv?${search.toString()}`;
-}
-
-export function buildDataUrl(blobName, format = "csv") {
-  if (PUBLIC_DATA_BASE_URL && String(format).toLowerCase() === "csv") {
-    return `${PUBLIC_DATA_BASE_URL}/${encodeURIComponent(String(blobName))}`;
-  }
-
-  return buildReadCsvUrl(blobName, format);
+export function buildDataUrl(blobName) {
+  return `${STATIC_DATA_BASE_PATH}/${encodeURIComponent(String(blobName))}`;
 }

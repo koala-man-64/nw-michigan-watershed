@@ -1,62 +1,37 @@
 # NW Michigan Water Quality Database
 
-React SPA and Azure Functions application for browsing, charting, and downloading northern Michigan water quality data stored in Azure Blob Storage.
+React single-page application for browsing, charting, and downloading northern Michigan water quality data. The deployed app ships its CSV datasets as static assets under `client/public/data/` and runs entirely on Azure Static Web Apps.
 
 ## Repository layout
 
-- `client/` React application, telemetry bootstrap, and static hosting container config
-- `api/` Azure Functions API that serves allowlisted CSV blobs as CSV or JSON
-- `data/` source data and calculation notes
-- `docs/runbooks/` operational validation runbooks
-- `scripts/` local and deployment verification helpers
+- `client/` React application, static datasets, telemetry bootstrap, and Static Web Apps config
+- `data/` non-runtime source reference material
+- `docs/runbooks/` release validation and cleanup instructions
+- `scripts/` deployment verification helpers
 
 ## Runtime configuration
 
-Configure these Azure Static Web Apps application settings for the Functions app:
-
-- `STORAGE_ACCOUNT_URL` plus Managed Identity, or `BLOB_CONN`
-- `PUBLIC_BLOB_CONTAINER` and `PUBLIC_BLOBS`
-- `READ_CSV_MEMORY_CACHE_TTL_SEC` (recommended `900`)
-- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC`
-- `READ_CSV_BROWSER_CACHE_SWR_SEC`
-- `APPLICATIONINSIGHTS_CONNECTION_STRING`
-
-The React build reads these build-time variables:
+The React build reads these variables:
 
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING`
-- `REACT_APP_PUBLIC_DATA_BASE_URL`
-- `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` (optional, defaults to `3600000`)
+- `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` optional, defaults to `86400000`
 
-The included GitHub Actions workflows map these from repository secrets:
+The included GitHub Actions workflows map the Application Insights value from repository secrets:
 
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
-- `REACT_APP_PUBLIC_DATA_BASE_URL_DEV`
-- `REACT_APP_PUBLIC_DATA_BASE_URL_PROD`
+
+## Static data
+
+The deployed application reads these tracked files directly:
+
+- `client/public/data/NWMIWS_Site_Data_testing_varied.csv`
+- `client/public/data/info.csv`
+- `client/public/data/locations.csv`
+
+To refresh data, replace those files and redeploy the client. The workbook in `data/` is reference material only and is not used at runtime.
 
 ## Local development
-
-This repo currently targets the stable Azure Functions `python-3.9` runtime in `api/runtime.txt`.
-
-### API
-
-```powershell
-cd api
-py -3.9 -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item local.settings.example.json local.settings.json
-start-local.cmd
-```
-
-`start-local.cmd` now pins the Functions host to port `9091` and enables `PYTHON_ISOLATE_WORKER_DEPENDENCIES=1`, which matches the React dev proxy and keeps the worker on the repo-local environment.
-
-Update `api\local.settings.json` with either:
-
-- `BLOB_CONN`, or
-- `STORAGE_ACCOUNT_URL` plus managed identity access in Azure, or
-- `AzureWebJobsStorage=UseDevelopmentStorage=true` when running Azurite locally
-
-### Client
 
 ```powershell
 cd client
@@ -74,10 +49,7 @@ Run these locally before pushing changes:
 cd client
 npm run lint
 npm test -- --watchAll=false
-
-cd ..\api
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m unittest discover -s tests -v
+npm run build
 ```
 
 ## CI/CD
@@ -92,42 +64,34 @@ Each workflow now runs:
 - client dependency install
 - client lint
 - client unit tests
-- API dependency install
-- API unit tests
 - client production build
 - Azure Static Web Apps deploy
 
-## Infrastructure provisioning
-
-Blob CORS/public-access settings and cache-control rollout are scriptable from this repo:
-
-```powershell
-# Deploy storage CORS + container public access via Bicep params
-.\scripts\apply_storage_data_path.ps1 -ResourceGroupName <rg> -Environment dev
-.\scripts\apply_storage_data_path.ps1 -ResourceGroupName <rg> -Environment prod
-
-# Apply blob content/cache headers to active CSV files
-.\scripts\set_blob_cache_headers.ps1 -StorageAccountName <storage-account>
-
-# Apply SWA Functions runtime app settings
-.\scripts\set_swa_function_settings.ps1 -ResourceGroupName <rg> -StaticWebAppName <swa-name>
-```
-
-Parameter file templates are in:
-
-- `infra/dev.bicepparam`
-- `infra/prod.bicepparam`
-
 ## Production validation
 
-Use both runbooks during the bridge release:
+Use the static-data runbook after each deployment:
 
-- `docs/runbooks/prod-read-csv-validation.md`
-- `docs/runbooks/prod-public-data-validation.md`
+- `docs/runbooks/prod-static-data-validation.md`
 
-Or run helpers directly:
+Or run the helper directly:
 
 ```bash
-python scripts/validate_read_csv.py --base-url https://<app>.azurestaticapps.net
-python scripts/validate_public_blob.py --blob-base-url https://<storage-account>.blob.core.windows.net/nwmiws
+python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
 ```
+
+## Azure cleanup checklist
+
+After the static-data release is validated:
+
+1. Remove dedicated Blob Storage resources for the old data path.
+2. Remove Azure Static Web Apps app settings tied to the deleted backend path:
+   - `STORAGE_ACCOUNT_URL`
+   - `BLOB_CONN`
+   - `PUBLIC_BLOB_CONTAINER`
+   - `PUBLIC_BLOBS`
+   - `READ_CSV_MEMORY_CACHE_TTL_SEC`
+   - `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC`
+   - `READ_CSV_BROWSER_CACHE_SWR_SEC`
+3. Remove repository secrets that used to provide Blob base URLs:
+   - `REACT_APP_PUBLIC_DATA_BASE_URL_DEV`
+   - `REACT_APP_PUBLIC_DATA_BASE_URL_PROD`

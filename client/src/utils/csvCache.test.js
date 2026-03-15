@@ -1,12 +1,11 @@
 /* eslint-env jest */
 jest.mock("./telemetry", () => ({
-  trackEvent: jest.fn(),
   trackException: jest.fn(),
 }));
 
 import { waitFor } from "@testing-library/react";
 import { fetchCachedCsvText, readCachedCsvText } from "./csvCache";
-import { trackEvent, trackException } from "./telemetry";
+import { trackException } from "./telemetry";
 
 function createResponse({ status = 200, text = "", headers = {} } = {}) {
   const normalizedHeaders = Object.fromEntries(
@@ -24,7 +23,7 @@ function createResponse({ status = 200, text = "", headers = {} } = {}) {
 }
 
 describe("fetchCachedCsvText", () => {
-  const url = "/api/read-csv?blob=locations.csv&format=csv";
+  const url = "/data/locations.csv";
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -71,7 +70,7 @@ describe("fetchCachedCsvText", () => {
     );
   });
 
-  it("returns cached text immediately and publishes refreshed text when the blob changes", async () => {
+  it("returns cached text immediately and publishes refreshed text when the file changes", async () => {
     window.fetch.mockResolvedValueOnce(
       createResponse({
         status: 200,
@@ -116,17 +115,16 @@ describe("fetchCachedCsvText", () => {
       "Site,Latitude\nDuck Lake,44.1"
     );
     await waitFor(() => expect(console.warn).toHaveBeenCalled());
-    expect(trackEvent).toHaveBeenCalledWith(
-      "read_csv_fetch_failed",
+    expect(trackException).toHaveBeenCalledWith(
+      expect.any(Error),
       expect.objectContaining({
         url,
-        dataSource: "api",
+        dataSource: "static",
         blobName: "locations.csv",
         cacheHit: true,
         cachedFallback: true,
       })
     );
-    expect(trackException).toHaveBeenCalled();
   });
 
   it("returns fresh cached text without revalidating", async () => {
@@ -146,18 +144,16 @@ describe("fetchCachedCsvText", () => {
     expect(window.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("emits blob telemetry properties on direct-blob failures", async () => {
-    const blobUrl =
-      "https://example.blob.core.windows.net/nwmiws/locations.csv";
+  it("emits static data telemetry properties on failures", async () => {
     window.fetch.mockRejectedValueOnce(new Error("network down"));
 
-    await expect(fetchCachedCsvText(blobUrl)).rejects.toThrow("network down");
+    await expect(fetchCachedCsvText(url)).rejects.toThrow("network down");
 
-    expect(trackEvent).toHaveBeenCalledWith(
-      "read_csv_fetch_failed",
+    expect(trackException).toHaveBeenCalledWith(
+      expect.any(Error),
       expect.objectContaining({
-        url: blobUrl,
-        dataSource: "blob",
+        url,
+        dataSource: "static",
         blobName: "locations.csv",
         cacheHit: false,
         cachedFallback: false,

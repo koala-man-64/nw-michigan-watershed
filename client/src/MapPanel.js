@@ -68,7 +68,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     };
   }, []);
 
-  // Fetch locations once
+  // Fetch locations once from the shipped static dataset
   useEffect(() => {
     const url = buildDataUrl(DATA_BLOBS.locations);
     let cancelled = false;

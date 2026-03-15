@@ -1,20 +1,5 @@
 {
-    "azureFunctions.deploySubpath": "api",
-    "azureFunctions.scmDoBuildDuringDeployment": true,
-    "azureFunctions.pythonVenv": "api/.venv",
-    "azureFunctions.projectLanguage": "Python",
-    "azureFunctions.projectRuntime": "~4",
     "debug.internalConsoleOptions": "neverOpen",
-    "azureFunctions.projectLanguageModel": 2,
-    "python.testing.unittestArgs": [
-        "-v",
-        "-s",
-        "api/tests",
-        "-p",
-        "test_*.py"
-    ],
-    "python.testing.unittestEnabled": true,
-    "python.testing.pytestEnabled": false,
     "jest.rootPath": "client",
     "jest.jestCommandLine": "npm test --",
     "jest.runMode": "on-demand"

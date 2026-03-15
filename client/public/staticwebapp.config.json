@@ -1,0 +1,26 @@
+{
+  "routes": [
+    {
+      "route": "/data/*",
+      "headers": {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800"
+      }
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/data/*",
+      "/static/*",
+      "/*.css",
+      "/*.js",
+      "/*.ico",
+      "/*.png",
+      "/*.jpg",
+      "/*.svg",
+      "/*.json",
+      "/*.txt",
+      "/*.csv"
+    ]
+  }
+}

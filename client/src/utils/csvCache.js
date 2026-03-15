@@ -1,4 +1,4 @@
-import { trackEvent, trackException } from "./telemetry";
+import { trackException } from "./telemetry";
 import { DEFAULT_DATA_REVALIDATE_AFTER_MS } from "../config/dataSources";
 
 const CSV_CACHE_PREFIX = "nwmiws:csv-cache:v1:";
@@ -137,7 +137,7 @@ function resolveDataSource(url) {
   if (!parsed) {
     return "unknown";
   }
-  return parsed.pathname.endsWith("/api/read-csv") ? "api" : "blob";
+  return parsed.pathname.startsWith("/data/") ? "static" : "unknown";
 }
 
 function resolveBlobName(url, dataSource) {
@@ -179,7 +179,6 @@ export async function fetchCachedCsvText(url, { onFreshText, revalidateAfterMs }
   const staleAfterMs = resolveRevalidateAfterMs(revalidateAfterMs);
 
   if (hasCachedEntry && isEntryFresh(cachedEntry, staleAfterMs)) {
-    trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, true, 200));
     return cachedEntry.text;
   }
 
@@ -192,7 +191,6 @@ export async function fetchCachedCsvText(url, { onFreshText, revalidateAfterMs }
       ) {
         onFreshText(latestText);
       }
-      trackEvent("read_csv_refresh_ok", buildTelemetryProperties(url, hasCachedEntry, 200));
       return latestText;
     })
     .catch((error) => {
@@ -200,7 +198,6 @@ export async function fetchCachedCsvText(url, { onFreshText, revalidateAfterMs }
         ...buildTelemetryProperties(url, hasCachedEntry, error?.status),
         cachedFallback: hasCachedEntry,
       };
-      trackEvent("read_csv_fetch_failed", telemetryProperties);
       trackException(error, telemetryProperties);
 
       if (hasCachedEntry) {
@@ -211,14 +208,11 @@ export async function fetchCachedCsvText(url, { onFreshText, revalidateAfterMs }
     });
 
   if (hasCachedEntry) {
-    trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, true, 200));
     void networkRequest;
     return cachedEntry.text;
   }
 
-  const latestText = await networkRequest;
-  trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, false, 200));
-  return latestText;
+  return networkRequest;
 }
 
 export function readCachedCsvText(url) {
