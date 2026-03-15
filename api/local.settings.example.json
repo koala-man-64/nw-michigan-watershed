@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Host": {
+    "LocalHttpPort": 9091
+  },
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "PUBLIC_BLOB_CONTAINER": "nwmiws",
+    "PUBLIC_BLOBS": "NWMIWS_Site_Data_testing_varied.csv,info.csv,locations.csv",
+    "BLOB_CONN": "",
+    "STORAGE_ACCOUNT_URL": ""
+  }
+}

@@ -6,11 +6,15 @@
     "azureFunctions.projectRuntime": "~4",
     "debug.internalConsoleOptions": "neverOpen",
     "azureFunctions.projectLanguageModel": 2,
-    "python.testing.pytestArgs": [
-        "api"
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "api/tests",
+        "-p",
+        "test_*.py"
     ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": true,
+    "python.testing.pytestEnabled": false,
     "jest.rootPath": "client",
     "jest.jestCommandLine": "npm test --",
     "jest.runMode": "on-demand"

@@ -5,10 +5,9 @@ cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
   echo Missing repo-local Python environment at api\.venv\Scripts\python.exe
-  echo Create the venv with the Python version you want to run for this project.
-  echo Python 3.14 is supported by Azure Functions in preview.
+  echo Create the venv with the repo's target runtime version.
   echo Example:
-  echo   py -3.14 -m venv .venv
+  echo   py -3.9 -m venv .venv
   echo Then install dependencies with: .venv\Scripts\python.exe -m pip install -r requirements.txt
   exit /b 1
 )
@@ -23,20 +22,16 @@ if not defined PYTHON_VERSION (
 
 for /f "tokens=1,2 delims=." %%A in ("%PYTHON_VERSION%") do set "PYTHON_MAJOR_MINOR=%%A.%%B"
 
-if "%PYTHON_MAJOR_MINOR%"=="3.14" (
-  echo Using Python %PYTHON_VERSION% in api\.venv. Azure Functions support for 3.14 is currently preview.
-  echo On Windows, prefer api\start-local.cmd over a bare func host start when using 3.14.
-  exit /b 0
-)
-if "%PYTHON_MAJOR_MINOR%"=="3.13" exit /b 0
 if "%PYTHON_MAJOR_MINOR%"=="3.12" exit /b 0
-if "%PYTHON_MAJOR_MINOR%"=="3.10" exit /b 0
 if "%PYTHON_MAJOR_MINOR%"=="3.11" exit /b 0
+if "%PYTHON_MAJOR_MINOR%"=="3.10" exit /b 0
+if "%PYTHON_MAJOR_MINOR%"=="3.9" exit /b 0
 
 echo Unsupported repo-local Python version in api\.venv: %PYTHON_VERSION%
-echo Azure Functions v4 supports this project on Python 3.10 through 3.14.
+echo Use Python 3.9 through 3.12 for local development.
+echo This repo currently deploys the Azure Functions app with runtime.txt set to python-3.9.
 echo Delete and recreate api\.venv with a supported interpreter:
 echo   rmdir /s /q .venv
-echo   py -3.14 -m venv .venv
+echo   py -3.9 -m venv .venv
 echo   .venv\Scripts\python.exe -m pip install -r requirements.txt
 exit /b 1

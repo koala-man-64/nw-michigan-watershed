@@ -1,4 +1,5 @@
 import { trackEvent, trackException } from "./telemetry";
+import { DEFAULT_DATA_REVALIDATE_AFTER_MS } from "../config/dataSources";
 
 const CSV_CACHE_PREFIX = "nwmiws:csv-cache:v1:";
 
@@ -98,41 +99,126 @@ async function requestLatestText(url, cachedEntry) {
   return text;
 }
 
-export async function fetchCachedCsvText(url, { onFreshText } = {}) {
+function resolveRevalidateAfterMs(value) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return parsed;
+  }
+  return DEFAULT_DATA_REVALIDATE_AFTER_MS;
+}
+
+function isEntryFresh(cachedEntry, revalidateAfterMs) {
+  if (revalidateAfterMs <= 0) {
+    return false;
+  }
+
+  const updatedAt = Number(cachedEntry?.updatedAt);
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) {
+    return false;
+  }
+
+  return Date.now() - updatedAt < revalidateAfterMs;
+}
+
+function parseUrl(url) {
+  try {
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "http://localhost";
+    return new URL(String(url), origin);
+  } catch (error) {
+    return null;
+  }
+}
+
+function resolveDataSource(url) {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return "unknown";
+  }
+  return parsed.pathname.endsWith("/api/read-csv") ? "api" : "blob";
+}
+
+function resolveBlobName(url, dataSource) {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return "";
+  }
+
+  if (dataSource === "api") {
+    return parsed.searchParams.get("blob") || "";
+  }
+
+  const tail = parsed.pathname.split("/").filter(Boolean).pop() || "";
+  try {
+    return decodeURIComponent(tail);
+  } catch (error) {
+    return tail;
+  }
+}
+
+function buildTelemetryProperties(url, cacheHit, status) {
+  const dataSource = resolveDataSource(url);
+  const properties = {
+    url,
+    dataSource,
+    blobName: resolveBlobName(url, dataSource),
+    cacheHit: Boolean(cacheHit),
+  };
+
+  if (status != null) {
+    properties.status = status;
+  }
+  return properties;
+}
+
+export async function fetchCachedCsvText(url, { onFreshText, revalidateAfterMs } = {}) {
   const cachedEntry = readCachedEntry(url);
+  const hasCachedEntry = cachedEntry?.text != null;
+  const staleAfterMs = resolveRevalidateAfterMs(revalidateAfterMs);
+
+  if (hasCachedEntry && isEntryFresh(cachedEntry, staleAfterMs)) {
+    trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, true, 200));
+    return cachedEntry.text;
+  }
+
   const networkRequest = requestLatestText(url, cachedEntry)
     .then((latestText) => {
       if (
-        cachedEntry?.text != null &&
+        hasCachedEntry &&
         latestText !== cachedEntry.text &&
         typeof onFreshText === "function"
       ) {
         onFreshText(latestText);
       }
+      trackEvent("read_csv_refresh_ok", buildTelemetryProperties(url, hasCachedEntry, 200));
       return latestText;
     })
     .catch((error) => {
       const telemetryProperties = {
-        url,
-        cachedFallback: cachedEntry?.text != null,
-        status: error?.status,
+        ...buildTelemetryProperties(url, hasCachedEntry, error?.status),
+        cachedFallback: hasCachedEntry,
       };
       trackEvent("read_csv_fetch_failed", telemetryProperties);
       trackException(error, telemetryProperties);
 
-      if (cachedEntry?.text != null) {
+      if (hasCachedEntry) {
         console.warn(`Using cached CSV after fetch failed for ${url}`, error);
         return cachedEntry.text;
       }
       throw error;
     });
 
-  if (cachedEntry?.text != null) {
+  if (hasCachedEntry) {
+    trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, true, 200));
     void networkRequest;
     return cachedEntry.text;
   }
 
-  return networkRequest;
+  const latestText = await networkRequest;
+  trackEvent("read_csv_fetch_served", buildTelemetryProperties(url, false, 200));
+  return latestText;
 }
 
 export function readCachedCsvText(url) {

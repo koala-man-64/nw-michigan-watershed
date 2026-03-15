@@ -947,7 +947,7 @@ h1, h2, h3, h4,
 .plots-footer-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   padding: 0 8px;
 }
@@ -960,14 +960,6 @@ h1, h2, h3, h4,
 .welcome-continue-button {
   width: min(148px, 100%);
   padding: 8px 18px;
-}
-
-.plots-footer-button-exit {
-  background-color: #5f6368;
-}
-
-.plots-footer-button-exit:hover {
-  background-color: #50545a;
 }
 
 .plots-footer-button-back {
@@ -1053,7 +1045,7 @@ h1, h2, h3, h4,
 /* =========================================================================
  * Searchable Multi‑Select Overrides
  *
- * The SearchableMultiSelect component comes from a third‑party library.
+ * The SearchableMultiSelect component is implemented locally in this repo.
  * These overrides adjust sizing, spacing and the caret icon so it aligns
  * visually with native selects used in the filter panel.
  * ========================================================================= */

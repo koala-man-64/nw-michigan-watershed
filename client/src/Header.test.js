@@ -5,34 +5,49 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Header from "./Header";
 
-jest.mock("react-router-dom", () => {
-  const React = require("react");
+jest.mock(
+  "react-router-dom",
+  () => {
+    const React = require("react");
 
-  return {
-    MemoryRouter: ({ children }) => <>{children}</>,
-    Link: ({ children, to = "/", ...props }) => (
-      <a href={to} {...props}>
-        {children}
-      </a>
-    ),
-  };
-}, { virtual: true });
+    return {
+      MemoryRouter: ({ children }) => <>{children}</>,
+      Link: ({ children, to = "/", ...props }) => (
+        <a href={to} {...props}>
+          {children}
+        </a>
+      ),
+    };
+  },
+  { virtual: true }
+);
 
 describe("Header", () => {
-  it("opens and closes the audio placeholder dialog", () => {
+  it("shows the shared contact details in the contact dialog", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Header />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /audio instructions/i }));
+    fireEvent.click(screen.getByRole("button", { name: /contact/i }));
 
-    expect(screen.getByRole("dialog", { name: /audio instructions/i })).toBeInTheDocument();
-    expect(screen.getByText(/audio playback is not enabled yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /contact us/i })).toBeInTheDocument();
+    expect(screen.getByText(/john ransom/i)).toBeInTheDocument();
+    expect(screen.getByText(/benzie county conservation district/i)).toBeInTheDocument();
+    expect(screen.getByText(/231-882-4391/i)).toBeInTheDocument();
+    expect(screen.getByText(/john@benziecd\.org/i)).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /close audio instructions/i }));
+  it("does not render the placeholder audio action", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Header />
+      </MemoryRouter>
+    );
 
-    expect(screen.queryByRole("dialog", { name: /audio instructions/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /audio instructions/i })
+    ).not.toBeInTheDocument();
   });
 });

@@ -24,6 +24,7 @@ client/build/
 .env.test.local
 .env.production.local
 *.env
+client/nginx/ssl/
 
 # ==================================================
 # Logs & Debug
@@ -42,6 +43,7 @@ coverage/
 # OS & Editor Junk
 # ==================================================
 .DS_Store
+data/~$*
 
 # ==================================================
 # GitHub Workflows (ignored explicitly if desired)

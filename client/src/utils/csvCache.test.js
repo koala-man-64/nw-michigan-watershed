@@ -27,6 +27,7 @@ describe("fetchCachedCsvText", () => {
   const url = "/api/read-csv?blob=locations.csv&format=csv";
 
   beforeEach(() => {
+    jest.clearAllMocks();
     window.localStorage.clear();
     window.fetch = jest.fn();
     jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -36,7 +37,7 @@ describe("fetchCachedCsvText", () => {
     jest.restoreAllMocks();
   });
 
-  it("stores the initial response and revalidates later requests with the cached etag", async () => {
+  it("stores the initial response and revalidates stale requests with the cached etag", async () => {
     window.fetch.mockResolvedValueOnce(
       createResponse({
         status: 200,
@@ -55,7 +56,7 @@ describe("fetchCachedCsvText", () => {
 
     window.fetch.mockResolvedValueOnce(createResponse({ status: 304 }));
 
-    await expect(fetchCachedCsvText(url)).resolves.toBe(
+    await expect(fetchCachedCsvText(url, { revalidateAfterMs: 0 })).resolves.toBe(
       "Site,Latitude\nDuck Lake,44.1"
     );
     expect(window.fetch).toHaveBeenLastCalledWith(
@@ -89,9 +90,9 @@ describe("fetchCachedCsvText", () => {
       })
     );
 
-    await expect(fetchCachedCsvText(url, { onFreshText })).resolves.toBe(
-      "Site,Latitude\nDuck Lake,44.1"
-    );
+    await expect(
+      fetchCachedCsvText(url, { onFreshText, revalidateAfterMs: 0 })
+    ).resolves.toBe("Site,Latitude\nDuck Lake,44.1");
 
     await waitFor(() =>
       expect(onFreshText).toHaveBeenCalledWith("Site,Latitude\nDuck Lake,44.2")
@@ -111,7 +112,7 @@ describe("fetchCachedCsvText", () => {
 
     window.fetch.mockRejectedValueOnce(new Error("network down"));
 
-    await expect(fetchCachedCsvText(url)).resolves.toBe(
+    await expect(fetchCachedCsvText(url, { revalidateAfterMs: 0 })).resolves.toBe(
       "Site,Latitude\nDuck Lake,44.1"
     );
     await waitFor(() => expect(console.warn).toHaveBeenCalled());
@@ -119,9 +120,48 @@ describe("fetchCachedCsvText", () => {
       "read_csv_fetch_failed",
       expect.objectContaining({
         url,
+        dataSource: "api",
+        blobName: "locations.csv",
+        cacheHit: true,
         cachedFallback: true,
       })
     );
     expect(trackException).toHaveBeenCalled();
+  });
+
+  it("returns fresh cached text without revalidating", async () => {
+    window.fetch.mockResolvedValueOnce(
+      createResponse({
+        status: 200,
+        text: "Site,Latitude\nDuck Lake,44.1",
+        headers: { ETag: '"etag-1"' },
+      })
+    );
+    await fetchCachedCsvText(url);
+
+    await expect(fetchCachedCsvText(url)).resolves.toBe(
+      "Site,Latitude\nDuck Lake,44.1"
+    );
+
+    expect(window.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits blob telemetry properties on direct-blob failures", async () => {
+    const blobUrl =
+      "https://example.blob.core.windows.net/nwmiws/locations.csv";
+    window.fetch.mockRejectedValueOnce(new Error("network down"));
+
+    await expect(fetchCachedCsvText(blobUrl)).rejects.toThrow("network down");
+
+    expect(trackEvent).toHaveBeenCalledWith(
+      "read_csv_fetch_failed",
+      expect.objectContaining({
+        url: blobUrl,
+        dataSource: "blob",
+        blobName: "locations.csv",
+        cacheHit: false,
+        cachedFallback: false,
+      })
+    );
   });
 });

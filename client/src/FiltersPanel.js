@@ -3,13 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
+import { DATA_BLOBS, buildDataUrl } from "./config/dataSources";
 import { fetchCachedCsvText } from "./utils/csvCache";
 import { trackEvent } from "./utils/telemetry";
-
-function apiCsvUrl(blobName) {
-  const blob = encodeURIComponent(blobName);
-  return `/api/read-csv?blob=${blob}&format=csv`;
-}
 
 /**
  * FiltersPanel
@@ -99,8 +95,8 @@ function FiltersPanel({
    * bubble up the parsed data to App via onDataLoaded.
    */
   useEffect(() => {
-    const dataUrl = apiCsvUrl("NWMIWS_Site_Data_testing_varied.csv");
-    const infoUrl = apiCsvUrl("info.csv");
+    const dataUrl = buildDataUrl(DATA_BLOBS.main);
+    const infoUrl = buildDataUrl(DATA_BLOBS.info);
 
     let cancelled = false;
 
@@ -260,7 +256,7 @@ function FiltersPanel({
             options={sites}
             selected={filters.selectedSites}
             onChange={handleSitesChange}
-            placeholder="Search sites…"
+            placeholder="Search sites..."
             maxPanelHeight={320}
             className="w-full"
           />
@@ -315,7 +311,7 @@ function FiltersPanel({
                   className="year-select"
                 >
                   <option value="" disabled>
-                    Select parameter…
+                    Select parameter...
                   </option>
                   {parameters.map((p) => (
                     <option key={p} value={p}>

@@ -14,6 +14,9 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v3
         with:
@@ -30,14 +33,39 @@ jobs:
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          cache-dependency-path: api/requirements.txt
+
       - name: Install dependencies for Client
         working-directory: ./client
         run: npm ci
+
+      - name: Lint Client
+        working-directory: ./client
+        run: npm run lint
+
+      - name: Test Client
+        working-directory: ./client
+        run: npm test -- --watchAll=false
+
+      - name: Install dependencies for API
+        working-directory: ./api
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Test API
+        run: python -m unittest discover -s api/tests -v
 
       - name: Build Client App
         working-directory: ./client
         env:
           REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV }}
+          REACT_APP_PUBLIC_DATA_BASE_URL: ${{ secrets.REACT_APP_PUBLIC_DATA_BASE_URL_DEV }}
         run: npm run build
 
       - name: Build And Deploy
@@ -58,6 +86,8 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    permissions:
+      pull-requests: write
     steps:
       - name: Close Pull Request
         id: closepullrequest

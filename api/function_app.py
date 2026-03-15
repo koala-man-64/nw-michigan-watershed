@@ -10,7 +10,7 @@
 #   - STORAGE_ACCOUNT_URL (uses default creds/MSI)
 #   plus: PUBLIC_BLOB_CONTAINER, PUBLIC_BLOBS (allowlist for anonymous reads)
 #   optional cache controls:
-#       READ_CSV_MEMORY_CACHE_TTL_SEC=300
+#       READ_CSV_MEMORY_CACHE_TTL_SEC=900
 #       READ_CSV_BROWSER_CACHE_MAX_AGE_SEC=3600
 #       READ_CSV_BROWSER_CACHE_SWR_SEC=86400
 
@@ -65,11 +65,6 @@ def _load_local_env_file() -> None:
 
 _load_local_env_file()
 
-# Optional extras
-try:
-    import pandas as pd
-except Exception:
-    pd = None
 try:
     from azure.identity import DefaultAzureCredential
 except Exception:
@@ -202,8 +197,6 @@ def _public_blobs() -> set[str]:
     raw = (_env("PUBLIC_BLOBS") or "").strip()
     if not raw:
         return {
-            "NWMIWS Site Data.csv",
-            "NWMIWS_Site_Data_testing.csv",
             "NWMIWS_Site_Data_testing_varied.csv",
             "info.csv",
             "locations.csv",
@@ -231,12 +224,6 @@ def _params(req: func.HttpRequest) -> dict:
     }
 
 def _csv_to_rows(data: bytes):
-    if pd is not None:
-        try:
-            df = pd.read_csv(io.BytesIO(data))
-            return df.to_dict(orient="records")
-        except Exception as e:
-            logging.info("Pandas failed to parse CSV; falling back: %s", e)
     try:
         text = data.decode("utf-8")
     except Exception:
@@ -246,7 +233,7 @@ def _csv_to_rows(data: bytes):
 
 
 def _read_csv_memory_cache_ttl_sec() -> int:
-    return max(0, _env_int("READ_CSV_MEMORY_CACHE_TTL_SEC", 300))
+    return max(0, _env_int("READ_CSV_MEMORY_CACHE_TTL_SEC", 900))
 
 
 def _read_csv_browser_cache_max_age_sec() -> int:
@@ -379,20 +366,43 @@ def _read_csv_cache_put(container: str, blob_name: str, entry: dict) -> dict:
     return entry
 
 
-def _read_csv_load_blob(container: str, blob_name: str) -> tuple[dict, bool]:
+def _read_csv_blob_client(container: str, blob_name: str):
+    return _bsc().get_container_client(container).get_blob_client(blob_name)
+
+
+def _read_csv_blob_properties(blob_client) -> tuple[Optional[str], Optional[datetime.datetime]]:
+    props = blob_client.get_blob_properties()
+    return getattr(props, "etag", None), getattr(props, "last_modified", None)
+
+
+def _read_csv_load_blob(
+    container: str,
+    blob_name: str,
+    *,
+    blob_client=None,
+    etag: Optional[str] = None,
+    last_modified: Optional[datetime.datetime] = None,
+) -> tuple[dict, bool]:
     cached = _read_csv_cache_get(container, blob_name)
     if cached is not None:
         logging.info("read_csv_cache: hit container=%r blob=%r", container, blob_name)
         return cached, True
 
-    blob_client = _bsc().get_container_client(container).get_blob_client(blob_name)
-    props = blob_client.get_blob_properties()
+    if blob_client is None:
+        blob_client = _read_csv_blob_client(container, blob_name)
+    if etag is None or last_modified is None:
+        fetched_etag, fetched_last_modified = _read_csv_blob_properties(blob_client)
+        if etag is None:
+            etag = fetched_etag
+        if last_modified is None:
+            last_modified = fetched_last_modified
+
     data = blob_client.download_blob(max_concurrency=2).readall()
-    etag = getattr(props, "etag", None) or hashlib.sha256(data).hexdigest()
+    etag = etag or hashlib.sha256(data).hexdigest()
     entry = {
         "data": data,
         "etag": etag,
-        "last_modified": getattr(props, "last_modified", None),
+        "last_modified": last_modified,
         "cached_at": time.time(),
         "rows": None,
     }
@@ -461,7 +471,29 @@ def read_csv(req: func.HttpRequest) -> func.HttpResponse:
                     headers=_cors_headers(req),
                 )
         logging.info("read_csv: loading container=%r blob=%r format=%r", container, blob_name, p["format"])
-        entry, cache_hit = _read_csv_load_blob(container, blob_name)
+        entry = _read_csv_cache_get(container, blob_name)
+        cache_hit = entry is not None
+
+        if entry is None:
+            blob_client = _read_csv_blob_client(container, blob_name)
+            etag, last_modified = _read_csv_blob_properties(blob_client)
+
+            if req.method == "GET" and _is_not_modified(req, etag, last_modified):
+                headers = {
+                    **_cors_headers(req),
+                    **_read_csv_response_headers(blob_name, etag, last_modified),
+                }
+                logging.info("read_csv: not modified blob=%r cache_hit=%s", blob_name, False)
+                return func.HttpResponse(status_code=304, headers=headers)
+
+            entry, cache_hit = _read_csv_load_blob(
+                container,
+                blob_name,
+                blob_client=blob_client,
+                etag=etag,
+                last_modified=last_modified,
+            )
+
         headers = {
             **_cors_headers(req),
             **_read_csv_response_headers(blob_name, entry.get("etag"), entry.get("last_modified")),

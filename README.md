@@ -1,134 +1,133 @@
-# Getting Started with Create React App
+# NW Michigan Water Quality Database
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React SPA and Azure Functions application for browsing, charting, and downloading northern Michigan water quality data stored in Azure Blob Storage.
 
-## Azure Static Web Apps configuration (runtime)
+## Repository layout
 
-GitHub Actions build steps do not configure runtime environment variables for your deployed API. Configure these in Azure Static Web Apps (Configuration / Application settings) for the `api/` Functions:
+- `client/` React application, telemetry bootstrap, and static hosting container config
+- `api/` Azure Functions API that serves allowlisted CSV blobs as CSV or JSON
+- `data/` source data and calculation notes
+- `docs/runbooks/` operational validation runbooks
+- `scripts/` local and deployment verification helpers
 
-- `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
-- `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
-- `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
-- `READ_CSV_MEMORY_CACHE_TTL_SEC` (optional; function-instance in-memory blob cache, defaults to `300`)
-- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC` (optional; `Cache-Control: max-age`, defaults to `3600`)
-- `READ_CSV_BROWSER_CACHE_SWR_SEC` (optional; `stale-while-revalidate` window, defaults to `86400`)
-- `APPLICATIONINSIGHTS_CONNECTION_STRING` (optional but recommended for Functions-side request/dependency/error telemetry)
+## Runtime configuration
 
-The client-side telemetry hook is build-time configuration, not runtime configuration. The React bundle reads:
+Configure these Azure Static Web Apps application settings for the Functions app:
+
+- `STORAGE_ACCOUNT_URL` plus Managed Identity, or `BLOB_CONN`
+- `PUBLIC_BLOB_CONTAINER` and `PUBLIC_BLOBS`
+- `READ_CSV_MEMORY_CACHE_TTL_SEC` (recommended `900`)
+- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC`
+- `READ_CSV_BROWSER_CACHE_SWR_SEC`
+- `APPLICATIONINSIGHTS_CONNECTION_STRING`
+
+The React build reads these build-time variables:
 
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING`
+- `REACT_APP_PUBLIC_DATA_BASE_URL`
+- `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` (optional, defaults to `3600000`)
 
-The included GitHub Actions workflows map that variable from these repository secrets during `npm run build`:
+The included GitHub Actions workflows map these from repository secrets:
 
-- Dev: `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
-- Prod: `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
+- `REACT_APP_PUBLIC_DATA_BASE_URL_DEV`
+- `REACT_APP_PUBLIC_DATA_BASE_URL_PROD`
 
-The client now persists CSV responses in `localStorage` and revalidates them with `ETag` headers in the background, so repeat app loads can render cached data immediately without redownloading unchanged blobs.
+## Local development
 
-`POST /api/log-event` no longer writes to SQL Server. During the deprecation window it returns `410 Gone` and logs a warning to Application Insights so unknown callers can be identified before the route is removed entirely.
+This repo currently targets the stable Azure Functions `python-3.9` runtime in `api/runtime.txt`.
 
-For production validation of the `read-csv` endpoint after deployment, use [the prod `read-csv` validation runbook](docs/runbooks/prod-read-csv-validation.md).
+### API
 
-## Local debugging note (AzureWebJobsStorage)
+```powershell
+cd api
+py -3.9 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item local.settings.example.json local.settings.json
+start-local.cmd
+```
 
-If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when starting a debug session, either:
+`start-local.cmd` now pins the Functions host to port `9091` and enables `PYTHON_ISOLATE_WORKER_DEPENDENCIES=1`, which matches the React dev proxy and keeps the worker on the repo-local environment.
 
-- Run Azurite and keep `AzureWebJobsStorage=UseDevelopmentStorage=true`, or
-- Use real Azure Storage by setting `AzureWebJobsStorage` in `api/local.settings.json` to the same Storage connection string your Function uses in Azure.
+Update `api\local.settings.json` with either:
 
-## Local development startup
+- `BLOB_CONN`, or
+- `STORAGE_ACCOUNT_URL` plus managed identity access in Azure, or
+- `AzureWebJobsStorage=UseDevelopmentStorage=true` when running Azurite locally
 
-The React client proxies `/api/*` requests to `http://localhost:9091` via `client/package.json`. If nothing is listening on port `9091`, the browser shows `Proxy error ... ECONNREFUSED`.
+### Client
 
-This repo expects a repo-local virtual environment at `api/.venv`. Azure Functions currently supports Python `3.14` in preview, but on Windows a bare `func host start` can still bypass repo-local dependencies. `3.10`, `3.12`, or `3.13` are the lower-risk choices; if you stay on `3.14`, use `api\\start-local.cmd` or the VS Code tasks.
+```powershell
+cd client
+npm ci
+npm start
+```
 
-Use one of these local startup paths on Windows:
+VS Code users can run the `start full application` task from `.vscode/tasks.json`.
 
-- VS Code: run the `start full application` task defined in `.vscode/tasks.json`.
-- Manual API start: run `api\\start-local.cmd` from the repository root. The script pins the Python worker to `api\\.venv\\Scripts\\python.exe`, enables `PYTHON_ISOLATE_WORKER_DEPENDENCIES=1`, and binds the local Functions host to port `9091`.
-- Manual client start: in a second terminal, run `cd client && npm start`.
+## Quality gates
 
-The Windows dependency install task now populates both `api\\.venv` and `api\\.python_packages`. That helps Core Tools dependency resolution, but on Python `3.14` preview you should still prefer `api\\start-local.cmd` over a bare `func host start`.
+Run these locally before pushing changes:
 
-If `api\\.venv` does not exist yet, create it with a supported interpreter first:
+```powershell
+cd client
+npm run lint
+npm test -- --watchAll=false
 
-- `py -0p` to list installed Python versions
-- `cd api`
-- `py -3.14 -m venv .venv`
-- `.venv\\Scripts\\python.exe -m pip install -r requirements.txt`
+cd ..\api
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
 
-If `api\\.venv` already exists but was created with the wrong interpreter or has broken dependencies, delete and recreate it:
+## CI/CD
 
-- `cd api`
-- `rmdir /s /q .venv`
-- `py -3.14 -m venv .venv`
-- `.venv\\Scripts\\python.exe -m pip install -r requirements.txt`
+Two GitHub Actions workflows deploy the app:
 
-## Available Scripts
+- `.github/workflows/build-deploy-nwmiws-swa-dev.yml`
+- `.github/workflows/build-deploy-nwmiws-swa-prod.yml`
 
-In the project directory, you can run:
+Each workflow now runs:
 
-### `npm start`
+- client dependency install
+- client lint
+- client unit tests
+- API dependency install
+- API unit tests
+- client production build
+- Azure Static Web Apps deploy
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Infrastructure provisioning
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Blob CORS/public-access settings and cache-control rollout are scriptable from this repo:
 
-### `npm test`
+```powershell
+# Deploy storage CORS + container public access via Bicep params
+.\scripts\apply_storage_data_path.ps1 -ResourceGroupName <rg> -Environment dev
+.\scripts\apply_storage_data_path.ps1 -ResourceGroupName <rg> -Environment prod
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+# Apply blob content/cache headers to active CSV files
+.\scripts\set_blob_cache_headers.ps1 -StorageAccountName <storage-account>
 
-### `npm run build`
+# Apply SWA Functions runtime app settings
+.\scripts\set_swa_function_settings.ps1 -ResourceGroupName <rg> -StaticWebAppName <swa-name>
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Parameter file templates are in:
 
-If you want browser telemetry in the built SPA, set `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING` in the shell before running the build.
+- `infra/dev.bicepparam`
+- `infra/prod.bicepparam`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Production validation
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Use both runbooks during the bridge release:
 
-### `npm run eject`
+- `docs/runbooks/prod-read-csv-validation.md`
+- `docs/runbooks/prod-public-data-validation.md`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Or run helpers directly:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+python scripts/validate_read_csv.py --base-url https://<app>.azurestaticapps.net
+python scripts/validate_public_blob.py --blob-base-url https://<storage-account>.blob.core.windows.net/nwmiws
+```
