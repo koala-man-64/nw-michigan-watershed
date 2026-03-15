@@ -39,15 +39,19 @@ describe("Header", () => {
     expect(screen.getByText(/john@benziecd\.org/i)).toBeInTheDocument();
   });
 
-  it("does not render the placeholder audio action", () => {
+  it("opens the placeholder audio instructions dialog", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Header />
       </MemoryRouter>
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /audio instructions/i }));
+
+    expect(screen.getByRole("dialog", { name: /audio instructions/i })).toBeInTheDocument();
+    expect(screen.getByText(/audio playback is not enabled yet/i)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /audio instructions/i })
-    ).not.toBeInTheDocument();
+      screen.getByText(/placeholder for future narrated instructions/i)
+    ).toBeInTheDocument();
   });
 });

@@ -1,38 +1,45 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faVolumeHigh } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
 import { Link } from "react-router-dom";
 import logo from "./nwmiws_logo.png";
 import { APP_TITLE, CONTACT_DETAILS } from "./siteContent";
 
 export default function Header({ onHomeClick = () => {} }) {
-  const [isContactOpen, setIsContactOpen] = useState(false);
+  const [activeDialog, setActiveDialog] = useState(null);
+  const isContactOpen = activeDialog === "contact";
+  const isAudioOpen = activeDialog === "audio";
 
   useEffect(() => {
-    if (!isContactOpen) {
+    if (!activeDialog) {
       return undefined;
     }
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        setIsContactOpen(false);
+        setActiveDialog(null);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isContactOpen]);
+  }, [activeDialog]);
 
-  const closeContactDialog = () => setIsContactOpen(false);
+  const closeActiveDialog = () => setActiveDialog(null);
+  const openContactDialog = () => setActiveDialog("contact");
+  const openAudioInstructions = () => setActiveDialog("audio");
+  const activeDialogTitle = isAudioOpen ? "Audio Instructions" : "Contact us";
 
-  const headerModal = isContactOpen ? (
+  const headerModal = activeDialog ? (
     <div
       className="contact-modal-backdrop"
-      onClick={closeContactDialog}
+      onClick={closeActiveDialog}
       role="presentation"
     >
       <div
-        className="contact-modal"
+        className={`contact-modal${isAudioOpen ? " audio-modal" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="header-modal-title"
@@ -40,32 +47,48 @@ export default function Header({ onHomeClick = () => {} }) {
       >
         <div className="contact-modal-header">
           <h2 id="header-modal-title" className="contact-modal-title">
-            Contact us
+            {activeDialogTitle}
           </h2>
           <button
             type="button"
             className="contact-modal-close"
-            onClick={closeContactDialog}
-            aria-label="Close contact information"
+            onClick={closeActiveDialog}
+            aria-label={isAudioOpen ? "Close audio instructions" : "Close contact information"}
           >
             x
           </button>
         </div>
 
-        <div className="contact-details">
-          {CONTACT_DETAILS.map((detail) => (
-            <div key={detail.label} className="contact-row">
-              <span className="contact-label">{detail.label}</span>
-              {detail.href ? (
-                <a className="contact-value contact-link" href={detail.href}>
-                  {detail.value}
-                </a>
-              ) : (
-                <span className="contact-value">{detail.value}</span>
-              )}
-            </div>
-          ))}
-        </div>
+        {isContactOpen ? (
+          <div className="contact-details">
+            {CONTACT_DETAILS.map((detail) => (
+              <div key={detail.label} className="contact-row">
+                <span className="contact-label">{detail.label}</span>
+                {detail.href ? (
+                  <a className="contact-value contact-link" href={detail.href}>
+                    {detail.value}
+                  </a>
+                ) : (
+                  <span className="contact-value">{detail.value}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="audio-placeholder">
+            <p className="audio-placeholder-title">Audio playback is not enabled yet.</p>
+            <p className="audio-placeholder-copy">
+              This control is wired as a placeholder for future narrated instructions.
+            </p>
+            <button
+              type="button"
+              className="audio-placeholder-button"
+              onClick={closeActiveDialog}
+            >
+              Close
+            </button>
+          </div>
+        )}
       </div>
     </div>
   ) : null;
@@ -82,11 +105,24 @@ export default function Header({ onHomeClick = () => {} }) {
             <span className="vertical-separator" aria-hidden="true" />
           </div>
 
+          <div className="header-audio">
+            <button
+              type="button"
+              className="audio-instructions-button"
+              onClick={openAudioInstructions}
+            >
+              <span className="audio-instructions-label">Audio Instructions</span>
+              <span className="audio-instructions-icon" aria-hidden="true">
+                <FontAwesomeIcon icon={faVolumeHigh} />
+              </span>
+            </button>
+          </div>
+
           <nav className="menu" aria-label="Top navigation">
             <button
               type="button"
               className="menu-button"
-              onClick={() => setIsContactOpen(true)}
+              onClick={openContactDialog}
             >
               Contact
             </button>
