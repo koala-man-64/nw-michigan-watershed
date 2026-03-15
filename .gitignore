@@ -30,7 +30,6 @@ api/.codex-func*.log
 .env.test.local
 .env.production.local
 *.env
-client/nginx/ssl/
 
 # ==================================================
 # Logs & Debug

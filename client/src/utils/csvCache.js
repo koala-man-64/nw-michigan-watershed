@@ -140,14 +140,10 @@ function resolveDataSource(url) {
   return parsed.pathname.startsWith("/data/") ? "static" : "unknown";
 }
 
-function resolveBlobName(url, dataSource) {
+function resolveBlobName(url) {
   const parsed = parseUrl(url);
   if (!parsed) {
     return "";
-  }
-
-  if (dataSource === "api") {
-    return parsed.searchParams.get("blob") || "";
   }
 
   const tail = parsed.pathname.split("/").filter(Boolean).pop() || "";
@@ -163,7 +159,7 @@ function buildTelemetryProperties(url, cacheHit, status) {
   const properties = {
     url,
     dataSource,
-    blobName: resolveBlobName(url, dataSource),
+    blobName: resolveBlobName(url),
     cacheHit: Boolean(cacheHit),
   };
 

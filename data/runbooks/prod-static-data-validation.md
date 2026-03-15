@@ -4,7 +4,7 @@ Use this runbook after a dev or prod deployment to verify the application is ser
 
 ## Prerequisites
 
-- `STATIC_CUTOVER_VALIDATION_BASE_URLS` populated in `.env`, `.env.local`, or `api/.env`
+- `STATIC_DATA_VALIDATION_BASE_URLS` populated in `.env` or `.env.local`
 - Or a deployed application base URL such as `https://<app>.azurestaticapps.net` passed with `--base-url`
 - Python 3.9+ available locally
 
@@ -47,10 +47,6 @@ python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.
 - Browser exceptions related to static CSV fetches.
 - Application Insights page views, `plot_updated`, and `data_downloaded` events.
 - Client-side download or chart render failures after the deployment.
-
-## Release gate and cleanup
-
-Only remove the old dedicated Blob Storage resources and stale Static Web App app settings after this validation passes against the deployed static release.
 
 ## Rollback trigger
 

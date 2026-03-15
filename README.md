@@ -6,7 +6,7 @@ React single-page application for browsing, charting, and downloading northern M
 
 - `client/` React application, static datasets, telemetry bootstrap, and Static Web Apps config
 - `data/` non-runtime source reference material
-- `docs/runbooks/` release validation and cleanup instructions
+- `docs/runbooks/` release validation instructions
 - `scripts/` deployment verification helpers
 
 ## Runtime configuration
@@ -79,25 +79,8 @@ Or run the helper directly:
 python scripts/validate_static_data.py
 ```
 
-The script reads `STATIC_CUTOVER_VALIDATION_BASE_URLS` from `.env`, `.env.local`, or `api/.env` by default. To validate a single site explicitly:
+The script reads `STATIC_DATA_VALIDATION_BASE_URLS` from `.env` or `.env.local` by default. To validate a single site explicitly:
 
 ```bash
 python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
 ```
-
-## Azure cleanup checklist
-
-After the static-data release is validated:
-
-1. Remove dedicated Blob Storage resources for the old data path.
-2. Remove Azure Static Web Apps app settings tied to the deleted backend path:
-   - `STORAGE_ACCOUNT_URL`
-   - `BLOB_CONN`
-   - `PUBLIC_BLOB_CONTAINER`
-   - `PUBLIC_BLOBS`
-   - `READ_CSV_MEMORY_CACHE_TTL_SEC`
-   - `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC`
-   - `READ_CSV_BROWSER_CACHE_SWR_SEC`
-3. Remove repository secrets that used to provide Blob base URLs:
-   - `REACT_APP_PUBLIC_DATA_BASE_URL_DEV`
-   - `REACT_APP_PUBLIC_DATA_BASE_URL_PROD`
