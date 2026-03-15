@@ -20,6 +20,7 @@
     "@fortawesome/react-fontawesome": "^3.0.1",
     "@microsoft/applicationinsights-web": "^3.3.11",
     "@sgratzl/chartjs-chart-boxplot": "^4.4.4",
+    "azure-maps-leaflet": "github:Azure-Samples/azure-maps-leaflet",
     "chart.js": "^4.5.0",
     "d3": "^7.9.0",
     "leaflet": "^1.9.4",

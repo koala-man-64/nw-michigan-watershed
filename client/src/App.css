@@ -708,9 +708,30 @@ h1, h2, h3, h4,
   overflow: hidden;
 }
 
+.map-panel {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .map > * {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.map-panel-status {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 500;
+  padding: 12px 14px;
+  border: 1px solid #fbcfe8;
+  border-radius: 12px;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  color: #7c2d12;
+  line-height: 1.45;
 }
 
 .plots {

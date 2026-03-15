@@ -1,0 +1,22 @@
+{
+  "name": "nwmiws-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Managed Static Web Apps API for Azure Maps token brokering",
+  "main": "src/index.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "lint": "eslint src tests --ext .js",
+    "test": "node --test tests/config.test.js tests/origin.test.js tests/mapsTokenHandler.test.js"
+  },
+  "dependencies": {
+    "@azure/arm-maps": "^3.1.0",
+    "@azure/functions": "^4.7.3",
+    "@azure/identity": "^4.13.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "IsEncrypted": false,
+  "Host": {
+    "LocalHttpPort": 9091
+  },
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "AZURE_TENANT_ID": "<tenant-id>",
+    "AZURE_CLIENT_ID": "<app-registration-client-id>",
+    "AZURE_CLIENT_SECRET": "<app-registration-client-secret>",
+    "AZURE_MAPS_SUBSCRIPTION_ID": "<subscription-id>",
+    "AZURE_MAPS_RESOURCE_GROUP": "<resource-group-name>",
+    "AZURE_MAPS_ACCOUNT_NAME": "<maps-account-name>",
+    "AZURE_MAPS_ACCOUNT_CLIENT_ID": "<maps-account-unique-id>",
+    "AZURE_MAPS_UAMI_PRINCIPAL_ID": "<maps-uami-principal-id>",
+    "AZURE_MAPS_ALLOWED_ORIGINS": "http://localhost:4280",
+    "AZURE_MAPS_SAS_TTL_MINUTES": "30",
+    "AZURE_MAPS_SAS_MAX_RPS": "500",
+    "AZURE_MAPS_SAS_SIGNING_KEY": "secondaryKey"
+  }
+}

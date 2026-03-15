@@ -22,5 +22,8 @@
       "/*.txt",
       "/*.csv"
     ]
+  },
+  "platform": {
+    "apiRuntime": "node:20"
   }
 }

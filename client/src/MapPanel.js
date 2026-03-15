@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { MapContainer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import Papa from "papaparse";
 import "leaflet/dist/leaflet.css";
@@ -9,6 +9,7 @@ import shadow from "leaflet/dist/images/marker-shadow.png";
 import PropTypes from "prop-types";
 import { DATA_BLOBS, MAP_MARKER_ASSETS, buildDataUrl } from "./config/dataSources";
 import { fetchCachedCsvText } from "./utils/csvCache";
+import AzureMapsBaseLayer from "./map/AzureMapsBaseLayer";
 
 /** Leaflet default icon fix */
 delete L.Icon.Default.prototype._getIconUrl;
@@ -41,6 +42,7 @@ const POPUP_CLOSE_DELAY_MS = 220;
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
+  const [mapError, setMapError] = useState("");
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
 
@@ -66,6 +68,20 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
       closeTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
       closeTimeouts.current.clear();
     };
+  }, []);
+
+  const handleBaseLayerStatus = useCallback((status) => {
+    if (status?.state === "error") {
+      setMapError(
+        status.message ||
+          "Basemap unavailable. Site markers remain available, but the background map could not be loaded."
+      );
+      return;
+    }
+
+    if (status?.state === "ready") {
+      setMapError("");
+    }
   }, []);
 
   // Fetch locations once from the shipped static dataset
@@ -128,79 +144,84 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   }, []);
 
   return (
-    <MapContainer
-      style={{ height: "100%" }}
-      center={DEFAULT_CENTER}
-      zoom={DEFAULT_ZOOM}
-      scrollWheelZoom
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution="&copy; OpenStreetMap contributors"
-      />
+    <div className="map-panel">
+      <MapContainer
+        style={{ height: "100%" }}
+        center={DEFAULT_CENTER}
+        zoom={DEFAULT_ZOOM}
+        scrollWheelZoom
+      >
+        <AzureMapsBaseLayer onStatusChange={handleBaseLayerStatus} />
 
-      {allLocations.map((loc) => {
-        const isSelected = selectedSites.includes(loc.name);
-        const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
-        return (
-          <Marker
-            key={loc.name}
-            position={[loc.lat, loc.lng]}
-            icon={icon}
-            ref={(instance) => {
-              if (instance) {
-                markerRefs.current.set(loc.name, instance);
-              } else {
-                markerRefs.current.delete(loc.name);
-              }
-            }}
-            eventHandlers={{
-              click: () => onMarkerClick && onMarkerClick(loc.name),
-              mouseover: (e) => {
-                clearPendingClose(loc.name);
-                e.target.openPopup();
-              },
-              mouseout: () => scheduleClose(loc.name),
-            }}
-          >
-            <Popup>
-              <div
-                onMouseEnter={() => clearPendingClose(loc.name)}
-                onMouseLeave={() => scheduleClose(loc.name)}
-              >
-                <h3>{loc.name}</h3>
-                <p>
-                  <strong>Size:</strong> {loc.size}
-                </p>
-                <p>
-                  <strong>Max Depth:</strong> {loc.max_depth}
-                </p>
-                <p>
-                  <strong>Average Depth:</strong> {loc.avg_depth}
-                </p>
-                <p>
-                  <strong>Description:</strong> {loc.description}
-                </p>
-                <p>
-                  <strong>Contact Information:</strong>{" "}
-                  {loc.url ? (
-                    <a
-                      href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {loc.url}
-                    </a>
-                  ) : (
-                    <em>(add site URL)</em>
-                  )}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        );
-      })}
-    </MapContainer>
+        {allLocations.map((loc) => {
+          const isSelected = selectedSites.includes(loc.name);
+          const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
+          return (
+            <Marker
+              key={loc.name}
+              position={[loc.lat, loc.lng]}
+              icon={icon}
+              ref={(instance) => {
+                if (instance) {
+                  markerRefs.current.set(loc.name, instance);
+                } else {
+                  markerRefs.current.delete(loc.name);
+                }
+              }}
+              eventHandlers={{
+                click: () => onMarkerClick && onMarkerClick(loc.name),
+                mouseover: (e) => {
+                  clearPendingClose(loc.name);
+                  e.target.openPopup();
+                },
+                mouseout: () => scheduleClose(loc.name),
+              }}
+            >
+              <Popup>
+                <div
+                  onMouseEnter={() => clearPendingClose(loc.name)}
+                  onMouseLeave={() => scheduleClose(loc.name)}
+                >
+                  <h3>{loc.name}</h3>
+                  <p>
+                    <strong>Size:</strong> {loc.size}
+                  </p>
+                  <p>
+                    <strong>Max Depth:</strong> {loc.max_depth}
+                  </p>
+                  <p>
+                    <strong>Average Depth:</strong> {loc.avg_depth}
+                  </p>
+                  <p>
+                    <strong>Description:</strong> {loc.description}
+                  </p>
+                  <p>
+                    <strong>Contact Information:</strong>{" "}
+                    {loc.url ? (
+                      <a
+                        href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {loc.url}
+                      </a>
+                    ) : (
+                      <em>(add site URL)</em>
+                    )}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+      </MapContainer>
+
+      {mapError ? (
+        <div className="map-panel-status" role="alert">
+          <strong>Basemap unavailable.</strong> {mapError}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
