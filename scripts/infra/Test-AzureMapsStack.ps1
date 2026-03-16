@@ -28,6 +28,10 @@ function ConvertTo-SettingHashtable {
   param([object]$InputObject)
 
   $settings = @{}
+  if ($null -eq $InputObject) {
+    return $settings
+  }
+
   if ($InputObject -is [System.Collections.IDictionary]) {
     foreach ($key in $InputObject.Keys) {
       $settings[[string]$key] = [string]$InputObject[$key]
@@ -35,9 +39,37 @@ function ConvertTo-SettingHashtable {
     return $settings
   }
 
-  foreach ($item in @($InputObject)) {
-    if ($item.name) {
-      $settings[[string]$item.name] = [string]$item.value
+  if ($InputObject.PSObject.Properties.Match("properties").Count -gt 0) {
+    $properties = $InputObject.properties
+    if ($properties -is [System.Collections.IDictionary]) {
+      foreach ($key in $properties.Keys) {
+        $settings[[string]$key] = [string]$properties[$key]
+      }
+      return $settings
+    }
+
+    foreach ($property in $properties.PSObject.Properties) {
+      $settings[[string]$property.Name] = [string]$property.Value
+    }
+    return $settings
+  }
+
+  foreach ($item in (ConvertTo-ArrayCompat -InputObject $InputObject)) {
+    if (
+      $null -ne $item -and
+      $item.PSObject.Properties.Match("name").Count -gt 0 -and
+      $item.name
+    ) {
+      $value = if ($item.PSObject.Properties.Match("value").Count -gt 0) { $item.value } else { $null }
+      if (
+        $null -eq $value -and
+        $item.PSObject.Properties.Match("properties").Count -gt 0 -and
+        $item.properties.PSObject.Properties.Match("value").Count -gt 0
+      ) {
+        $value = $item.properties.value
+      }
+
+      $settings[[string]$item.name] = [string]$value
     }
   }
 
@@ -120,7 +152,7 @@ if ($mapsAccount) {
 }
 
 if ($mapsAccount -and $managedIdentity) {
-  $dataReaderAssignments = @(Invoke-AzJson -Arguments @(
+  $dataReaderAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -137,7 +169,7 @@ if ($mapsAccount -and $managedIdentity) {
   }
 }
 
-$entraApps = @(Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
+$entraApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
 $matchingApps = @($entraApps | Where-Object { $_.displayName -eq $config.AppRegistrationDisplayName })
 if ($matchingApps.Count -ne 1) {
   $issues.Add("Expected exactly one Entra application named '$($config.AppRegistrationDisplayName)'.")
@@ -153,7 +185,7 @@ if ($appRegistration) {
 }
 
 if ($mapsAccount -and $servicePrincipal) {
-  $contributorAssignments = @(Invoke-AzJson -Arguments @(
+  $contributorAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",

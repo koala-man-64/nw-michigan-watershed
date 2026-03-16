@@ -1,9 +1,75 @@
 Set-StrictMode -Version Latest
 
+$script:AzCliCommandPath = $null
+
+function ConvertFrom-JsonCompat {
+  [CmdletBinding()]
+  param(
+    [AllowEmptyString()]
+    [string]$Json,
+
+    [int]$Depth = 20
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Json)) {
+    return $null
+  }
+
+  if ($PSVersionTable.PSVersion.Major -ge 6) {
+    return $Json | ConvertFrom-Json -Depth $Depth
+  }
+
+  return $Json | ConvertFrom-Json
+}
+
+function ConvertTo-JsonCompat {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [object]$InputObject,
+
+    [int]$Depth = 20
+  )
+
+  return $InputObject | ConvertTo-Json -Depth $Depth
+}
+
+function ConvertTo-ArrayCompat {
+  [CmdletBinding()]
+  param(
+    [AllowNull()]
+    [object]$InputObject
+  )
+
+  if ($null -eq $InputObject) {
+    return @()
+  }
+
+  if ($InputObject -is [System.Array]) {
+    return @($InputObject)
+  }
+
+  return @($InputObject)
+}
+
 function Ensure-AzCli {
-  if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+  if (-not (Get-AzCliCommandPath)) {
     throw "Azure CLI is required but was not found on PATH."
   }
+}
+
+function Get-AzCliCommandPath {
+  if ($script:AzCliCommandPath) {
+    return $script:AzCliCommandPath
+  }
+
+  $command = Get-Command az -ErrorAction SilentlyContinue
+  if ($null -eq $command) {
+    return $null
+  }
+
+  $script:AzCliCommandPath = $command.Source
+  return $script:AzCliCommandPath
 }
 
 function Invoke-Az {
@@ -15,13 +81,66 @@ function Invoke-Az {
     [switch]$AllowFailure
   )
 
-  $output = & az @Arguments 2>&1
-  if (-not $AllowFailure -and $LASTEXITCODE -ne 0) {
-    $renderedOutput = ($output | Out-String).Trim()
-    throw "Azure CLI command failed: az $($Arguments -join ' ')`n$renderedOutput"
+  $effectiveArguments = @($Arguments)
+  if (-not ($effectiveArguments -contains "--only-show-errors")) {
+    $effectiveArguments += "--only-show-errors"
   }
 
-  return ($output | Out-String).Trim()
+  $azCliCommandPath = Get-AzCliCommandPath
+  if (-not $azCliCommandPath) {
+    throw "Azure CLI is required but was not found on PATH."
+  }
+
+  $stdoutPath = Join-Path ([System.IO.Path]::GetTempPath()) ("nwmiws-az-" + [System.Guid]::NewGuid() + ".stdout")
+  $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) ("nwmiws-az-" + [System.Guid]::NewGuid() + ".stderr")
+  try {
+    $process = Start-Process `
+      -FilePath $azCliCommandPath `
+      -ArgumentList $effectiveArguments `
+      -NoNewWindow `
+      -Wait `
+      -PassThru `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath
+    $exitCode = $process.ExitCode
+  } finally {
+    $stdout = ""
+    $stderr = ""
+
+    if (Test-Path -LiteralPath $stdoutPath) {
+      $stdoutContent = Get-Content -LiteralPath $stdoutPath -Raw
+      if ($null -ne $stdoutContent) {
+        $stdout = ([string]$stdoutContent).Trim()
+      }
+
+      Remove-Item -LiteralPath $stdoutPath -Force -WhatIf:$false
+    }
+
+    if (Test-Path -LiteralPath $stderrPath) {
+      $stderrContent = Get-Content -LiteralPath $stderrPath -Raw
+      if ($null -ne $stderrContent) {
+        $stderr = ([string]$stderrContent).Trim()
+      }
+
+      Remove-Item -LiteralPath $stderrPath -Force -WhatIf:$false
+    }
+  }
+
+  if (-not $AllowFailure -and $exitCode -ne 0) {
+    $renderedSections = @($stderr, $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $renderedOutput = if ($renderedSections.Count -gt 0) {
+      $renderedSections -join [System.Environment]::NewLine
+    } else {
+      "<no output>"
+    }
+    throw "Azure CLI command failed: az $($effectiveArguments -join ' ')`n$renderedOutput"
+  }
+
+  if ($AllowFailure -and $exitCode -ne 0) {
+    return $null
+  }
+
+  return $stdout
 }
 
 function Invoke-AzJson {
@@ -43,14 +162,23 @@ function Invoke-AzJson {
     return $null
   }
 
-  return $json | ConvertFrom-Json -Depth 20
+  return ConvertFrom-JsonCompat -Json $json -Depth 20
 }
 
 function Require-AzLogin {
   try {
     $null = Invoke-AzJson -Arguments @("account", "show")
   } catch {
-    throw "Azure CLI is not logged in. Run 'az login' and retry."
+    $message = $_.Exception.Message
+    if (
+      $message -match "az login" -or
+      $message -match "Please run 'az login'" -or
+      $message -match "No subscriptions found"
+    ) {
+      throw "Azure CLI is not logged in. Run 'az login' and retry."
+    }
+
+    throw
   }
 }
 
@@ -115,8 +243,8 @@ function New-TemporaryJsonFile {
   )
 
   $path = Join-Path ([System.IO.Path]::GetTempPath()) ("nwmiws-" + [System.Guid]::NewGuid() + ".json")
-  $InputObject | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8
+  ConvertTo-JsonCompat -InputObject $InputObject -Depth 20 | Set-Content -LiteralPath $path -Encoding utf8
   return $path
 }
 
-Export-ModuleMember -Function Ensure-AzCli, Ensure-BicepAvailable, Ensure-ProviderRegistered, Invoke-Az, Invoke-AzJson, Mask-Secret, New-TemporaryJsonFile, Require-AzLogin, Set-Subscription
+Export-ModuleMember -Function ConvertFrom-JsonCompat, ConvertTo-ArrayCompat, ConvertTo-JsonCompat, Ensure-AzCli, Ensure-BicepAvailable, Ensure-ProviderRegistered, Invoke-Az, Invoke-AzJson, Mask-Secret, New-TemporaryJsonFile, Require-AzLogin, Set-Subscription

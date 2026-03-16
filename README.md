@@ -112,6 +112,45 @@ Remove only the Azure Maps-related resources and settings:
 .\scripts\infra\Remove-AzureMapsStack.ps1 -Environment dev
 ```
 
+## Autonomous bootstrap scripts
+
+The repo now includes two end-to-end bootstrap scripts under `docs/scripts/`:
+
+- `docs/scripts/Provision-AzurePlatform.ps1`
+  - creates missing Log Analytics and Application Insights resources for dev and prod
+  - runs the Azure Maps provisioning flow for both environments
+  - validates the deployed Azure Maps stack after apply
+- `docs/scripts/Sync-GitHubActionsConfig.ps1`
+  - reads workflow secret names directly from the GitHub Actions YAML
+  - fetches the current Static Web App deployment tokens and Application Insights connection strings from Azure
+  - writes the required GitHub Actions secrets and supporting repository variables
+  - prunes stale repository secrets that match the managed workflow secret patterns and stale repository variables in the `NWMIWS_` namespace
+  - reads `api/.env` for optional bootstrap values such as `STATIC_CUTOVER_GITHUB_TOKEN` and the storage account connection string
+
+Dry run the Azure bootstrap:
+
+```powershell
+.\docs\scripts\Provision-AzurePlatform.ps1 -WhatIf
+```
+
+Apply Azure bootstrap:
+
+```powershell
+.\docs\scripts\Provision-AzurePlatform.ps1
+```
+
+Dry run GitHub secret and variable sync:
+
+```powershell
+.\docs\scripts\Sync-GitHubActionsConfig.ps1 -WhatIf
+```
+
+Apply GitHub secret and variable sync:
+
+```powershell
+.\docs\scripts\Sync-GitHubActionsConfig.ps1
+```
+
 VS Code users can run the `start full application` task from `.vscode/tasks.json`.
 
 ## Quality gates

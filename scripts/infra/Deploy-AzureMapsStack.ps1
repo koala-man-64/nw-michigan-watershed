@@ -72,14 +72,37 @@ function ConvertTo-SettingHashtable {
     return $settings
   }
 
-  foreach ($item in @($InputObject)) {
-    $name = $item.name
+  if ($InputObject.PSObject.Properties.Match("properties").Count -gt 0) {
+    $properties = $InputObject.properties
+    if ($properties -is [System.Collections.IDictionary]) {
+      foreach ($key in $properties.Keys) {
+        $settings[[string]$key] = [string]$properties[$key]
+      }
+      return $settings
+    }
+
+    foreach ($property in $properties.PSObject.Properties) {
+      $settings[[string]$property.Name] = [string]$property.Value
+    }
+    return $settings
+  }
+
+  foreach ($item in (ConvertTo-ArrayCompat -InputObject $InputObject)) {
+    if ($null -eq $item) {
+      continue
+    }
+
+    $name = if ($item.PSObject.Properties.Match("name").Count -gt 0) { $item.name } else { $null }
     if (-not $name) {
       continue
     }
 
-    $value = $item.value
-    if ($null -eq $value -and $item.PSObject.Properties.Match("properties").Count -gt 0) {
+    $value = if ($item.PSObject.Properties.Match("value").Count -gt 0) { $item.value } else { $null }
+    if (
+      $null -eq $value -and
+      $item.PSObject.Properties.Match("properties").Count -gt 0 -and
+      $item.properties.PSObject.Properties.Match("value").Count -gt 0
+    ) {
       $value = $item.properties.value
     }
 
@@ -111,7 +134,7 @@ function Get-OrCreate-AppRegistration {
     [bool]$WhatIfMode
   )
 
-  $existingApps = @(Invoke-AzJson -Arguments @(
+  $existingApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "ad",
       "app",
       "list",
@@ -180,7 +203,7 @@ function Ensure-RoleAssignment {
     return
   }
 
-  $existingAssignments = @(Invoke-AzJson -Arguments @(
+  $existingAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -265,13 +288,29 @@ Write-Host "Validating prerequisite resources..."
 Assert-ExistingStaticWebApp -Config $config
 Assert-ExistingApplicationInsights -Config $config
 
-$deploymentParameters = @{
-  location = $config.Location
-  mapsAccountName = $config.AzureMapsAccountName
-  managedIdentityName = $config.ManagedIdentityName
-  allowedOrigins = @($config.AllowedOrigins)
-  tags = $config.Tags
-  disableLocalAuth = [bool]$config.DisableLocalAuth
+$deploymentParameters = [ordered]@{
+  '$schema' = "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#"
+  contentVersion = "1.0.0.0"
+  parameters = [ordered]@{
+    location = @{
+      value = $config.Location
+    }
+    mapsAccountName = @{
+      value = $config.AzureMapsAccountName
+    }
+    managedIdentityName = @{
+      value = $config.ManagedIdentityName
+    }
+    allowedOrigins = @{
+      value = @($config.AllowedOrigins)
+    }
+    tags = @{
+      value = $config.Tags
+    }
+    disableLocalAuth = @{
+      value = [bool]$config.DisableLocalAuth
+    }
+  }
 }
 $parameterFile = New-TemporaryJsonFile -InputObject $deploymentParameters
 
@@ -399,6 +438,6 @@ try {
   Write-Host "  Allowed origins:          $(@($config.AllowedOrigins) -join ', ')"
 } finally {
   if (Test-Path -LiteralPath $parameterFile) {
-    Remove-Item -LiteralPath $parameterFile -Force
+    Remove-Item -LiteralPath $parameterFile -Force -WhatIf:$false
   }
 }

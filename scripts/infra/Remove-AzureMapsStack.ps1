@@ -56,7 +56,7 @@ $mapsAccount = Invoke-AzJson -Arguments @(
   $config.ResourceGroupName
 ) -AllowFailure
 
-$entraApps = @(Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
+$entraApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
 $appRegistration = @($entraApps | Where-Object { $_.displayName -eq $config.AppRegistrationDisplayName }) | Select-Object -First 1
 $servicePrincipal = $null
 if ($appRegistration) {
@@ -64,7 +64,7 @@ if ($appRegistration) {
 }
 
 if ($mapsAccount -and $servicePrincipal) {
-  $assignments = @(Invoke-AzJson -Arguments @(
+  $assignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",

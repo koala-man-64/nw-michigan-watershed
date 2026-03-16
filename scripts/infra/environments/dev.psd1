@@ -3,7 +3,7 @@
   TenantId = "355ae10d-1fc8-4e87-bb01-7822419d7c3b"
   ResourceGroupName = "nwmiws-rg"
   Location = "eastus"
-  StaticWebAppName = "nice-ocean-0f03a230f"
+  StaticWebAppName = "nwmiws-dev"
   StaticWebAppResourceGroupName = "nwmiws-rg"
   ApplicationInsightsName = "appi-nwmiws-dev"
   ApplicationInsightsResourceGroupName = "nwmiws-rg"
