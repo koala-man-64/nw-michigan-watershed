@@ -33,10 +33,15 @@ function createMarkerIcon(iconUrl) {
 const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
 const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
-// Keep the initial map view on the broader NW Michigan region instead of
-// snapping to marker bounds as soon as the locations CSV finishes loading.
-const DEFAULT_CENTER = [44.75, -85.85];
-const DEFAULT_ZOOM = 8;
+// Keep the map focused on the NW Michigan watershed region instead of
+// allowing panning/zooming across the full world map.
+const MAP_BOUNDS = L.latLngBounds(
+  [42.9, -88.9],
+  [46.7, -83.3],
+);
+const INITIAL_CENTER = [44.82, -85.72];
+const INITIAL_ZOOM = 8;
+const MIN_MAP_ZOOM = 7;
 const POPUP_CLOSE_DELAY_MS = 220;
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
@@ -130,13 +135,17 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   return (
     <MapContainer
       style={{ height: "100%" }}
-      center={DEFAULT_CENTER}
-      zoom={DEFAULT_ZOOM}
+      center={INITIAL_CENTER}
+      zoom={INITIAL_ZOOM}
+      maxBounds={MAP_BOUNDS}
+      maxBoundsViscosity={1.0}
+      minZoom={MIN_MAP_ZOOM}
       scrollWheelZoom
     >
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
+        noWrap
       />
 
       {allLocations.map((loc) => {
