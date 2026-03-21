@@ -73,6 +73,7 @@ The NW Michigan Water Quality Database is a web application for exploring water 
 
 - Node.js 20
 - npm
+- PowerShell for the repo's `.ps1` scripts (`pwsh` / PowerShell 7 on Linux and macOS; `powershell.exe` on Windows)
 - Azure Functions Core Tools
 - Azure CLI for provisioning and validation scripts
 - GitHub CLI for GitHub secret and variable sync
@@ -127,6 +128,8 @@ To publish a data refresh:
 1. Replace the relevant CSV files in `client/public/data/`.
 2. Commit the changes.
 3. Deploy through the normal branch or workflow path.
+
+If you redeploy the same filenames, browsers that already opened the site can continue serving cached CSV content from `localStorage` until `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` expires (`86400000` / 24 hours by default). For an immediate refresh, clear the site's stored data in the browser or publish new filenames via the `REACT_APP_*_DATA_BLOB` settings.
 
 The workbook and other materials under `data/` are reference-only and are not read by the live site at runtime.
 
@@ -292,7 +295,7 @@ Each workflow performs:
 
 If you are supporting the live system, start here:
 
-- Data looks outdated: verify the CSV files in `client/public/data/`, then redeploy the client.
+- Data looks outdated: verify the CSV files in `client/public/data/`, redeploy the client, and remember that browsers may keep serving cached CSV data from `localStorage` for up to 24 hours by default. If the update must appear immediately, clear the site's stored browser data or publish new blob filenames through the `REACT_APP_*_DATA_BLOB` settings.
 - The map is failing: validate Azure Maps settings and allowed origins with `.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment <env>`.
 - Local map development is failing: rerun `.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment <env>` and restart the API host.
 - Deployment secrets look wrong: rerun `.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1` after updating `api/.env`.
