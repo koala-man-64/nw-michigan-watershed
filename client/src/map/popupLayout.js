@@ -1,49 +1,115 @@
-const ESTIMATED_POPUP_WIDTH_PX = 320;
-const ESTIMATED_POPUP_HEIGHT_PX = 240;
-const POPUP_HORIZONTAL_EDGE_PADDING_PX = 20;
-const POPUP_BELOW_OFFSET_Y_PX = 76;
+const POPUP_VIEWPORT_PADDING_PX = 20;
+const POPUP_BELOW_CLASS_NAME = "map-site-popup-below";
 
 export const DEFAULT_POPUP_LAYOUT = Object.freeze({
   className: "map-site-popup",
   offset: [0, 0],
 });
 
-function isFinitePoint(value) {
+function isFiniteNumber(value) {
   return Number.isFinite(Number(value));
 }
 
-export function getAdaptivePopupLayout({ containerPoint, mapSize } = {}) {
-  const pointX = Number(containerPoint?.x);
-  const pointY = Number(containerPoint?.y);
-  const mapWidth = Number(mapSize?.x);
-  const mapHeight = Number(mapSize?.y);
+function isValidRect(rect) {
+  return (
+    isFiniteNumber(rect?.left) &&
+    isFiniteNumber(rect?.right) &&
+    isFiniteNumber(rect?.top) &&
+    isFiniteNumber(rect?.bottom) &&
+    isFiniteNumber(rect?.width) &&
+    isFiniteNumber(rect?.height)
+  );
+}
 
-  if (
-    !isFinitePoint(pointX) ||
-    !isFinitePoint(pointY) ||
-    !isFinitePoint(mapWidth) ||
-    !isFinitePoint(mapHeight)
-  ) {
-    return DEFAULT_POPUP_LAYOUT;
+function normalizeOffset(offset) {
+  if (Array.isArray(offset)) {
+    return [Number(offset[0]) || 0, Number(offset[1]) || 0];
   }
 
-  const minimumHorizontalSpace =
-    ESTIMATED_POPUP_WIDTH_PX / 2 + POPUP_HORIZONTAL_EDGE_PADDING_PX;
-  const leftCorrection = Math.max(0, minimumHorizontalSpace - pointX);
-  const rightCorrection = Math.max(0, minimumHorizontalSpace - (mapWidth - pointX));
-  const offsetX = Math.round(leftCorrection - rightCorrection);
+  return [Number(offset?.x) || 0, Number(offset?.y) || 0];
+}
 
-  const spaceAbove = pointY;
-  const spaceBelow = mapHeight - pointY;
-  const shouldOpenBelow =
-    spaceAbove < ESTIMATED_POPUP_HEIGHT_PX && spaceBelow > spaceAbove;
+function clamp(value, minimum, maximum) {
+  return Math.min(Math.max(value, minimum), maximum);
+}
 
-  if (!shouldOpenBelow && offsetX === 0) {
-    return DEFAULT_POPUP_LAYOUT;
+function buildPopupClassName(openBelow) {
+  return openBelow
+    ? `${DEFAULT_POPUP_LAYOUT.className} ${POPUP_BELOW_CLASS_NAME}`
+    : DEFAULT_POPUP_LAYOUT.className;
+}
+
+export function isPopupLayoutBelow(layout) {
+  return String(layout?.className || "").includes(POPUP_BELOW_CLASS_NAME);
+}
+
+export function getViewportCorrection({ popupRect, mapRect, padding = POPUP_VIEWPORT_PADDING_PX } = {}) {
+  if (!isValidRect(popupRect) || !isValidRect(mapRect) || !isFiniteNumber(padding)) {
+    return [0, 0];
+  }
+
+  const minimumLeft = mapRect.left + Number(padding);
+  const maximumLeft = Math.max(minimumLeft, mapRect.right - Number(padding) - popupRect.width);
+  const minimumTop = mapRect.top + Number(padding);
+  const maximumTop = Math.max(minimumTop, mapRect.bottom - Number(padding) - popupRect.height);
+
+  const targetLeft = clamp(popupRect.left, minimumLeft, maximumLeft);
+  const targetTop = clamp(popupRect.top, minimumTop, maximumTop);
+
+  return [Math.round(targetLeft - popupRect.left), Math.round(targetTop - popupRect.top)];
+}
+
+function shouldOpenPopupBelow({ currentLayout, markerScreenPoint, popupRect, verticalCorrection }) {
+  const markerScreenY = Number(markerScreenPoint?.y);
+  if (!isFiniteNumber(markerScreenY) || !isValidRect(popupRect)) {
+    return isPopupLayoutBelow(currentLayout);
+  }
+
+  const correctedTop = popupRect.top + Number(verticalCorrection || 0);
+  const correctedBottom = popupRect.bottom + Number(verticalCorrection || 0);
+
+  if (correctedTop >= markerScreenY) {
+    return true;
+  }
+
+  if (correctedBottom <= markerScreenY) {
+    return false;
+  }
+
+  return isPopupLayoutBelow(currentLayout);
+}
+
+export function getAdaptivePopupLayout({
+  currentLayout = DEFAULT_POPUP_LAYOUT,
+  popupRect,
+  mapRect,
+  markerScreenPoint,
+} = {}) {
+  const normalizedOffset = normalizeOffset(currentLayout?.offset);
+  const [offsetAdjustmentX, offsetAdjustmentY] = getViewportCorrection({
+    popupRect,
+    mapRect,
+  });
+
+  if (offsetAdjustmentX === 0 && offsetAdjustmentY === 0) {
+    return {
+      className: buildPopupClassName(isPopupLayoutBelow(currentLayout)),
+      offset: normalizedOffset,
+    };
   }
 
   return {
-    className: shouldOpenBelow ? "map-site-popup map-site-popup-below" : "map-site-popup",
-    offset: [offsetX, shouldOpenBelow ? POPUP_BELOW_OFFSET_Y_PX : 0],
+    className: buildPopupClassName(
+      shouldOpenPopupBelow({
+        currentLayout,
+        markerScreenPoint,
+        popupRect,
+        verticalCorrection: offsetAdjustmentY,
+      })
+    ),
+    offset: [
+      normalizedOffset[0] + offsetAdjustmentX,
+      normalizedOffset[1] + offsetAdjustmentY,
+    ],
   };
 }

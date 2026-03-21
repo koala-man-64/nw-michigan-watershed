@@ -1,46 +1,114 @@
-import { DEFAULT_POPUP_LAYOUT, getAdaptivePopupLayout } from "./popupLayout";
+import {
+  DEFAULT_POPUP_LAYOUT,
+  getAdaptivePopupLayout,
+  getViewportCorrection,
+} from "./popupLayout";
 
 describe("popupLayout", () => {
-  test("returns the default layout for central markers", () => {
+  test("returns no correction when the popup is already fully visible", () => {
     expect(
-      getAdaptivePopupLayout({
-        containerPoint: { x: 320, y: 260 },
-        mapSize: { x: 900, y: 700 },
+      getViewportCorrection({
+        popupRect: {
+          left: 120,
+          right: 320,
+          top: 100,
+          bottom: 220,
+          width: 200,
+          height: 120,
+        },
+        mapRect: {
+          left: 0,
+          right: 500,
+          top: 0,
+          bottom: 400,
+          width: 500,
+          height: 400,
+        },
       })
-    ).toEqual(DEFAULT_POPUP_LAYOUT);
+    ).toEqual([0, 0]);
   });
 
-  test("shifts the popup right when the marker is near the left edge", () => {
+  test("shifts the popup right by the exact left overflow amount", () => {
     expect(
       getAdaptivePopupLayout({
-        containerPoint: { x: 40, y: 260 },
-        mapSize: { x: 900, y: 700 },
+        currentLayout: DEFAULT_POPUP_LAYOUT,
+        popupRect: {
+          left: -18,
+          right: 202,
+          top: 80,
+          bottom: 200,
+          width: 220,
+          height: 120,
+        },
+        mapRect: {
+          left: 0,
+          right: 500,
+          top: 0,
+          bottom: 400,
+          width: 500,
+          height: 400,
+        },
+        markerScreenPoint: { x: 92, y: 220 },
       })
-    ).toEqual(
-      expect.objectContaining({
-        className: "map-site-popup",
-        offset: expect.arrayContaining([expect.any(Number), 0]),
-      })
-    );
-    expect(
-      getAdaptivePopupLayout({
-        containerPoint: { x: 40, y: 260 },
-        mapSize: { x: 900, y: 700 },
-      }).offset[0]
-    ).toBeGreaterThan(0);
+    ).toEqual({
+      className: "map-site-popup",
+      offset: [38, 0],
+    });
   });
 
-  test("opens the popup below when there is not enough space above", () => {
+  test("opens below when correcting a popup that overflows above the map", () => {
     expect(
       getAdaptivePopupLayout({
-        containerPoint: { x: 320, y: 70 },
-        mapSize: { x: 900, y: 700 },
+        currentLayout: DEFAULT_POPUP_LAYOUT,
+        popupRect: {
+          left: 120,
+          right: 360,
+          top: -180,
+          bottom: 60,
+          width: 240,
+          height: 240,
+        },
+        mapRect: {
+          left: 0,
+          right: 600,
+          top: 0,
+          bottom: 500,
+          width: 600,
+          height: 500,
+        },
+        markerScreenPoint: { x: 240, y: 10 },
       })
-    ).toEqual(
-      expect.objectContaining({
-        className: "map-site-popup map-site-popup-below",
-        offset: [0, 76],
+    ).toEqual({
+      className: "map-site-popup map-site-popup-below",
+      offset: [0, 200],
+    });
+  });
+
+  test("shifts the popup upward when it overflows below the map", () => {
+    expect(
+      getAdaptivePopupLayout({
+        currentLayout: DEFAULT_POPUP_LAYOUT,
+        popupRect: {
+          left: 160,
+          right: 420,
+          top: 240,
+          bottom: 520,
+          width: 260,
+          height: 280,
+        },
+        mapRect: {
+          left: 0,
+          right: 600,
+          top: 0,
+          bottom: 500,
+          width: 600,
+          height: 500,
+        },
+        markerScreenPoint: { x: 290, y: 430 },
       })
-    );
+    ).toEqual({
+      className: "map-site-popup",
+      offset: [0, -40],
+    });
   });
 });
