@@ -8,11 +8,19 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Import-Module (Join-Path $PSScriptRoot "Common.psm1") -Force
+$previousVerbosePreference = $VerbosePreference
+try {
+  $VerbosePreference = "SilentlyContinue"
+  Import-Module (Join-Path $PSScriptRoot "..\common\Az.Common.psm1") -Force -DisableNameChecking
+  Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -DisableNameChecking
+} finally {
+  $VerbosePreference = $previousVerbosePreference
+}
 
 $contributorRoleDefinitionId = "b24988ac-6180-42a0-ab88-20f7382dd24c"
 $azureMapsDataReaderRoleDefinitionId = "423170ca-a8f6-4b0f-8487-9e4eb8f49bfa"
-$environmentPath = Join-Path $PSScriptRoot ("environments/{0}.psd1" -f $Environment)
+$repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
+$environmentPath = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
 
 function Get-EnvironmentConfig {
   param([string]$Path)
@@ -76,14 +84,19 @@ function ConvertTo-SettingHashtable {
   return $settings
 }
 
+Write-ScriptSection "Azure Maps validation ($Environment)"
+Write-ScriptStep "Loading environment configuration from '$environmentPath'."
 $config = Get-EnvironmentConfig -Path $environmentPath
 
+Write-ScriptStep "Ensuring Azure CLI prerequisites and authentication."
 Ensure-AzCli
 Require-AzLogin
+Write-ScriptStep "Switching Azure subscription to '$($config.SubscriptionId)'."
 Set-Subscription -SubscriptionId $config.SubscriptionId
 
 $issues = [System.Collections.Generic.List[string]]::new()
 
+Write-ScriptStep "Checking prerequisite cloud resources."
 $staticWebApp = Invoke-AzJson -Arguments @(
   "staticwebapp",
   "show",
@@ -136,6 +149,7 @@ if (-not $managedIdentity) {
 }
 
 if ($mapsAccount) {
+  Write-ScriptStep "Validating Azure Maps account configuration."
   if ([string]$mapsAccount.kind -ne "Gen2") {
     $issues.Add("Azure Maps account kind is '$($mapsAccount.kind)' instead of 'Gen2'.")
   }
@@ -144,15 +158,38 @@ if ($mapsAccount) {
     $issues.Add("Azure Maps account SKU is '$($mapsAccount.sku.name)' instead of 'G2'.")
   }
 
-  $configuredOrigins = @($mapsAccount.properties.cors.corsRules[0].allowedOrigins)
+  $mapsAccountResource = Invoke-AzJson -Arguments @(
+    "resource",
+    "show",
+    "--ids",
+    $mapsAccount.id,
+    "--api-version",
+    "2023-06-01"
+  ) -AllowFailure
+
+  $configuredOrigins = @()
+  $mapsProperties = if ($mapsAccountResource) { $mapsAccountResource.properties } else { $mapsAccount.properties }
+  if (
+    $null -ne $mapsProperties -and
+    $mapsProperties.PSObject.Properties.Match("cors").Count -gt 0 -and
+    $null -ne $mapsProperties.cors -and
+    $mapsProperties.cors.PSObject.Properties.Match("corsRules").Count -gt 0 -and
+    @($mapsProperties.cors.corsRules).Count -gt 0
+  ) {
+    $configuredOrigins = @($mapsProperties.cors.corsRules[0].allowedOrigins)
+  }
+
   $expectedOrigins = @($config.AllowedOrigins)
-  if (@($configuredOrigins | Sort-Object) -join "," -ne @($expectedOrigins | Sort-Object) -join ",") {
+  $configuredOriginsValue = [string](@($configuredOrigins | Sort-Object) -join ",")
+  $expectedOriginsValue = [string](@($expectedOrigins | Sort-Object) -join ",")
+  if ($configuredOriginsValue -ne $expectedOriginsValue) {
     $issues.Add("Azure Maps allowed origins do not match the environment configuration.")
   }
 }
 
 if ($mapsAccount -and $managedIdentity) {
-  $dataReaderAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
+  Write-ScriptStep "Validating managed identity role assignments."
+  $dataReaderAssignments = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -162,14 +199,15 @@ if ($mapsAccount -and $managedIdentity) {
       $azureMapsDataReaderRoleDefinitionId,
       "--scope",
       $mapsAccount.id
-    ))
+    )))
 
   if ($dataReaderAssignments.Count -eq 0) {
     $issues.Add("The managed identity does not have Azure Maps Data Reader on the Maps account.")
   }
 }
 
-$entraApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
+Write-ScriptStep "Validating Entra application and service principal."
+$entraApps = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName)))
 $matchingApps = @($entraApps | Where-Object { $_.displayName -eq $config.AppRegistrationDisplayName })
 if ($matchingApps.Count -ne 1) {
   $issues.Add("Expected exactly one Entra application named '$($config.AppRegistrationDisplayName)'.")
@@ -185,7 +223,8 @@ if ($appRegistration) {
 }
 
 if ($mapsAccount -and $servicePrincipal) {
-  $contributorAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
+  Write-ScriptStep "Validating Contributor role assignment for the Entra app."
+  $contributorAssignments = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -195,13 +234,14 @@ if ($mapsAccount -and $servicePrincipal) {
       $contributorRoleDefinitionId,
       "--scope",
       $mapsAccount.id
-    ))
+    )))
 
   if ($contributorAssignments.Count -eq 0) {
     $issues.Add("The Azure Maps Entra application does not have Contributor on the Maps account.")
   }
 }
 
+Write-ScriptStep "Validating Static Web App application settings."
 $settings = ConvertTo-SettingHashtable -InputObject (Invoke-AzJson -Arguments @(
     "staticwebapp",
     "appsettings",
@@ -260,4 +300,5 @@ if ($issues.Count -gt 0) {
   throw "Azure Maps validation failed with $($issues.Count) issue(s)."
 }
 
+Write-ScriptSection "Validation summary"
 Write-Host "Azure Maps validation passed for '$Environment'."

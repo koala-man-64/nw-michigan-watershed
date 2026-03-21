@@ -10,11 +10,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Import-Module (Join-Path $PSScriptRoot "Common.psm1") -Force
+$previousVerbosePreference = $VerbosePreference
+try {
+  $VerbosePreference = "SilentlyContinue"
+  Import-Module (Join-Path $PSScriptRoot "..\common\Az.Common.psm1") -Force -DisableNameChecking
+  Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -DisableNameChecking
+} finally {
+  $VerbosePreference = $previousVerbosePreference
+}
 
 $contributorRoleDefinitionId = "b24988ac-6180-42a0-ab88-20f7382dd24c"
-$repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$environmentPath = Join-Path $PSScriptRoot ("environments/{0}.psd1" -f $Environment)
+$repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
+$environmentPath = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
 $templateFile = Join-Path $repoRoot "infra/azuremaps/main.bicep"
 $whatIfMode = [bool]$WhatIfPreference
 
@@ -31,6 +38,7 @@ function Get-EnvironmentConfig {
 function Assert-ExistingStaticWebApp {
   param([hashtable]$Config)
 
+  Write-ScriptStep "Validating Static Web App '$($Config.StaticWebAppName)'."
   $null = Invoke-AzJson -Arguments @(
     "staticwebapp",
     "show",
@@ -44,6 +52,7 @@ function Assert-ExistingStaticWebApp {
 function Assert-ExistingApplicationInsights {
   param([hashtable]$Config)
 
+  Write-ScriptStep "Validating Application Insights '$($Config.ApplicationInsightsName)'."
   $null = Invoke-AzJson -Arguments @(
     "monitor",
     "app-insights",
@@ -134,13 +143,13 @@ function Get-OrCreate-AppRegistration {
     [bool]$WhatIfMode
   )
 
-  $existingApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
+  $existingApps = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "ad",
       "app",
       "list",
       "--display-name",
       $Config.AppRegistrationDisplayName
-    ))
+    )))
 
   $matchingApps = @($existingApps | Where-Object { $_.displayName -eq $Config.AppRegistrationDisplayName })
   if ($matchingApps.Count -gt 1) {
@@ -168,6 +177,7 @@ function Get-OrCreate-AppRegistration {
       "AzureADMyOrg"
     )
   } else {
+    Write-ScriptStep "Entra application '$($Config.AppRegistrationDisplayName)' already exists."
     $app = $matchingApps[0]
   }
 
@@ -180,6 +190,8 @@ function Get-OrCreate-AppRegistration {
       Write-Host "Creating service principal for app '$($Config.AppRegistrationDisplayName)'..."
       $servicePrincipal = Invoke-AzJson -Arguments @("ad", "sp", "create", "--id", $app.appId)
     }
+  } else {
+    Write-ScriptStep "Service principal for '$($Config.AppRegistrationDisplayName)' already exists."
   }
 
   return @{
@@ -203,7 +215,7 @@ function Ensure-RoleAssignment {
     return
   }
 
-  $existingAssignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
+  $existingAssignments = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -213,9 +225,10 @@ function Ensure-RoleAssignment {
       $RoleDefinitionId,
       "--scope",
       $Scope
-    ))
+    )))
 
   if ($existingAssignments.Count -gt 0) {
+    Write-ScriptStep "Role assignment '$RoleDefinitionId' already exists on '$Scope'."
     return
   }
 
@@ -244,6 +257,7 @@ function Get-OrCreate-ClientSecret {
   )
 
   if (-not $RotateClientSecret -and $CurrentSettings.ContainsKey("AZURE_CLIENT_SECRET") -and $CurrentSettings.AZURE_CLIENT_SECRET) {
+    Write-ScriptStep "Reusing existing Entra client secret from Static Web App settings."
     return [string]$CurrentSettings.AZURE_CLIENT_SECRET
   }
 
@@ -275,16 +289,21 @@ function Get-OrCreate-ClientSecret {
   )
 }
 
+Write-ScriptSection "Azure Maps deployment ($Environment)"
+Write-ScriptStep "Loading environment configuration from '$environmentPath'."
 $config = Get-EnvironmentConfig -Path $environmentPath
 
+Write-ScriptStep "Ensuring Azure CLI prerequisites and authentication."
 Ensure-AzCli
 Require-AzLogin
+Write-ScriptStep "Switching Azure subscription to '$($config.SubscriptionId)'."
 Set-Subscription -SubscriptionId $config.SubscriptionId
+Write-ScriptStep "Ensuring Azure resource providers and Bicep support."
 Ensure-ProviderRegistered -Namespace "Microsoft.Maps"
 Ensure-ProviderRegistered -Namespace "Microsoft.ManagedIdentity"
 Ensure-BicepAvailable
 
-Write-Host "Validating prerequisite resources..."
+Write-ScriptStep "Validating prerequisite resources."
 Assert-ExistingStaticWebApp -Config $config
 Assert-ExistingApplicationInsights -Config $config
 
@@ -315,8 +334,9 @@ $deploymentParameters = [ordered]@{
 $parameterFile = New-TemporaryJsonFile -InputObject $deploymentParameters
 
 try {
+  Write-ScriptStep "Prepared deployment parameters in temporary file '$parameterFile'."
   if ($whatIfMode) {
-    Write-Host "Running Azure deployment what-if..."
+    Write-ScriptStep "Running Azure deployment what-if."
     $null = Invoke-Az -Arguments @(
       "deployment",
       "group",
@@ -332,7 +352,7 @@ try {
 
   $deploymentOutputs = $null
   if (-not $whatIfMode) {
-    Write-Host "Deploying Azure Maps infrastructure..."
+    Write-ScriptStep "Deploying Azure Maps infrastructure from '$templateFile'."
     $deploymentResult = Invoke-AzJson -Arguments @(
       "deployment",
       "group",
@@ -347,6 +367,7 @@ try {
     $deploymentOutputs = $deploymentResult.properties.outputs
   }
 
+  Write-ScriptStep "Resolving deployed Azure Maps and identity resource identifiers."
   $mapsAccount = if ($deploymentOutputs) {
     [pscustomobject]@{
       Id = [string]$deploymentOutputs.mapsAccountId.value
@@ -378,7 +399,9 @@ try {
     }
   }
 
+  Write-ScriptStep "Ensuring Entra application and service principal."
   $appRegistration = Get-OrCreate-AppRegistration -Config $config -WhatIfMode $whatIfMode
+  Write-ScriptStep "Ensuring Contributor role assignment on the Azure Maps account."
   Ensure-RoleAssignment `
     -PrincipalObjectId $appRegistration.ServicePrincipalObjectId `
     -PrincipalType "ServicePrincipal" `
@@ -386,7 +409,9 @@ try {
     -Scope $mapsAccount.Id `
     -WhatIfMode $whatIfMode
 
+  Write-ScriptStep "Reading current Static Web App settings."
   $existingSettings = Get-StaticWebAppSettings -Config $config
+  Write-ScriptStep "Resolving client secret strategy."
   $clientSecret = Get-OrCreate-ClientSecret `
     -Config $config `
     -CurrentSettings $existingSettings `
@@ -412,7 +437,7 @@ try {
   if ($whatIfMode) {
     Write-Host "WhatIf: would update Static Web App app settings for '$($config.StaticWebAppName)'."
   } else {
-    Write-Host "Updating Static Web App app settings..."
+    Write-ScriptStep "Updating Static Web App app settings."
     $settingArguments = @(
       "staticwebapp",
       "appsettings",
@@ -427,7 +452,7 @@ try {
     $null = Invoke-AzJson -Arguments $settingArguments
   }
 
-  Write-Host ""
+  Write-ScriptSection "Deployment summary"
   Write-Host "Azure Maps deployment summary"
   Write-Host "  Environment:              $Environment"
   Write-Host "  Maps account:             $($config.AzureMapsAccountName)"
@@ -438,6 +463,7 @@ try {
   Write-Host "  Allowed origins:          $(@($config.AllowedOrigins) -join ', ')"
 } finally {
   if (Test-Path -LiteralPath $parameterFile) {
+    Write-Verbose "Removing temporary deployment parameter file '$parameterFile'."
     Remove-Item -LiteralPath $parameterFile -Force -WhatIf:$false
   }
 }

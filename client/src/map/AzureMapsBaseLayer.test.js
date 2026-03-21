@@ -7,10 +7,10 @@ import { getAzureMapsAuthBundle, getAzureMapsSasToken } from "./azureMapsToken";
 import { trackEvent, trackException } from "../utils/telemetry";
 
 const mockRemoveLayer = jest.fn();
-const mockUseMap = jest.fn(() => ({ removeLayer: mockRemoveLayer }));
+const mockMap = { removeLayer: mockRemoveLayer };
 
 jest.mock("react-leaflet", () => ({
-  useMap: () => mockUseMap(),
+  useMap: () => mockMap,
 }));
 
 const mockLayer = {
@@ -18,7 +18,6 @@ const mockLayer = {
   on: jest.fn(),
   off: jest.fn(),
 };
-
 jest.mock("leaflet", () => ({
   __esModule: true,
   default: {
@@ -54,10 +53,17 @@ describe("AzureMapsBaseLayer", () => {
   test("creates an Azure Maps layer with SAS auth", async () => {
     const onStatusChange = jest.fn();
     const { default: L } = await import("leaflet");
+    const layer = {
+      addTo: jest.fn(),
+      on: jest.fn(),
+      off: jest.fn(),
+    };
+    L.tileLayer.azureMaps.mockReturnValue(layer);
 
     render(<AzureMapsBaseLayer onStatusChange={onStatusChange} />);
 
     await waitFor(() => expect(L.tileLayer.azureMaps).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(layer.on).toHaveBeenCalledTimes(2));
 
     const options = L.tileLayer.azureMaps.mock.calls[0][0];
     expect(options.authOptions.authType).toBe("sas");
@@ -70,6 +76,18 @@ describe("AzureMapsBaseLayer", () => {
       (error) => {
         throw error;
       }
+    );
+
+    const readyHandler = layer.on.mock.calls.find(
+      ([eventName]) => eventName === "tileload"
+    )?.[1];
+    expect(typeof readyHandler).toBe("function");
+    readyHandler();
+
+    expect(onStatusChange).toHaveBeenCalledWith({ state: "ready" });
+    expect(trackEvent).toHaveBeenCalledWith(
+      "azure_maps_provider_loaded",
+      expect.objectContaining({ tilesetId: "microsoft.base.road" })
     );
   });
 

@@ -10,10 +10,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Import-Module (Join-Path $PSScriptRoot "Common.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "..\common\Az.Common.psm1") -Force -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -DisableNameChecking
 
 $contributorRoleDefinitionId = "b24988ac-6180-42a0-ab88-20f7382dd24c"
-$environmentPath = Join-Path $PSScriptRoot ("environments/{0}.psd1" -f $Environment)
+$repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
+$environmentPath = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
 $appSettingNames = @(
   "AZURE_TENANT_ID",
   "AZURE_CLIENT_ID",
@@ -56,7 +58,7 @@ $mapsAccount = Invoke-AzJson -Arguments @(
   $config.ResourceGroupName
 ) -AllowFailure
 
-$entraApps = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName))
+$entraApps = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @("ad", "app", "list", "--display-name", $config.AppRegistrationDisplayName)))
 $appRegistration = @($entraApps | Where-Object { $_.displayName -eq $config.AppRegistrationDisplayName }) | Select-Object -First 1
 $servicePrincipal = $null
 if ($appRegistration) {
@@ -64,7 +66,7 @@ if ($appRegistration) {
 }
 
 if ($mapsAccount -and $servicePrincipal) {
-  $assignments = ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
+  $assignments = @(ConvertTo-ArrayCompat -InputObject (Invoke-AzJson -Arguments @(
       "role",
       "assignment",
       "list",
@@ -74,7 +76,7 @@ if ($mapsAccount -and $servicePrincipal) {
       $contributorRoleDefinitionId,
       "--scope",
       $mapsAccount.id
-    ))
+    )))
 
   foreach ($assignment in $assignments) {
     if ($whatIfMode) {

@@ -10,6 +10,15 @@ import PropTypes from "prop-types";
 import { DATA_BLOBS, MAP_MARKER_ASSETS, buildDataUrl } from "./config/dataSources";
 import { fetchCachedCsvText } from "./utils/csvCache";
 import AzureMapsBaseLayer from "./map/AzureMapsBaseLayer";
+import MapTileWarmController from "./map/MapTileWarmController";
+import {
+  MAP_DEFAULT_CENTER,
+  MAP_DEFAULT_ZOOM,
+  MAP_MAX_BOUNDS_VISCOSITY,
+  MAP_MAX_ZOOM,
+  MAP_MIN_ZOOM,
+  NW_MICHIGAN_MAX_BOUNDS,
+} from "./map/mapViewport";
 
 /** Leaflet default icon fix */
 delete L.Icon.Default.prototype._getIconUrl;
@@ -34,14 +43,11 @@ function createMarkerIcon(iconUrl) {
 const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
 const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
-// Keep the initial map view on the broader NW Michigan region instead of
-// snapping to marker bounds as soon as the locations CSV finishes loading.
-const DEFAULT_CENTER = [44.75, -85.85];
-const DEFAULT_ZOOM = 8;
 const POPUP_CLOSE_DELAY_MS = 220;
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
+  const [isBaseLayerReady, setIsBaseLayerReady] = useState(false);
   const [mapError, setMapError] = useState("");
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
@@ -72,6 +78,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
   const handleBaseLayerStatus = useCallback((status) => {
     if (status?.state === "error") {
+      setIsBaseLayerReady(false);
       setMapError(
         status.message ||
           "Basemap unavailable. Site markers remain available, but the background map could not be loaded."
@@ -80,6 +87,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     }
 
     if (status?.state === "ready") {
+      setIsBaseLayerReady(true);
       setMapError("");
     }
   }, []);
@@ -147,11 +155,16 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     <div className="map-panel">
       <MapContainer
         style={{ height: "100%" }}
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
+        center={MAP_DEFAULT_CENTER}
+        maxBounds={NW_MICHIGAN_MAX_BOUNDS}
+        maxBoundsViscosity={MAP_MAX_BOUNDS_VISCOSITY}
+        maxZoom={MAP_MAX_ZOOM}
+        minZoom={MAP_MIN_ZOOM}
+        zoom={MAP_DEFAULT_ZOOM}
         scrollWheelZoom
       >
         <AzureMapsBaseLayer onStatusChange={handleBaseLayerStatus} />
+        <MapTileWarmController isBaseLayerReady={isBaseLayerReady} />
 
         {allLocations.map((loc) => {
           const isSelected = selectedSites.includes(loc.name);

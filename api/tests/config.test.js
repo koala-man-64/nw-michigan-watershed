@@ -17,13 +17,15 @@ test("getAzureMapsConfig applies defaults and normalizes origins", () => {
     AZURE_MAPS_ACCOUNT_NAME: "maps-name",
     AZURE_MAPS_ACCOUNT_CLIENT_ID: "maps-client-id",
     AZURE_MAPS_UAMI_PRINCIPAL_ID: "uami-principal-id",
-    AZURE_MAPS_ALLOWED_ORIGINS: "http://localhost:4280, https://dev.example.com/path",
+    AZURE_MAPS_ALLOWED_ORIGINS:
+      "http://localhost:3000, http://localhost:4280, https://dev.example.com/path",
   });
 
   assert.equal(config.azureMapsSasTtlMinutes, DEFAULT_SAS_TTL_MINUTES);
   assert.equal(config.azureMapsSasMaxRps, DEFAULT_SAS_MAX_RPS);
   assert.equal(config.azureMapsSasSigningKey, DEFAULT_SAS_SIGNING_KEY);
   assert.deepEqual(config.allowedOrigins, [
+    "http://localhost:3000",
     "http://localhost:4280",
     "https://dev.example.com",
   ]);

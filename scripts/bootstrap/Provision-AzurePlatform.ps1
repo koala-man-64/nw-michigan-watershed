@@ -6,18 +6,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Import-Module (Join-Path $PSScriptRoot "Common.psm1") -Force -DisableNameChecking
-Import-Module (Join-Path (Get-WorkspaceRoot -StartPath $PSScriptRoot) "scripts/infra/Common.psm1") -Force -DisableNameChecking
+$previousVerbosePreference = $VerbosePreference
+try {
+  $VerbosePreference = "SilentlyContinue"
+  Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -DisableNameChecking
+  Import-Module (Join-Path $PSScriptRoot "..\common\Az.Common.psm1") -Force -DisableNameChecking
+} finally {
+  $VerbosePreference = $previousVerbosePreference
+}
 
 $repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
-$deployScript = Join-Path $repoRoot "scripts/infra/Deploy-AzureMapsStack.ps1"
-$testScript = Join-Path $repoRoot "scripts/infra/Test-AzureMapsStack.ps1"
+$deployScript = Join-Path $repoRoot "scripts/azuremaps/Deploy-AzureMapsStack.ps1"
+$testScript = Join-Path $repoRoot "scripts/azuremaps/Test-AzureMapsStack.ps1"
 $whatIfMode = [bool]$WhatIfPreference
 
 function Get-EnvironmentConfig {
   param([string]$Environment)
 
-  $path = Join-Path $repoRoot ("scripts/infra/environments/{0}.psd1" -f $Environment)
+  $path = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
   if (-not (Test-Path -LiteralPath $path)) {
     throw "Environment configuration file was not found: $path"
   }
@@ -39,6 +45,7 @@ function Ensure-ResourceGroup {
   )
 
   if ($exists -eq "true") {
+    Write-ScriptStep "Resource group '$($Config.ResourceGroupName)' already exists."
     return
   }
 
@@ -67,6 +74,7 @@ function Ensure-ResourceGroup {
 function Ensure-StaticWebAppExists {
   param([hashtable]$Config)
 
+  Write-ScriptStep "Validating Static Web App '$($Config.StaticWebAppName)'."
   $null = Invoke-AzJson -Arguments @(
     "staticwebapp",
     "show",
@@ -96,6 +104,7 @@ function Ensure-LogAnalyticsWorkspace {
   ) -AllowFailure
 
   if ($workspace) {
+    Write-ScriptStep "Log Analytics workspace '$workspaceName' already exists."
     return $workspace
   }
 
@@ -151,6 +160,7 @@ function Ensure-ApplicationInsightsComponent {
   ) -AllowFailure
 
   if ($component) {
+    Write-ScriptStep "Application Insights '$($Config.ApplicationInsightsName)' already exists."
     return $component
   }
 
@@ -205,6 +215,7 @@ function Invoke-AzureMapsDeployment {
     return
   }
 
+  Write-ScriptStep "Running Azure Maps deployment for '$Environment'."
   $arguments = @(
     "-ExecutionPolicy",
     "Bypass",
@@ -218,39 +229,70 @@ function Invoke-AzureMapsDeployment {
     $arguments += "-RotateClientSecret"
   }
 
+  if ($VerbosePreference -eq "Continue") {
+    $arguments += "-Verbose"
+  }
+
   $null = & powershell @arguments
   if ($LASTEXITCODE -ne 0) {
     throw "Azure Maps deployment script failed for '$Environment'."
   }
 
   if (-not $WhatIfMode) {
-    $null = & powershell -ExecutionPolicy Bypass -File $testScript -Environment $Environment
+    $validationArguments = @(
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      $testScript,
+      "-Environment",
+      $Environment
+    )
+    if ($VerbosePreference -eq "Continue") {
+      $validationArguments += "-Verbose"
+    }
+    Write-ScriptStep "Running Azure Maps validation for '$Environment'."
+    $null = & powershell @validationArguments
     if ($LASTEXITCODE -ne 0) {
       throw "Azure Maps validation script failed for '$Environment'."
     }
   }
 }
 
+Write-ScriptSection "Azure platform bootstrap"
+Write-ScriptStep "Ensuring Azure CLI prerequisites and authentication."
 Ensure-AzCli
 Require-AzLogin
 Ensure-AzExtensionInstalled -Name "application-insights"
 
 foreach ($environment in @("dev", "prod")) {
+  Write-ScriptSection "Environment: $environment"
+  Write-ScriptStep "Loading environment configuration."
   $config = Get-EnvironmentConfig -Environment $environment
 
-  Write-Host ""
-  Write-Host "Processing Azure environment '$environment'..."
+  Write-ScriptStep "Target resource group: $($config.ResourceGroupName)"
+  Write-ScriptStep "Target Static Web App: $($config.StaticWebAppName)"
+  Write-ScriptStep "Switching Azure subscription to '$($config.SubscriptionId)'."
   Set-Subscription -SubscriptionId $config.SubscriptionId
+
+  Write-ScriptStep "Ensuring required Azure resource providers are registered."
   Ensure-ProviderRegistered -Namespace "Microsoft.Insights"
   Ensure-ProviderRegistered -Namespace "Microsoft.OperationalInsights"
   Ensure-ProviderRegistered -Namespace "Microsoft.Maps"
   Ensure-ProviderRegistered -Namespace "Microsoft.ManagedIdentity"
+
+  Write-ScriptStep "Ensuring resource group '$($config.ResourceGroupName)'."
   Ensure-ResourceGroup -Config $config -WhatIfMode $whatIfMode
+
   Ensure-StaticWebAppExists -Config $config
+
+  Write-ScriptStep "Ensuring Log Analytics workspace for '$($config.ApplicationInsightsName)'."
   $workspace = Ensure-LogAnalyticsWorkspace -Config $config -WhatIfMode $whatIfMode
+
+  Write-ScriptStep "Ensuring Application Insights '$($config.ApplicationInsightsName)'."
   $null = Ensure-ApplicationInsightsComponent -Config $config -Workspace $workspace -WhatIfMode $whatIfMode
+
   Invoke-AzureMapsDeployment -Environment $environment -RotateClientSecrets:$RotateClientSecrets -WhatIfMode $whatIfMode
 }
 
-Write-Host ""
+Write-ScriptSection "Completed"
 Write-Host "Azure platform provisioning completed for dev and prod."

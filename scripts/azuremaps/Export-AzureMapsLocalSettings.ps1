@@ -4,17 +4,28 @@ param(
   [ValidateSet("dev", "prod")]
   [string]$Environment,
 
-  [string]$Path = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "api/local.settings.json"),
+  [string]$Path,
 
-  [int]$LocalHttpPort = 9091
+  [int]$LocalHttpPort = 9091,
+
+  [string[]]$LocalClientOrigins = @(
+    "http://localhost:3000",
+    "http://localhost:4280"
+  )
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-Import-Module (Join-Path $PSScriptRoot "Common.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "..\common\Az.Common.psm1") -Force -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -DisableNameChecking
 
-$environmentPath = Join-Path $PSScriptRoot ("environments/{0}.psd1" -f $Environment)
+$repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($Path)) {
+  $Path = Join-Path $repoRoot "api/local.settings.json"
+}
+
+$environmentPath = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
 
 function Get-EnvironmentConfig {
   param([string]$ConfigPath)
@@ -111,7 +122,7 @@ $requiredSettings = @(
 
 foreach ($setting in $requiredSettings) {
   if (-not $swaSettings.ContainsKey($setting) -or [string]::IsNullOrWhiteSpace([string]$swaSettings[$setting])) {
-    throw "Static Web App setting '$setting' is missing. Run Deploy-AzureMapsStack.ps1 first."
+    throw "Static Web App setting '$setting' is missing. Run scripts/azuremaps/Deploy-AzureMapsStack.ps1 first."
   }
 }
 
@@ -129,6 +140,14 @@ $output = [ordered]@{
 foreach ($setting in $requiredSettings) {
   $output.Values[$setting] = [string]$swaSettings[$setting]
 }
+
+$configuredOrigins = [string]$output.Values.AZURE_MAPS_ALLOWED_ORIGINS
+$mergedOrigins = @(
+  @($configuredOrigins -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  @($LocalClientOrigins | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+) | Select-Object -Unique
+
+$output.Values.AZURE_MAPS_ALLOWED_ORIGINS = [string]($mergedOrigins -join ",")
 
 $targetDirectory = Split-Path -Parent $Path
 if (-not (Test-Path -LiteralPath $targetDirectory)) {

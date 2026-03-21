@@ -8,6 +8,8 @@
     "node": "20.x"
   },
   "scripts": {
+    "start": "func start --port 9091",
+    "kill:9091": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\local\\Stop-ProcessOnPort.ps1",
     "lint": "eslint src tests --ext .js",
     "test": "node --test tests/config.test.js tests/origin.test.js tests/mapsTokenHandler.test.js"
   },

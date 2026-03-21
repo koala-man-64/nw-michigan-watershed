@@ -1,5 +1,26 @@
 Set-StrictMode -Version Latest
 
+function Write-ScriptSection {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$Message
+  )
+
+  Write-Host ""
+  Write-Host "== $Message ==" -ForegroundColor Cyan
+}
+
+function Write-ScriptStep {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory)]
+    [string]$Message
+  )
+
+  Write-Host " -> $Message" -ForegroundColor DarkCyan
+}
+
 function Get-WorkspaceRoot {
   [CmdletBinding()]
   param(
@@ -24,6 +45,8 @@ function Invoke-Gh {
     [switch]$AllowFailure
   )
 
+  Write-Verbose ("Running GitHub CLI: gh {0}" -f ($Arguments -join " "))
+
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
@@ -38,6 +61,12 @@ function Invoke-Gh {
     throw "GitHub CLI command failed: gh $($Arguments -join ' ')`n$renderedOutput"
   }
 
+  if ($AllowFailure -and $exitCode -ne 0) {
+    Write-Verbose ("GitHub CLI returned exit code {0} for allowed-failure call." -f $exitCode)
+  } else {
+    Write-Verbose ("GitHub CLI completed with exit code {0}." -f $exitCode)
+  }
+
   return ($output | Out-String).Trim()
 }
 
@@ -50,8 +79,11 @@ function Import-LooseEnvFile {
 
   $values = @{}
   if (-not (Test-Path -LiteralPath $Path)) {
+    Write-Verbose "Env file not found at '$Path'."
     return $values
   }
+
+  Write-Verbose "Loading env values from '$Path'."
 
   foreach ($line in Get-Content -LiteralPath $Path) {
     $trimmedLine = $line.Trim()
@@ -106,71 +138,8 @@ function Ensure-GitHubAuthentication {
     $env:GH_TOKEN = [string]$EnvValues.STATIC_CUTOVER_GITHUB_TOKEN
   }
 
+  Write-Verbose "Validating GitHub CLI authentication."
   $null = Invoke-Gh -Arguments @("auth", "status")
 }
 
-function Ensure-AzExtensionInstalled {
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory)]
-    [string]$Name
-  )
-
-  $null = & az extension show --name $Name --only-show-errors 2>$null
-  if ($LASTEXITCODE -eq 0) {
-    return
-  }
-
-  Write-Host "Installing Azure CLI extension '$Name'..."
-  $null = & az extension add --name $Name --upgrade --only-show-errors
-  if ($LASTEXITCODE -ne 0) {
-    throw "Failed to install Azure CLI extension '$Name'."
-  }
-}
-
-function Get-LogAnalyticsWorkspaceName {
-  [CmdletBinding()]
-  param(
-    [Parameter(Mandatory)]
-    [string]$ApplicationInsightsName
-  )
-
-  if ($ApplicationInsightsName -match '^appi-(.+)$') {
-    return "log-$($matches[1])"
-  }
-
-  return "$ApplicationInsightsName-law"
-}
-
-function ConvertTo-TagArgumentList {
-  [CmdletBinding()]
-  param(
-    [hashtable]$Tags
-  )
-
-  if ($null -eq $Tags -or $Tags.Count -eq 0) {
-    return @()
-  }
-
-  return @($Tags.GetEnumerator() | Sort-Object Key | ForEach-Object { "{0}={1}" -f $_.Key, $_.Value })
-}
-
-function Get-StorageAccountNameFromConnectionString {
-  [CmdletBinding()]
-  param(
-    [AllowEmptyString()]
-    [string]$ConnectionString
-  )
-
-  if ([string]::IsNullOrWhiteSpace($ConnectionString)) {
-    return $null
-  }
-
-  if ($ConnectionString -match 'AccountName=([^;]+)') {
-    return [string]$matches[1]
-  }
-
-  return $null
-}
-
-Export-ModuleMember -Function ConvertTo-TagArgumentList, Ensure-AzExtensionInstalled, Ensure-GhCli, Ensure-GitHubAuthentication, Get-LogAnalyticsWorkspaceName, Get-StorageAccountNameFromConnectionString, Get-WorkspaceRoot, Import-LooseEnvFile, Invoke-Gh, Resolve-GitHubRepository
+Export-ModuleMember -Function Ensure-GhCli, Ensure-GitHubAuthentication, Get-WorkspaceRoot, Import-LooseEnvFile, Invoke-Gh, Resolve-GitHubRepository, Write-ScriptSection, Write-ScriptStep

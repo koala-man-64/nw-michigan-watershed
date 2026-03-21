@@ -33,6 +33,9 @@ module mapsAccount './modules/maps-account.bicep' = {
 
 module mapsDataReaderAssignment './modules/role-assignment.bicep' = {
   name: 'azuremaps-data-reader-assignment'
+  dependsOn: [
+    mapsAccount
+  ]
   params: {
     mapsAccountName: mapsAccountName
     principalId: userAssignedIdentity.outputs.principalId
