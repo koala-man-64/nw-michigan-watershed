@@ -42,6 +42,8 @@ const greenIcon = new L.Icon({
 // snapping to marker bounds as soon as the locations CSV finishes loading.
 const DEFAULT_CENTER = [44.75, -85.85];
 const DEFAULT_ZOOM = 8;
+const MAX_NATIVE_TILE_ZOOM = 19;
+const MAX_MAP_ZOOM = 22;
 const POPUP_CLOSE_DELAY_MS = 220;
 
 function apiCsvUrl(blobName) {
@@ -142,11 +144,13 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
       style={{ height: "100%" }}
       center={DEFAULT_CENTER}
       zoom={DEFAULT_ZOOM}
+      maxZoom={MAX_MAP_ZOOM}
       scrollWheelZoom
     >
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
+        maxNativeZoom={MAX_NATIVE_TILE_ZOOM}
       />
 
       {allLocations.map((loc) => {
