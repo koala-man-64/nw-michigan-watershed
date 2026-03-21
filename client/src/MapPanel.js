@@ -50,6 +50,7 @@ const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
 const POPUP_CLOSE_DELAY_MS = 220;
 const MAX_POPUP_LAYOUT_PASSES = 2;
+const LIVE_POPUP_LAYOUT_EVENTS = ["move", "moveend", "zoom", "zoomend", "resize"];
 const FIXED_TILESET_ID = DEFAULT_AZURE_MAPS_TILESET_ID;
 
 function arePopupLayoutsEqual(left, right) {
@@ -103,6 +104,12 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
   const popupLayoutFrames = useRef(new Map());
+  const activePopupRef = useRef({
+    mapInstance: null,
+    markerInstance: null,
+    siteName: "",
+  });
+  const livePopupLayoutHandlerRef = useRef(null);
 
   const clearPendingClose = (siteName) => {
     const timeoutId = closeTimeouts.current.get(siteName);
@@ -181,12 +188,81 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     popupLayoutFrames.current.set(siteName, frameId);
   };
 
+  const detachLivePopupLayoutTracking = () => {
+    const mapInstance = activePopupRef.current.mapInstance;
+    const liveHandler = livePopupLayoutHandlerRef.current;
+    if (!mapInstance || !liveHandler) {
+      livePopupLayoutHandlerRef.current = null;
+      return;
+    }
+
+    LIVE_POPUP_LAYOUT_EVENTS.forEach((eventName) => {
+      mapInstance.off(eventName, liveHandler);
+    });
+    livePopupLayoutHandlerRef.current = null;
+  };
+
+  const clearActivePopupTracking = (siteName) => {
+    if (siteName && activePopupRef.current.siteName !== siteName) {
+      return;
+    }
+
+    cancelPendingLayout(activePopupRef.current.siteName);
+    detachLivePopupLayoutTracking();
+    activePopupRef.current = {
+      mapInstance: null,
+      markerInstance: null,
+      siteName: "",
+    };
+  };
+
+  const trackActivePopup = (siteName, markerInstance) => {
+    const previousSiteName = activePopupRef.current.siteName;
+    const mapInstance = markerInstance?._map || null;
+    const nextActivePopup = {
+      mapInstance,
+      markerInstance: markerInstance || null,
+      siteName,
+    };
+    const previousMapInstance = activePopupRef.current.mapInstance;
+
+    if (previousMapInstance && previousMapInstance !== mapInstance) {
+      detachLivePopupLayoutTracking();
+    }
+
+    if (previousSiteName && previousSiteName !== siteName) {
+      cancelPendingLayout(previousSiteName);
+    }
+
+    activePopupRef.current = nextActivePopup;
+
+    if (!mapInstance) {
+      return;
+    }
+
+    if (!livePopupLayoutHandlerRef.current) {
+      livePopupLayoutHandlerRef.current = () => {
+        const { markerInstance: activeMarker, siteName: activeSiteName } = activePopupRef.current;
+        if (!activeMarker?.isPopupOpen?.() || !activeSiteName) {
+          return;
+        }
+
+        schedulePopupLayoutAdjustment(activeSiteName, activeMarker);
+      };
+
+      LIVE_POPUP_LAYOUT_EVENTS.forEach((eventName) => {
+        mapInstance.on(eventName, livePopupLayoutHandlerRef.current);
+      });
+    }
+  };
+
   useEffect(() => {
     return () => {
       closeTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
       closeTimeouts.current.clear();
       popupLayoutFrames.current.forEach((frameId) => window.cancelAnimationFrame(frameId));
       popupLayoutFrames.current.clear();
+      detachLivePopupLayoutTracking();
     };
   }, []);
 
@@ -219,6 +295,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     const popupInstance = markerInstance?.getPopup?.();
     writePopupLayout(popupInstance, DEFAULT_POPUP_LAYOUT);
     popupInstance?.update?.();
+    trackActivePopup(siteName, markerInstance);
     markerInstance?.openPopup?.();
     schedulePopupLayoutAdjustment(siteName, markerInstance);
   };
@@ -325,6 +402,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                     openPopupForMarker(loc.name, e.target);
                   },
                   mouseout: () => scheduleClose(loc.name),
+                  popupclose: () => clearActivePopupTracking(loc.name),
                 }}
               >
                 <Popup

@@ -111,4 +111,35 @@ describe("popupLayout", () => {
       offset: [0, -40],
     });
   });
+
+  test("removes stale horizontal correction when the popup has room again", () => {
+    expect(
+      getAdaptivePopupLayout({
+        currentLayout: {
+          className: "map-site-popup",
+          offset: [38, 0],
+        },
+        popupRect: {
+          left: 90,
+          right: 310,
+          top: 80,
+          bottom: 200,
+          width: 220,
+          height: 120,
+        },
+        mapRect: {
+          left: 0,
+          right: 500,
+          top: 0,
+          bottom: 400,
+          width: 500,
+          height: 400,
+        },
+        markerScreenPoint: { x: 180, y: 220 },
+      })
+    ).toEqual({
+      className: "map-site-popup",
+      offset: [0, 0],
+    });
+  });
 });
