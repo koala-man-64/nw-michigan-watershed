@@ -5,6 +5,7 @@ import { fetchCachedCsvText } from "./utils/csvCache";
 
 const mockAzureMapsBaseLayer = jest.fn(() => null);
 const mockMapTileWarmController = jest.fn(() => null);
+const mockMapContainer = jest.fn();
 
 jest.mock("./map/AzureMapsBaseLayer", () => ({
   __esModule: true,
@@ -30,8 +31,10 @@ jest.mock("react-leaflet", () => {
   const ReactModule = require("react");
 
   return {
-    MapContainer: ({ children }) =>
-      ReactModule.createElement("div", { "data-testid": "map-container" }, children),
+    MapContainer: ({ children, ...props }) => {
+      mockMapContainer(props);
+      return ReactModule.createElement("div", { "data-testid": "map-container" }, children);
+    },
     Marker: ({ children }) => ReactModule.createElement("div", null, children),
     Popup: ({ children }) => ReactModule.createElement("div", null, children),
   };
@@ -83,5 +86,21 @@ describe("MapPanel", () => {
         tilesetId: "microsoft.base.road",
       })
     );
+  });
+
+  test("does not constrain panning with max bounds", () => {
+    render(<MapPanel selectedSites={[]} onMarkerClick={jest.fn()} />);
+
+    const mapContainerProps = mockMapContainer.mock.calls.at(-1)?.[0];
+    expect(mapContainerProps).toEqual(
+      expect.objectContaining({
+        center: [44.75, -85.85],
+        zoom: 8,
+        minZoom: 7,
+        maxZoom: 16,
+      })
+    );
+    expect(mapContainerProps.maxBounds).toBeUndefined();
+    expect(mapContainerProps.maxBoundsViscosity).toBeUndefined();
   });
 });

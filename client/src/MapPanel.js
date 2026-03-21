@@ -15,10 +15,8 @@ import { DEFAULT_AZURE_MAPS_TILESET_ID } from "./map/azureMapsTilesets";
 import {
   MAP_DEFAULT_CENTER,
   MAP_DEFAULT_ZOOM,
-  MAP_MAX_BOUNDS_VISCOSITY,
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
-  NW_MICHIGAN_MAX_BOUNDS,
 } from "./map/mapViewport";
 
 /** Leaflet default icon fix */
@@ -171,8 +169,6 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
           style={{ height: "100%" }}
           center={MAP_DEFAULT_CENTER}
           fadeAnimation={false}
-          maxBounds={NW_MICHIGAN_MAX_BOUNDS}
-          maxBoundsViscosity={MAP_MAX_BOUNDS_VISCOSITY}
           maxZoom={MAP_MAX_ZOOM}
           minZoom={MAP_MIN_ZOOM}
           zoom={MAP_DEFAULT_ZOOM}
