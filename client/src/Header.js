@@ -1,18 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faVolumeHigh } from "@fortawesome/free-solid-svg-icons";
 import PropTypes from "prop-types";
-import { Link } from 'react-router-dom';
-import logo from './nwmiws_logo.png';
-
-const contactDetails = [
-  { label: "Office", value: "Northwest Michigan Watershed Coalition" },
-  { label: "Phone", value: "(231) 555-0148", href: "tel:+12315550148" },
-  { label: "Email", value: "hello@nwmwc.org", href: "mailto:hello@nwmwc.org" },
-  { label: "Address", value: "123 Watershed Lane, Traverse City, MI 49684" },
-  { label: "Hours", value: "Monday-Friday, 8:30 AM-5:00 PM ET" },
-];
+import { Link } from "react-router-dom";
+import logo from "./nwmiws_logo.png";
+import { APP_TITLE, CONTACT_DETAILS } from "./siteContent";
 
 export default function Header({ onHomeClick = () => {} }) {
   const [activeDialog, setActiveDialog] = useState(null);
@@ -35,14 +28,8 @@ export default function Header({ onHomeClick = () => {} }) {
   }, [activeDialog]);
 
   const closeActiveDialog = () => setActiveDialog(null);
-
   const openContactDialog = () => setActiveDialog("contact");
-
-  const playAudioInstructions = () => {
-    // Placeholder for future narrated instructions playback.
-    setActiveDialog("audio");
-  };
-
+  const openAudioInstructions = () => setActiveDialog("audio");
   const activeDialogTitle = isAudioOpen ? "Audio Instructions" : "Contact us";
 
   const headerModal = activeDialog ? (
@@ -59,7 +46,9 @@ export default function Header({ onHomeClick = () => {} }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="contact-modal-header">
-          <h2 id="header-modal-title" className="contact-modal-title">{activeDialogTitle}</h2>
+          <h2 id="header-modal-title" className="contact-modal-title">
+            {activeDialogTitle}
+          </h2>
           <button
             type="button"
             className="contact-modal-close"
@@ -72,7 +61,7 @@ export default function Header({ onHomeClick = () => {} }) {
 
         {isContactOpen ? (
           <div className="contact-details">
-            {contactDetails.map((detail) => (
+            {CONTACT_DETAILS.map((detail) => (
               <div key={detail.label} className="contact-row">
                 <span className="contact-label">{detail.label}</span>
                 {detail.href ? (
@@ -111,7 +100,7 @@ export default function Header({ onHomeClick = () => {} }) {
           <div className="header-left">
             <Link to="/" aria-label="Home" className="header-home-link" onClick={onHomeClick}>
               <img src={logo} alt="Logo" className="header-logo" />
-              <div className="title">Northwest Michigan Watershed Coalition</div>
+              <div className="title">{APP_TITLE}</div>
             </Link>
             <span className="vertical-separator" aria-hidden="true" />
           </div>
@@ -120,7 +109,7 @@ export default function Header({ onHomeClick = () => {} }) {
             <button
               type="button"
               className="audio-instructions-button"
-              onClick={playAudioInstructions}
+              onClick={openAudioInstructions}
             >
               <span className="audio-instructions-label">Audio Instructions</span>
               <span className="audio-instructions-icon" aria-hidden="true">

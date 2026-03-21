@@ -15,22 +15,19 @@
     "url": "git+https://github.com/koala-man-64/nw-michigan-watershed.git"
   },
   "dependencies": {
-    "@azure/storage-blob": "^12.27.0",
     "@fortawesome/fontawesome-svg-core": "^7.0.0",
     "@fortawesome/free-solid-svg-icons": "^7.0.0",
     "@fortawesome/react-fontawesome": "^3.0.1",
+    "@microsoft/applicationinsights-web": "^3.3.11",
     "@sgratzl/chartjs-chart-boxplot": "^4.4.4",
-    "axios": "^1.8.4",
     "chart.js": "^4.5.0",
     "d3": "^7.9.0",
-    "jwt-decode": "^4.0.0",
     "leaflet": "^1.9.4",
     "papaparse": "^5.5.2",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
     "react-leaflet": "^4.2.1",
-    "react-resizable-panels": "^3.0.3",
     "react-router-dom": "^7.4.0",
     "react-scripts": "^5.0.1",
     "web-vitals": "^4.2.4"
@@ -56,7 +53,6 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:7071",
   "devDependencies": {
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",

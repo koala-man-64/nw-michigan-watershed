@@ -4,13 +4,69 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import App from "./App";
 
+jest.mock(
+  "react-router-dom",
+  () => {
+    const React = require("react");
+
+    return {
+      BrowserRouter: ({ children }) => <>{children}</>,
+      Routes: ({ children }) => <>{children}</>,
+      Route: ({ element }) => element,
+      Navigate: () => null,
+      Link: ({ children, to = "/", ...props }) => (
+        <a href={to} {...props}>
+          {children}
+        </a>
+      ),
+    };
+  },
+  { virtual: true }
+);
+
 jest.mock("./FiltersPanel", () => {
   const React = require("react");
 
-  return function MockFiltersPanel({ updateEnabled }) {
+  return function MockFiltersPanel({
+    updateEnabled,
+    onDataLoaded,
+    onUpdatePlot1,
+  }) {
+    React.useEffect(() => {
+      onDataLoaded({
+        rawData: [
+          {
+            Site: "Lake Alpha",
+            Parameter: "Total Phosphorus",
+            Year: "2020",
+            Avg: "1.2",
+            Min: "1.0",
+            Max: "1.4",
+            Count: "3",
+          },
+        ],
+      });
+    }, [onDataLoaded]);
+
     return (
-      <div data-testid="filters-panel-state">
-        {updateEnabled ? "enabled" : "disabled"}
+      <div>
+        <div data-testid="filters-panel-state">
+          {updateEnabled ? "enabled" : "disabled"}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            onUpdatePlot1({
+              selectedSites: ["Lake Alpha", "Lake Beta"],
+              parameter: "Total Phosphorus",
+              startYear: 2020,
+              endYear: 2021,
+              chartType: "trend",
+            })
+          }
+        >
+          Mock Update Plot 1
+        </button>
       </div>
     );
   };
@@ -25,21 +81,18 @@ jest.mock("./MapPanel", () => {
 
 jest.mock("./Plots", () => {
   const React = require("react");
-  return function MockPlots() {
-    return <div>plots view</div>;
-  };
-});
-
-jest.mock("./ChatWithRudy", () => {
-  const React = require("react");
-  return function MockChatWithRudy() {
-    return <div>chat with rudy</div>;
+  return function MockPlots({ plotConfigs, loading }) {
+    return (
+      <div>
+        <div>plots view</div>
+        <div data-testid="plots-loading">{loading ? "loading" : "loaded"}</div>
+        <pre data-testid="plots-props">{JSON.stringify(plotConfigs)}</pre>
+      </div>
+    );
   };
 });
 
 test("clicking the header title returns the user to the welcome entry state", () => {
-  const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-
   render(<App />);
 
   expect(screen.getByText(/welcome to the nw michigan water quality database/i)).toBeInTheDocument();
@@ -56,13 +109,9 @@ test("clicking the header title returns the user to the welcome entry state", ()
   expect(screen.getByText(/welcome to the nw michigan water quality database/i)).toBeInTheDocument();
   expect(screen.queryByText(/plots view/i)).not.toBeInTheDocument();
   expect(screen.getByTestId("filters-panel-state")).toHaveTextContent("disabled");
-
-  consoleWarnSpy.mockRestore();
 });
 
 test("clicking the back button returns the user to the welcome entry state", () => {
-  const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-
   render(<App />);
 
   fireEvent.click(screen.getByRole("button", { name: /continue/i }));
@@ -75,6 +124,23 @@ test("clicking the back button returns the user to the welcome entry state", () 
   expect(screen.getByText(/welcome to the nw michigan water quality database/i)).toBeInTheDocument();
   expect(screen.queryByText(/plots view/i)).not.toBeInTheDocument();
   expect(screen.getByTestId("filters-panel-state")).toHaveTextContent("disabled");
+});
 
-  consoleWarnSpy.mockRestore();
+test("updating plot 1 stores a normalized trend config", () => {
+  render(<App />);
+
+  fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+  fireEvent.click(screen.getByRole("button", { name: /mock update plot 1/i }));
+
+  expect(screen.getByTestId("plots-loading")).toHaveTextContent("loaded");
+
+  const plotConfigs = JSON.parse(screen.getByTestId("plots-props").textContent);
+  expect(plotConfigs).toHaveLength(2);
+  expect(plotConfigs[0]).toMatchObject({
+    selectedSites: ["Lake Alpha", "Lake Beta"],
+    parameter: "Total Phosphorus",
+    chartType: "trend",
+    trendIndex: 1,
+  });
+  expect(plotConfigs[1]).toBeNull();
 });

@@ -1,4 +1,4 @@
-name: Azure Static Web Apps CI/CD
+name: NWMIWS Prod Deploy
 
 on:
   push:
@@ -9,19 +9,23 @@ on:
     branches:
       - main
 
+concurrency:
+  group: swa-prod-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: true
           lfs: false
-
-      # Note: runtime secrets for the API (e.g., SQL_CONNECTION_STRING, STORAGE_ACCOUNT_URL)
-      # must be configured in Azure Static Web Apps configuration, not exported here.
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -34,8 +38,18 @@ jobs:
         working-directory: ./client
         run: npm ci
 
+      - name: Lint Client
+        working-directory: ./client
+        run: npm run lint
+
+      - name: Test Client
+        working-directory: ./client
+        run: npm test -- --watchAll=false
+
       - name: Build Client App
         working-directory: ./client
+        env:
+          REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD }}
         run: npm run build
         
       - name: Build And Deploy
@@ -46,10 +60,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations ######
-          # Keep prod aligned with dev: the map and CSV-backed screens rely on
-          # the Functions API being deployed with the SPA.
           app_location: "client/build"
-          api_location: "api"
           output_location: ""
           skip_app_build: true
           ###### End of Repository/Build Configurations ######
@@ -57,11 +68,13 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    permissions:
+      pull-requests: write
     steps:
       - name: Close Pull Request
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_NICE_OCEAN_0F03A230F }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_COAST_0A9902A1E }}
           action: "close"
           app_location: "client"  # Added required parameter

@@ -1,108 +1,86 @@
-# Getting Started with Create React App
+# NW Michigan Water Quality Database
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+React single-page application for browsing, charting, and downloading northern Michigan water quality data. The deployed app ships its CSV datasets as static assets under `client/public/data/` and runs entirely on Azure Static Web Apps.
 
-## Azure Static Web Apps configuration (runtime)
+## Repository layout
 
-GitHub Actions build steps do not configure runtime environment variables for your deployed API. Configure these in Azure Static Web Apps (Configuration / Application settings) for the `api/` Functions:
+- `client/` React application, static datasets, telemetry bootstrap, and Static Web Apps config
+- `data/` non-runtime source reference material
+- `docs/runbooks/` release validation instructions
+- `scripts/` deployment verification helpers
 
-- `SQL_CONNECTION_STRING` (required for `log-event`)
-- `SQL_DRIVER` (optional; defaults to `pymssql`)
-- `STORAGE_ACCOUNT_URL` + Managed Identity **or** `BLOB_CONN` (required for `read-csv`)
-- `PUBLIC_BLOB_CONTAINER` (defaults to `nwmiws`)
-- `PUBLIC_BLOBS` (CSV allowlist; recommended to set explicitly)
-- `READ_CSV_MEMORY_CACHE_TTL_SEC` (optional; function-instance in-memory blob cache, defaults to `300`)
-- `READ_CSV_BROWSER_CACHE_MAX_AGE_SEC` (optional; `Cache-Control: max-age`, defaults to `3600`)
-- `READ_CSV_BROWSER_CACHE_SWR_SEC` (optional; `stale-while-revalidate` window, defaults to `86400`)
-- `LOG_EVENT_REQUIRED_ROLE` (defaults to `authenticated`)
-- `LOG_EVENT_ENABLED`, `LOG_EVENT_SAMPLE_RATE`, `LOG_EVENT_RATE_LIMIT_*`, `LOG_EVENT_IP_MODE`, `LOG_EVENT_CAPTURE_TEXT` (optional hardening)
+## Runtime configuration
 
-The client now persists CSV responses in `localStorage` and revalidates them with `ETag` headers in the background, so repeat app loads can render cached data immediately without redownloading unchanged blobs.
+The React build reads these variables:
 
-For production validation of the `read-csv` endpoint after deployment, use [the prod `read-csv` validation runbook](docs/runbooks/prod-read-csv-validation.md).
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING`
+- `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` optional, defaults to `86400000`
 
-## Local debugging note (AzureWebJobsStorage)
+The included GitHub Actions workflows map the Application Insights value from repository secrets:
 
-If VS Code prompts that it “Failed to verify `AzureWebJobsStorage`” when starting a debug session, either:
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
 
-- Run Azurite and keep `AzureWebJobsStorage=UseDevelopmentStorage=true`, or
-- Use real Azure Storage by setting `AzureWebJobsStorage` in `api/local.settings.json` to the same Storage connection string your Function uses in Azure.
+## Static data
 
-## Local development startup
+The deployed application reads these tracked files directly:
 
-The React client proxies `/api/*` requests to `http://localhost:7071` via `client/package.json`. If nothing is listening on port `7071`, the browser shows `Proxy error ... ECONNREFUSED`.
+- `client/public/data/NWMIWS_Site_Data_testing_varied.csv`
+- `client/public/data/info.csv`
+- `client/public/data/locations.csv`
 
-Use one of these local startup paths on Windows:
+To refresh data, replace those files and redeploy the client. The workbook in `data/` is reference material only and is not used at runtime.
 
-- VS Code: run the `start full application` task defined in `.vscode/tasks.json`.
-- Manual API start: run `api\\start-local.cmd` from the repository root, or `cd api && call .venv\\Scripts\\activate.bat && func host start --verbose`.
-- Manual client start: in a second terminal, run `cd client && npm start`.
+## Local development
 
-If `func start` reports that Python `3.14.x` is unsupported, the Functions host was launched outside `api\\.venv`. Activate `api\\.venv` first or use `api\\start-local.cmd`.
+```powershell
+cd client
+npm ci
+npm start
+```
 
-## Available Scripts
+VS Code users can run the `start full application` task from `.vscode/tasks.json`.
 
-In the project directory, you can run:
+## Quality gates
 
-### `npm start`
+Run these locally before pushing changes:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```powershell
+cd client
+npm run lint
+npm test -- --watchAll=false
+npm run build
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## CI/CD
 
-### `npm test`
+Two GitHub Actions workflows deploy the app:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- `.github/workflows/build-deploy-nwmiws-swa-dev.yml`
+- `.github/workflows/build-deploy-nwmiws-swa-prod.yml`
 
-### `npm run build`
+Each workflow now runs:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- client dependency install
+- client lint
+- client unit tests
+- client production build
+- Azure Static Web Apps deploy
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Production validation
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Use the static-data runbook after each deployment:
 
-### `npm run eject`
+- `docs/runbooks/prod-static-data-validation.md`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Or run the helper directly:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+python scripts/validate_static_data.py
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+The script reads `STATIC_DATA_VALIDATION_BASE_URLS` from `.env` or `.env.local` by default. To validate a single site explicitly:
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
+```

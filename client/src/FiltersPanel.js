@@ -3,18 +3,15 @@ import React, { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import SearchableMultiSelect from "./SearchableMultiselect.jsx";
 import PropTypes from "prop-types";
+import { DATA_BLOBS, buildDataUrl } from "./config/dataSources";
 import { fetchCachedCsvText } from "./utils/csvCache";
-
-function apiCsvUrl(blobName) {
-  const blob = encodeURIComponent(blobName);
-  return `/api/read-csv?blob=${blob}&format=csv`;
-}
+import { trackEvent } from "./utils/telemetry";
 
 /**
  * FiltersPanel
  * - Manages local UI state for filters
  * - Notifies parent via onFiltersChange from user actions
- * - Loads CSV(s) through the cached API path and shares parsed data up via onDataLoaded
+ * - Loads static CSV assets through the cached fetch path and shares parsed data up via onDataLoaded
  */
 function FiltersPanel({
   selectedSites = [],
@@ -98,8 +95,8 @@ function FiltersPanel({
    * bubble up the parsed data to App via onDataLoaded.
    */
   useEffect(() => {
-    const dataUrl = apiCsvUrl("NWMIWS_Site_Data_testing_varied.csv");
-    const infoUrl = apiCsvUrl("info.csv");
+    const dataUrl = buildDataUrl(DATA_BLOBS.main);
+    const infoUrl = buildDataUrl(DATA_BLOBS.info);
 
     let cancelled = false;
 
@@ -199,6 +196,11 @@ function FiltersPanel({
   const handleSitesChange = (updated) => {
     setFilters((prev) => ({ ...prev, selectedSites: updated }));
     onFiltersChange({ selectedSites: updated });
+    trackEvent("site_selected", {
+      selectedSiteCount: updated.length,
+      chartType: filters.chartType,
+      parameter: filters.parameter || "unselected",
+    });
   };
 
   const handleStartYearChange = (e) => {
@@ -233,6 +235,17 @@ function FiltersPanel({
 
   const disabledHint = "Click Continue in the welcome panel to enable plotting.";
 
+  const trackPlotUpdate = (slot) => {
+    trackEvent("plot_updated", {
+      slot,
+      chartType: filters.chartType,
+      parameter: filters.parameter || "unselected",
+      selectedSiteCount: filters.selectedSites.length,
+      startYear: filters.startYear,
+      endYear: filters.endYear,
+    });
+  };
+
   return (
     <div className="filters" style={{ overflowY: "auto" }}>
       <div className="filters-controls">
@@ -243,7 +256,7 @@ function FiltersPanel({
             options={sites}
             selected={filters.selectedSites}
             onChange={handleSitesChange}
-            placeholder="Search sites…"
+            placeholder="Search sites..."
             maxPanelHeight={320}
             className="w-full"
           />
@@ -298,7 +311,7 @@ function FiltersPanel({
                   className="year-select"
                 >
                   <option value="" disabled>
-                    Select parameter…
+                    Select parameter...
                   </option>
                   {parameters.map((p) => (
                     <option key={p} value={p}>
@@ -332,7 +345,10 @@ function FiltersPanel({
           <button
             type="button"
             className="reset-btn"
-            onClick={() => onUpdatePlot1(filters)}
+            onClick={() => {
+              trackPlotUpdate("plot1");
+              onUpdatePlot1(filters);
+            }}
             disabled={!updateEnabled}
             title={!updateEnabled ? disabledHint : "Update the left plot with current filters"}
           >
@@ -342,7 +358,10 @@ function FiltersPanel({
           <button
             type="button"
             className="reset-btn"
-            onClick={() => onUpdatePlot2(filters)}
+            onClick={() => {
+              trackPlotUpdate("plot2");
+              onUpdatePlot2(filters);
+            }}
             disabled={!updateEnabled}
             title={!updateEnabled ? disabledHint : "Update the right plot with current filters"}
           >

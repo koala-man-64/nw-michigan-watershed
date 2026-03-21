@@ -7,6 +7,7 @@ import marker2x from "leaflet/dist/images/marker-icon-2x.png";
 import marker from "leaflet/dist/images/marker-icon.png";
 import shadow from "leaflet/dist/images/marker-shadow.png";
 import PropTypes from "prop-types";
+import { DATA_BLOBS, MAP_MARKER_ASSETS, buildDataUrl } from "./config/dataSources";
 import { fetchCachedCsvText } from "./utils/csvCache";
 
 /** Leaflet default icon fix */
@@ -17,26 +18,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: shadow,
 });
 
-/** Explicit colored marker icons */
-const redIcon = new L.Icon({
-  iconUrl:
-    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-  shadowUrl: shadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+function createMarkerIcon(iconUrl) {
+  return new L.Icon({
+    iconUrl,
+    shadowUrl: shadow,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  });
+}
 
-const greenIcon = new L.Icon({
-  iconUrl:
-    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
-  shadowUrl: shadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+/** Explicit colored marker icons */
+const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
+const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
 // Keep the initial map view on the broader NW Michigan region instead of
 // snapping to marker bounds as soon as the locations CSV finishes loading.
@@ -45,11 +40,6 @@ const DEFAULT_ZOOM = 8;
 const MAX_NATIVE_TILE_ZOOM = 19;
 const MAX_MAP_ZOOM = 22;
 const POPUP_CLOSE_DELAY_MS = 220;
-
-function apiCsvUrl(blobName) {
-  const blob = encodeURIComponent(blobName);
-  return `/api/read-csv?blob=${blob}&format=csv`;
-}
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
@@ -80,9 +70,9 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     };
   }, []);
 
-  // Fetch locations once
+  // Fetch locations once from the shipped static dataset
   useEffect(() => {
-    const url = apiCsvUrl("locations.csv");
+    const url = buildDataUrl(DATA_BLOBS.locations);
     let cancelled = false;
 
     const applyCsvText = (csvText) => {
