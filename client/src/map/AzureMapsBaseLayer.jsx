@@ -6,7 +6,7 @@ import "azure-maps-leaflet";
 import { getAzureMapsAuthBundle, getAzureMapsSasToken } from "./azureMapsToken";
 import { trackEvent, trackException } from "../utils/telemetry";
 
-const DEFAULT_TILESET_ID = "microsoft.base.road";
+const DEFAULT_TILESET_ID = "microsoft.base.hybrid.road";
 const DEFAULT_LANGUAGE = "en-US";
 const DEFAULT_VIEW = "Auto";
 const LAYER_LOAD_TIMEOUT_MS = 15000;

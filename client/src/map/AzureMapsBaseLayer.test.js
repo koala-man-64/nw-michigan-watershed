@@ -87,7 +87,7 @@ describe("AzureMapsBaseLayer", () => {
     expect(onStatusChange).toHaveBeenCalledWith({ state: "ready" });
     expect(trackEvent).toHaveBeenCalledWith(
       "azure_maps_provider_loaded",
-      expect.objectContaining({ tilesetId: "microsoft.base.road" })
+      expect.objectContaining({ tilesetId: "microsoft.base.hybrid.road" })
     );
   });
 
