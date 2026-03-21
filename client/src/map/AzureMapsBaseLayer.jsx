@@ -5,15 +5,19 @@ import { useMap } from "react-leaflet";
 import "azure-maps-leaflet";
 import { getAzureMapsAuthBundle, getAzureMapsSasToken } from "./azureMapsToken";
 import { trackEvent, trackException } from "../utils/telemetry";
+import {
+  DEFAULT_AZURE_MAPS_TILESET_ID,
+  normalizeAzureMapsTilesetId,
+} from "./azureMapsTilesets";
 
-const DEFAULT_TILESET_ID = "microsoft.base.hybrid.road";
 const DEFAULT_LANGUAGE = "en-US";
 const DEFAULT_VIEW = "Auto";
 const LAYER_LOAD_TIMEOUT_MS = 15000;
 
-function AzureMapsBaseLayer({ onStatusChange }) {
+function AzureMapsBaseLayer({ onStatusChange, tilesetId = DEFAULT_AZURE_MAPS_TILESET_ID }) {
   const map = useMap();
   const hasTrackedReady = useRef(false);
+  const resolvedTilesetId = normalizeAzureMapsTilesetId(tilesetId);
 
   useEffect(() => {
     let disposed = false;
@@ -52,15 +56,16 @@ function AzureMapsBaseLayer({ onStatusChange }) {
         reason,
         message:
           "Site markers remain available, but the background map could not be loaded.",
+        tilesetId: resolvedTilesetId,
       });
       trackEvent("azure_maps_layer_init_failed", {
         reason,
-        tilesetId: DEFAULT_TILESET_ID,
+        tilesetId: resolvedTilesetId,
       });
       trackException(exception, {
         component: "AzureMapsBaseLayer",
         reason,
-        tilesetId: DEFAULT_TILESET_ID,
+        tilesetId: resolvedTilesetId,
       });
     };
 
@@ -72,9 +77,9 @@ function AzureMapsBaseLayer({ onStatusChange }) {
       }
 
       hasTrackedReady.current = true;
-      updateStatus({ state: "ready" });
+      updateStatus({ state: "ready", tilesetId: resolvedTilesetId });
       trackEvent("azure_maps_provider_loaded", {
-        tilesetId: DEFAULT_TILESET_ID,
+        tilesetId: resolvedTilesetId,
         language: DEFAULT_LANGUAGE,
         view: DEFAULT_VIEW,
       });
@@ -97,6 +102,8 @@ function AzureMapsBaseLayer({ onStatusChange }) {
 
     const initializeLayer = async () => {
       try {
+        updateStatus({ state: "loading", tilesetId: resolvedTilesetId });
+
         const { clientId } = await getAzureMapsAuthBundle();
 
         if (!L?.tileLayer || typeof L.tileLayer.azureMaps !== "function") {
@@ -117,7 +124,7 @@ function AzureMapsBaseLayer({ onStatusChange }) {
                 .catch(reject);
             },
           },
-          tilesetId: DEFAULT_TILESET_ID,
+          tilesetId: resolvedTilesetId,
           language: DEFAULT_LANGUAGE,
           view: DEFAULT_VIEW,
         });
@@ -151,13 +158,14 @@ function AzureMapsBaseLayer({ onStatusChange }) {
         map.removeLayer(layer);
       }
     };
-  }, [map, onStatusChange]);
+  }, [map, onStatusChange, resolvedTilesetId]);
 
   return null;
 }
 
 AzureMapsBaseLayer.propTypes = {
   onStatusChange: PropTypes.func,
+  tilesetId: PropTypes.string,
 };
 
 export default AzureMapsBaseLayer;

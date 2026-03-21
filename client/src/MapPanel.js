@@ -12,6 +12,11 @@ import { fetchCachedCsvText } from "./utils/csvCache";
 import AzureMapsBaseLayer from "./map/AzureMapsBaseLayer";
 import MapTileWarmController from "./map/MapTileWarmController";
 import {
+  AZURE_MAPS_TILESET_OPTIONS,
+  DEFAULT_AZURE_MAPS_TILESET_ID,
+  normalizeAzureMapsTilesetId,
+} from "./map/azureMapsTilesets";
+import {
   MAP_DEFAULT_CENTER,
   MAP_DEFAULT_ZOOM,
   MAP_MAX_BOUNDS_VISCOSITY,
@@ -49,6 +54,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
   const [isBaseLayerReady, setIsBaseLayerReady] = useState(false);
   const [mapError, setMapError] = useState("");
+  const [selectedTilesetId, setSelectedTilesetId] = useState(DEFAULT_AZURE_MAPS_TILESET_ID);
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
 
@@ -77,6 +83,12 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   }, []);
 
   const handleBaseLayerStatus = useCallback((status) => {
+    if (status?.state === "loading") {
+      setIsBaseLayerReady(false);
+      setMapError("");
+      return;
+    }
+
     if (status?.state === "error") {
       setIsBaseLayerReady(false);
       setMapError(
@@ -90,6 +102,12 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
       setIsBaseLayerReady(true);
       setMapError("");
     }
+  }, []);
+
+  const handleTilesetChange = useCallback((event) => {
+    setIsBaseLayerReady(false);
+    setMapError("");
+    setSelectedTilesetId(normalizeAzureMapsTilesetId(event.target.value));
   }, []);
 
   // Fetch locations once from the shipped static dataset
@@ -153,87 +171,113 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
   return (
     <div className="map-panel">
-      <MapContainer
-        style={{ height: "100%" }}
-        center={MAP_DEFAULT_CENTER}
-        maxBounds={NW_MICHIGAN_MAX_BOUNDS}
-        maxBoundsViscosity={MAP_MAX_BOUNDS_VISCOSITY}
-        maxZoom={MAP_MAX_ZOOM}
-        minZoom={MAP_MIN_ZOOM}
-        zoom={MAP_DEFAULT_ZOOM}
-        scrollWheelZoom
-      >
-        <AzureMapsBaseLayer onStatusChange={handleBaseLayerStatus} />
-        <MapTileWarmController isBaseLayerReady={isBaseLayerReady} />
-
-        {allLocations.map((loc) => {
-          const isSelected = selectedSites.includes(loc.name);
-          const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
-          return (
-            <Marker
-              key={loc.name}
-              position={[loc.lat, loc.lng]}
-              icon={icon}
-              ref={(instance) => {
-                if (instance) {
-                  markerRefs.current.set(loc.name, instance);
-                } else {
-                  markerRefs.current.delete(loc.name);
-                }
-              }}
-              eventHandlers={{
-                click: () => onMarkerClick && onMarkerClick(loc.name),
-                mouseover: (e) => {
-                  clearPendingClose(loc.name);
-                  e.target.openPopup();
-                },
-                mouseout: () => scheduleClose(loc.name),
-              }}
-            >
-              <Popup>
-                <div
-                  onMouseEnter={() => clearPendingClose(loc.name)}
-                  onMouseLeave={() => scheduleClose(loc.name)}
-                >
-                  <h3>{loc.name}</h3>
-                  <p>
-                    <strong>Size:</strong> {loc.size}
-                  </p>
-                  <p>
-                    <strong>Max Depth:</strong> {loc.max_depth}
-                  </p>
-                  <p>
-                    <strong>Average Depth:</strong> {loc.avg_depth}
-                  </p>
-                  <p>
-                    <strong>Description:</strong> {loc.description}
-                  </p>
-                  <p>
-                    <strong>Contact Information:</strong>{" "}
-                    {loc.url ? (
-                      <a
-                        href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {loc.url}
-                      </a>
-                    ) : (
-                      <em>(add site URL)</em>
-                    )}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
-
-      {mapError ? (
-        <div className="map-panel-status" role="alert">
-          <strong>Basemap unavailable.</strong> {mapError}
+      <div className="map-panel-toolbar">
+        <div className="filter-dropdown map-panel-select-group">
+          <label htmlFor="map-basemap-select">Basemap</label>
+          <select
+            id="map-basemap-select"
+            className="year-select map-style-select"
+            value={selectedTilesetId}
+            onChange={handleTilesetChange}
+          >
+            {AZURE_MAPS_TILESET_OPTIONS.map(({ label, value }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
-      ) : null}
+      </div>
+
+      <div className="map-panel-canvas">
+        <MapContainer
+          style={{ height: "100%" }}
+          center={MAP_DEFAULT_CENTER}
+          maxBounds={NW_MICHIGAN_MAX_BOUNDS}
+          maxBoundsViscosity={MAP_MAX_BOUNDS_VISCOSITY}
+          maxZoom={MAP_MAX_ZOOM}
+          minZoom={MAP_MIN_ZOOM}
+          zoom={MAP_DEFAULT_ZOOM}
+          scrollWheelZoom
+        >
+          <AzureMapsBaseLayer
+            onStatusChange={handleBaseLayerStatus}
+            tilesetId={selectedTilesetId}
+          />
+          <MapTileWarmController
+            isBaseLayerReady={isBaseLayerReady}
+            tilesetId={selectedTilesetId}
+          />
+
+          {allLocations.map((loc) => {
+            const isSelected = selectedSites.includes(loc.name);
+            const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
+            return (
+              <Marker
+                key={loc.name}
+                position={[loc.lat, loc.lng]}
+                icon={icon}
+                ref={(instance) => {
+                  if (instance) {
+                    markerRefs.current.set(loc.name, instance);
+                  } else {
+                    markerRefs.current.delete(loc.name);
+                  }
+                }}
+                eventHandlers={{
+                  click: () => onMarkerClick && onMarkerClick(loc.name),
+                  mouseover: (e) => {
+                    clearPendingClose(loc.name);
+                    e.target.openPopup();
+                  },
+                  mouseout: () => scheduleClose(loc.name),
+                }}
+              >
+                <Popup>
+                  <div
+                    onMouseEnter={() => clearPendingClose(loc.name)}
+                    onMouseLeave={() => scheduleClose(loc.name)}
+                  >
+                    <h3>{loc.name}</h3>
+                    <p>
+                      <strong>Size:</strong> {loc.size}
+                    </p>
+                    <p>
+                      <strong>Max Depth:</strong> {loc.max_depth}
+                    </p>
+                    <p>
+                      <strong>Average Depth:</strong> {loc.avg_depth}
+                    </p>
+                    <p>
+                      <strong>Description:</strong> {loc.description}
+                    </p>
+                    <p>
+                      <strong>Contact Information:</strong>{" "}
+                      {loc.url ? (
+                        <a
+                          href={/^https?:\/\//i.test(loc.url) ? loc.url : `https://${loc.url}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {loc.url}
+                        </a>
+                      ) : (
+                        <em>(add site URL)</em>
+                      )}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
+
+        {mapError ? (
+          <div className="map-panel-status" role="alert">
+            <strong>Basemap unavailable.</strong> {mapError}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

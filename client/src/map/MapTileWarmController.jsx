@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import { useMap } from "react-leaflet";
 import { trackException } from "../utils/telemetry";
 import { warmAzureMapsTiles } from "./azureMapsTileWarm";
+import { DEFAULT_AZURE_MAPS_TILESET_ID } from "./azureMapsTilesets";
 
 function createFallbackIdleDeadline() {
   return {
@@ -11,7 +12,10 @@ function createFallbackIdleDeadline() {
   };
 }
 
-function MapTileWarmController({ isBaseLayerReady }) {
+function MapTileWarmController({
+  isBaseLayerReady,
+  tilesetId = DEFAULT_AZURE_MAPS_TILESET_ID,
+}) {
   const map = useMap();
 
   useEffect(() => {
@@ -32,7 +36,7 @@ function MapTileWarmController({ isBaseLayerReady }) {
       }
 
       try {
-        await warmAzureMapsTiles({ map });
+        await warmAzureMapsTiles({ map, tilesetId });
       } catch (error) {
         trackException(error, {
           component: "MapTileWarmController",
@@ -44,13 +48,14 @@ function MapTileWarmController({ isBaseLayerReady }) {
       cancelled = true;
       cancelIdleCallback(idleHandle);
     };
-  }, [isBaseLayerReady, map]);
+  }, [isBaseLayerReady, map, tilesetId]);
 
   return null;
 }
 
 MapTileWarmController.propTypes = {
   isBaseLayerReady: PropTypes.bool.isRequired,
+  tilesetId: PropTypes.string,
 };
 
 export default MapTileWarmController;

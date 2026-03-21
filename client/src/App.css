@@ -710,6 +710,31 @@ h1, h2, h3, h4,
 
 .map-panel {
   position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+.map-panel-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.map-panel-select-group {
+  width: min(280px, 100%);
+}
+
+.map-style-select {
+  max-width: 100%;
+}
+
+.map-panel-canvas {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
 }

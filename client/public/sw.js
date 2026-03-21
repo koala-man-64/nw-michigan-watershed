@@ -14,7 +14,12 @@ function isAzureMapsBaseTileRequest(request) {
   }
 
   const tilesetId = String(url.searchParams.get("tilesetId") || "");
-  return tilesetId.startsWith("microsoft.base.");
+  return (
+    tilesetId === "microsoft.base.hybrid.road" ||
+    tilesetId === "microsoft.base.road" ||
+    tilesetId === "microsoft.base.darkgrey" ||
+    tilesetId === "microsoft.imagery"
+  );
 }
 
 function readCachedTimestamp(response) {

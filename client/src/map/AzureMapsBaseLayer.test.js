@@ -5,6 +5,7 @@ import { render, waitFor } from "@testing-library/react";
 import AzureMapsBaseLayer from "./AzureMapsBaseLayer";
 import { getAzureMapsAuthBundle, getAzureMapsSasToken } from "./azureMapsToken";
 import { trackEvent, trackException } from "../utils/telemetry";
+import { DEFAULT_AZURE_MAPS_TILESET_ID } from "./azureMapsTilesets";
 
 const mockRemoveLayer = jest.fn();
 const mockMap = { removeLayer: mockRemoveLayer };
@@ -60,7 +61,12 @@ describe("AzureMapsBaseLayer", () => {
     };
     L.tileLayer.azureMaps.mockReturnValue(layer);
 
-    render(<AzureMapsBaseLayer onStatusChange={onStatusChange} />);
+    render(
+      <AzureMapsBaseLayer
+        onStatusChange={onStatusChange}
+        tilesetId="microsoft.base.darkgrey"
+      />
+    );
 
     await waitFor(() => expect(L.tileLayer.azureMaps).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(layer.on).toHaveBeenCalledTimes(2));
@@ -68,6 +74,7 @@ describe("AzureMapsBaseLayer", () => {
     const options = L.tileLayer.azureMaps.mock.calls[0][0];
     expect(options.authOptions.authType).toBe("sas");
     expect(options.authOptions.clientId).toBe("maps-client-id");
+    expect(options.tilesetId).toBe("microsoft.base.darkgrey");
 
     await options.authOptions.getToken(
       (value) => {
@@ -84,10 +91,24 @@ describe("AzureMapsBaseLayer", () => {
     expect(typeof readyHandler).toBe("function");
     readyHandler();
 
-    expect(onStatusChange).toHaveBeenCalledWith({ state: "ready" });
+    expect(onStatusChange).toHaveBeenLastCalledWith({
+      state: "ready",
+      tilesetId: "microsoft.base.darkgrey",
+    });
     expect(trackEvent).toHaveBeenCalledWith(
       "azure_maps_provider_loaded",
-      expect.objectContaining({ tilesetId: "microsoft.base.hybrid.road" })
+      expect.objectContaining({ tilesetId: "microsoft.base.darkgrey" })
+    );
+  });
+
+  test("falls back to the default tileset when an unsupported value is provided", async () => {
+    const { default: L } = await import("leaflet");
+
+    render(<AzureMapsBaseLayer tilesetId="unsupported-tileset" />);
+
+    await waitFor(() => expect(L.tileLayer.azureMaps).toHaveBeenCalledTimes(1));
+    expect(L.tileLayer.azureMaps.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ tilesetId: DEFAULT_AZURE_MAPS_TILESET_ID })
     );
   });
 

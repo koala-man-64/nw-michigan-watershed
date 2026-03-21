@@ -41,15 +41,48 @@ describe("MapTileWarmController", () => {
   });
 
   test("waits for the basemap ready signal before warming", async () => {
-    const { rerender } = render(<MapTileWarmController isBaseLayerReady={false} />);
+    const { rerender } = render(
+      <MapTileWarmController
+        isBaseLayerReady={false}
+        tilesetId="microsoft.base.hybrid.road"
+      />
+    );
 
     expect(warmAzureMapsTiles).not.toHaveBeenCalled();
 
-    rerender(<MapTileWarmController isBaseLayerReady />);
+    rerender(
+      <MapTileWarmController
+        isBaseLayerReady
+        tilesetId="microsoft.base.hybrid.road"
+      />
+    );
 
     await waitFor(() =>
       expect(warmAzureMapsTiles).toHaveBeenCalledWith({
         map: mockMap,
+        tilesetId: "microsoft.base.hybrid.road",
+      })
+    );
+  });
+
+  test("re-warms when the selected tileset changes", async () => {
+    const { rerender } = render(
+      <MapTileWarmController isBaseLayerReady tilesetId="microsoft.base.hybrid.road" />
+    );
+
+    await waitFor(() =>
+      expect(warmAzureMapsTiles).toHaveBeenCalledWith({
+        map: mockMap,
+        tilesetId: "microsoft.base.hybrid.road",
+      })
+    );
+
+    rerender(<MapTileWarmController isBaseLayerReady tilesetId="microsoft.base.road" />);
+
+    await waitFor(() =>
+      expect(warmAzureMapsTiles).toHaveBeenCalledWith({
+        map: mockMap,
+        tilesetId: "microsoft.base.road",
       })
     );
   });
@@ -58,7 +91,7 @@ describe("MapTileWarmController", () => {
     const failure = new Error("warm failed");
     warmAzureMapsTiles.mockRejectedValue(failure);
 
-    render(<MapTileWarmController isBaseLayerReady />);
+    render(<MapTileWarmController isBaseLayerReady tilesetId="microsoft.base.hybrid.road" />);
 
     await waitFor(() =>
       expect(trackException).toHaveBeenCalledWith(

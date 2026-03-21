@@ -1,13 +1,18 @@
 import { getAzureMapsAuthBundle } from "./azureMapsToken";
 import { MAP_MAX_ZOOM } from "./mapViewport";
 import { trackEvent, trackException } from "../utils/telemetry";
+import {
+  DEFAULT_AZURE_MAPS_TILESET_ID,
+  isCacheableAzureMapsTilesetId,
+  normalizeAzureMapsTilesetId,
+} from "./azureMapsTilesets";
 
 export const AZURE_MAPS_TILE_CACHE_NAME = "nwmiws-azuremaps-tiles-v1";
 export const AZURE_MAPS_TILE_CACHE_MAX_ENTRIES = 500;
 export const AZURE_MAPS_TILE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const AZURE_MAPS_TILE_API_VERSION = "2.1";
 export const AZURE_MAPS_TILE_DOMAIN = "atlas.microsoft.com";
-export const AZURE_MAPS_TILESET_ID = "microsoft.base.hybrid.road";
+export const AZURE_MAPS_TILESET_ID = DEFAULT_AZURE_MAPS_TILESET_ID;
 export const AZURE_MAPS_TILE_LANGUAGE = "en-US";
 export const AZURE_MAPS_TILE_VIEW = "Auto";
 export const AZURE_MAPS_TILE_SIZE = 256;
@@ -16,7 +21,7 @@ export const TILE_WARM_CONCURRENCY = 4;
 
 const SLOW_EFFECTIVE_TYPES = new Set(["slow-2g", "2g"]);
 
-let hasWarmedThisPage = false;
+const warmedTilesetIdsThisPage = new Set();
 
 function parseRequestUrl(value) {
   if (value instanceof Request) {
@@ -89,7 +94,7 @@ function latToTileY(lat, zoom) {
   return clamp(Math.floor(mercator * tileCount), 0, tileCount - 1);
 }
 
-function getWarmSkipReason(navigatorImpl, cacheStorage, fetchImpl) {
+function getWarmSkipReason(navigatorImpl, cacheStorage, fetchImpl, tilesetId) {
   if (!navigatorImpl?.serviceWorker?.controller) {
     return "no-controller";
   }
@@ -107,7 +112,7 @@ function getWarmSkipReason(navigatorImpl, cacheStorage, fetchImpl) {
     return "slow-network";
   }
 
-  if (hasWarmedThisPage) {
+  if (warmedTilesetIdsThisPage.has(tilesetId)) {
     return "already-warmed";
   }
 
@@ -169,7 +174,7 @@ export function isAzureMapsBaseTileUrl(value) {
   const isExpectedPath = url.pathname === "/map/tile";
   const tilesetId = String(url.searchParams.get("tilesetId") || "");
 
-  return isExpectedHost && isExpectedPath && tilesetId.startsWith("microsoft.base.");
+  return isExpectedHost && isExpectedPath && isCacheableAzureMapsTilesetId(tilesetId);
 }
 
 export function buildAzureMapsTileUrl({
@@ -233,10 +238,20 @@ export async function warmAzureMapsTiles({
   fetchImpl = globalThis.fetch,
   getAuthBundle = getAzureMapsAuthBundle,
   now = () => Date.now(),
+  tilesetId = AZURE_MAPS_TILESET_ID,
 } = {}) {
-  const skipReason = getWarmSkipReason(navigatorImpl, cacheStorage, fetchImpl);
+  const resolvedTilesetId = normalizeAzureMapsTilesetId(tilesetId);
+  const skipReason = getWarmSkipReason(
+    navigatorImpl,
+    cacheStorage,
+    fetchImpl,
+    resolvedTilesetId
+  );
   if (skipReason) {
-    trackEvent("azure_maps_tile_warm_skipped", { reason: skipReason });
+    trackEvent("azure_maps_tile_warm_skipped", {
+      reason: skipReason,
+      tilesetId: resolvedTilesetId,
+    });
     return { status: "skipped", reason: skipReason };
   }
 
@@ -250,13 +265,16 @@ export async function warmAzureMapsTiles({
   const currentZoom = clamp(Math.round(map.getZoom()), 0, MAP_MAX_ZOOM);
   const zoomLevels = Array.from(new Set([currentZoom, Math.min(currentZoom + 1, MAP_MAX_ZOOM)]));
   const candidateTileUrls = zoomLevels.flatMap((zoomLevel) =>
-    collectTileUrlsForBounds(map.getBounds(), zoomLevel)
+    collectTileUrlsForBounds(map.getBounds(), zoomLevel, {
+      tilesetId: resolvedTilesetId,
+    })
   );
   const requestedTileUrls = Array.from(new Set(candidateTileUrls)).slice(0, MAX_WARM_TILE_URLS);
 
   trackEvent(
     "azure_maps_tile_warm_started",
     {
+      tilesetId: resolvedTilesetId,
       zoomLevels: zoomLevels.join(","),
     },
     {
@@ -313,12 +331,13 @@ export async function warmAzureMapsTiles({
     const failedTileCount = uncachedTileUrls.length - prefetchedTileCount;
     const durationMs = Math.max(0, now() - startedAtMs);
 
-    hasWarmedThisPage = true;
+    warmedTilesetIdsThisPage.add(resolvedTilesetId);
 
     if (failedResults.length > 0) {
       trackException(failedResults[0].error, {
         component: "azureMapsTileWarm",
         failedTileCount,
+        tilesetId: resolvedTilesetId,
         zoomLevels: zoomLevels.join(","),
       });
     }
@@ -326,6 +345,7 @@ export async function warmAzureMapsTiles({
     trackEvent(
       "azure_maps_tile_warm_completed",
       {
+        tilesetId: resolvedTilesetId,
         zoomLevels: zoomLevels.join(","),
         requestedTileCount: requestedTileUrls.length,
         prefetchedTileCount,
@@ -353,10 +373,12 @@ export async function warmAzureMapsTiles({
     };
   } catch (error) {
     trackEvent("azure_maps_tile_warm_failed", {
+      tilesetId: resolvedTilesetId,
       zoomLevels: zoomLevels.join(","),
     });
     trackException(error, {
       component: "azureMapsTileWarm",
+      tilesetId: resolvedTilesetId,
       zoomLevels: zoomLevels.join(","),
     });
     throw error;
@@ -364,5 +386,5 @@ export async function warmAzureMapsTiles({
 }
 
 export function resetAzureMapsTileWarmForTests() {
-  hasWarmedThisPage = false;
+  warmedTilesetIdsThisPage.clear();
 }

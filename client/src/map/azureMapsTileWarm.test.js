@@ -71,6 +71,17 @@ describe("azureMapsTileWarm", () => {
 
     expect(
       isAzureMapsBaseTileUrl(
+        buildAzureMapsTileUrl({
+          x: 1,
+          y: 2,
+          zoom: 3,
+          tilesetId: "microsoft.imagery",
+        })
+      )
+    ).toBe(true);
+
+    expect(
+      isAzureMapsBaseTileUrl(
         "https://atlas.microsoft.com/map/tile?tilesetId=microsoft.traffic.flow.main&zoom=3&x=1&y=2"
       )
     ).toBe(false);
@@ -121,6 +132,7 @@ describe("azureMapsTileWarm", () => {
 
     expect(trackEvent).toHaveBeenCalledWith("azure_maps_tile_warm_skipped", {
       reason: "no-controller",
+      tilesetId: AZURE_MAPS_TILESET_ID,
     });
   });
 
@@ -186,6 +198,34 @@ describe("azureMapsTileWarm", () => {
       reason: "already-warmed",
       status: "skipped",
     });
+  });
+
+  test("allows a different supported tileset to warm on the same page", async () => {
+    await warmAzureMapsTiles({
+      cacheStorage,
+      fetchImpl,
+      map,
+      navigatorImpl,
+      tilesetId: "microsoft.base.hybrid.road",
+    });
+
+    fetchImpl.mockClear();
+
+    await expect(
+      warmAzureMapsTiles({
+        cacheStorage,
+        fetchImpl,
+        map,
+        navigatorImpl,
+        tilesetId: "microsoft.base.darkgrey",
+      })
+    ).resolves.toEqual(
+      expect.objectContaining({
+        status: "completed",
+      })
+    );
+
+    expect(fetchImpl).toHaveBeenCalled();
   });
 
   test("tracks the first tile fetch failure while completing the warm run", async () => {
