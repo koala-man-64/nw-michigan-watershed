@@ -1,5 +1,6 @@
 {
   "env": { "browser": true, "es2022": true },
+  "globals": { "process": "readonly" },
   "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
   "extends": [
     "eslint:recommended",
@@ -13,5 +14,16 @@
   "plugins": ["react", "import"],
   "rules": {
     "react/react-in-jsx-scope": "off"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.test.js", "src/**/*.test.jsx"],
+      "env": { "jest": true, "node": true }
+    },
+    {
+      "files": ["src/setupProxy.js"],
+      "env": { "node": true },
+      "parserOptions": { "sourceType": "script" }
+    }
+  ]
 }

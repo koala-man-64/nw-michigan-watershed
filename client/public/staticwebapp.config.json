@@ -1,6 +1,12 @@
 {
   "routes": [
     {
+      "route": "/sw.js",
+      "headers": {
+        "Cache-Control": "no-cache"
+      }
+    },
+    {
       "route": "/data/*",
       "headers": {
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800"
@@ -22,5 +28,8 @@
       "/*.txt",
       "/*.csv"
     ]
+  },
+  "platform": {
+    "apiRuntime": "node:20"
   }
 }
