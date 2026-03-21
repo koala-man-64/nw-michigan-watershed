@@ -57,7 +57,8 @@ function arePopupLayoutsEqual(left, right) {
   return (
     left?.className === right?.className &&
     left?.offset?.[0] === right?.offset?.[0] &&
-    left?.offset?.[1] === right?.offset?.[1]
+    left?.offset?.[1] === right?.offset?.[1] &&
+    left?.tipLeft === right?.tipLeft
   );
 }
 
@@ -70,9 +71,14 @@ function getPopupOffset(offset) {
 }
 
 function readPopupLayout(popupInstance) {
+  const popupElement = popupInstance?.getElement?.();
+  const rawTipLeft = popupElement?.style?.getPropertyValue("--map-site-popup-tip-left");
+  const parsedTipLeft = Number.parseFloat(rawTipLeft);
+
   return {
     className: popupInstance?.options?.className || DEFAULT_POPUP_LAYOUT.className,
     offset: getPopupOffset(popupInstance?.options?.offset),
+    tipLeft: Number.isFinite(parsedTipLeft) ? parsedTipLeft : DEFAULT_POPUP_LAYOUT.tipLeft,
   };
 }
 
@@ -86,6 +92,12 @@ function writePopupLayout(popupInstance, layout) {
 
   const popupElement = popupInstance.getElement?.();
   if (popupElement) {
+    if (Number.isFinite(layout.tipLeft)) {
+      popupElement.style.setProperty("--map-site-popup-tip-left", `${layout.tipLeft}px`);
+    } else {
+      popupElement.style.removeProperty("--map-site-popup-tip-left");
+    }
+
     popupElement.className = [
       "leaflet-popup",
       layout.className,

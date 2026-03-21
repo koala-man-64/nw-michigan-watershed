@@ -53,6 +53,7 @@ describe("popupLayout", () => {
     ).toEqual({
       className: "map-site-popup",
       offset: [38, 0],
+      tipLeft: 72,
     });
   });
 
@@ -81,6 +82,7 @@ describe("popupLayout", () => {
     ).toEqual({
       className: "map-site-popup map-site-popup-below",
       offset: [0, 200],
+      tipLeft: 120,
     });
   });
 
@@ -109,6 +111,7 @@ describe("popupLayout", () => {
     ).toEqual({
       className: "map-site-popup",
       offset: [0, -40],
+      tipLeft: 130,
     });
   });
 
@@ -140,6 +143,7 @@ describe("popupLayout", () => {
     ).toEqual({
       className: "map-site-popup",
       offset: [0, 0],
+      tipLeft: 128,
     });
   });
 });

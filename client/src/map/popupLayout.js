@@ -1,9 +1,11 @@
 const POPUP_VIEWPORT_PADDING_PX = 20;
 const POPUP_BELOW_CLASS_NAME = "map-site-popup-below";
+const POPUP_TIP_EDGE_PADDING_PX = 28;
 
 export const DEFAULT_POPUP_LAYOUT = Object.freeze({
   className: "map-site-popup",
   offset: [0, 0],
+  tipLeft: null,
 });
 
 function isFiniteNumber(value) {
@@ -97,6 +99,19 @@ function shouldOpenPopupBelow({ currentLayout, markerScreenPoint, popupRect, ver
   return isPopupLayoutBelow(currentLayout);
 }
 
+function getPopupTipLeft({ popupRect, markerScreenPoint } = {}) {
+  if (!isValidRect(popupRect) || !isFiniteNumber(markerScreenPoint?.x)) {
+    return null;
+  }
+
+  const popupWidth = Number(popupRect.width);
+  const minimumTipCenter = Math.min(POPUP_TIP_EDGE_PADDING_PX, popupWidth / 2);
+  const maximumTipCenter = Math.max(minimumTipCenter, popupWidth - POPUP_TIP_EDGE_PADDING_PX);
+  const markerOffsetWithinPopup = Number(markerScreenPoint.x) - popupRect.left;
+
+  return Math.round(clamp(markerOffsetWithinPopup, minimumTipCenter, maximumTipCenter));
+}
+
 export function getAdaptivePopupLayout({
   currentLayout = DEFAULT_POPUP_LAYOUT,
   popupRect,
@@ -109,6 +124,7 @@ export function getAdaptivePopupLayout({
     popupRect: basePopupRect,
     mapRect,
   });
+  const correctedPopupRect = translateRect(basePopupRect, offsetAdjustmentX, offsetAdjustmentY);
 
   return {
     className: buildPopupClassName(
@@ -120,5 +136,9 @@ export function getAdaptivePopupLayout({
       })
     ),
     offset: [offsetAdjustmentX, offsetAdjustmentY],
+    tipLeft: getPopupTipLeft({
+      popupRect: correctedPopupRect,
+      markerScreenPoint,
+    }),
   };
 }
