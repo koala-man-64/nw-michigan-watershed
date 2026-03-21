@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import MapPanel from "./MapPanel";
 import { fetchCachedCsvText } from "./utils/csvCache";
 
@@ -62,19 +62,16 @@ describe("MapPanel", () => {
     fetchCachedCsvText.mockResolvedValue("");
   });
 
-  test("switches the selected Azure Maps tileset for the layer and warmer", async () => {
+  test("uses the fixed road tileset without rendering a selector", async () => {
     render(<MapPanel selectedSites={[]} onMarkerClick={jest.fn()} />);
 
-    const select = screen.getByLabelText("Basemap");
-    expect(select).toHaveValue("microsoft.base.hybrid.road");
-
-    fireEvent.change(select, { target: { value: "microsoft.base.darkgrey" } });
+    expect(screen.queryByLabelText("Basemap")).not.toBeInTheDocument();
 
     await waitFor(() => {
       const lastAzureMapsBaseLayerProps = mockAzureMapsBaseLayer.mock.calls.at(-1)?.[0];
       expect(lastAzureMapsBaseLayerProps).toEqual(
         expect.objectContaining({
-          tilesetId: "microsoft.base.darkgrey",
+          tilesetId: "microsoft.base.road",
         })
       );
     });
@@ -83,7 +80,7 @@ describe("MapPanel", () => {
     expect(lastMapTileWarmControllerProps).toEqual(
       expect.objectContaining({
         isBaseLayerReady: false,
-        tilesetId: "microsoft.base.darkgrey",
+        tilesetId: "microsoft.base.road",
       })
     );
   });

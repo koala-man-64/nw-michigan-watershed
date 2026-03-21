@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MapContainer, Marker, Popup } from "react-leaflet";
+import { flushSync } from "react-dom";
 import L from "leaflet";
 import Papa from "papaparse";
 import "leaflet/dist/leaflet.css";
@@ -11,11 +12,8 @@ import { DATA_BLOBS, MAP_MARKER_ASSETS, buildDataUrl } from "./config/dataSource
 import { fetchCachedCsvText } from "./utils/csvCache";
 import AzureMapsBaseLayer from "./map/AzureMapsBaseLayer";
 import MapTileWarmController from "./map/MapTileWarmController";
-import {
-  AZURE_MAPS_TILESET_OPTIONS,
-  DEFAULT_AZURE_MAPS_TILESET_ID,
-  normalizeAzureMapsTilesetId,
-} from "./map/azureMapsTilesets";
+import { DEFAULT_AZURE_MAPS_TILESET_ID } from "./map/azureMapsTilesets";
+import { DEFAULT_POPUP_LAYOUT, getAdaptivePopupLayout } from "./map/popupLayout";
 import {
   MAP_DEFAULT_CENTER,
   MAP_DEFAULT_ZOOM,
@@ -49,12 +47,21 @@ const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
 const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
 const POPUP_CLOSE_DELAY_MS = 220;
+const FIXED_TILESET_ID = DEFAULT_AZURE_MAPS_TILESET_ID;
+
+function arePopupLayoutsEqual(left, right) {
+  return (
+    left?.className === right?.className &&
+    left?.offset?.[0] === right?.offset?.[0] &&
+    left?.offset?.[1] === right?.offset?.[1]
+  );
+}
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
   const [isBaseLayerReady, setIsBaseLayerReady] = useState(false);
   const [mapError, setMapError] = useState("");
-  const [selectedTilesetId, setSelectedTilesetId] = useState(DEFAULT_AZURE_MAPS_TILESET_ID);
+  const [popupLayouts, setPopupLayouts] = useState({});
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
 
@@ -104,11 +111,35 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     }
   }, []);
 
-  const handleTilesetChange = useCallback((event) => {
-    setIsBaseLayerReady(false);
-    setMapError("");
-    setSelectedTilesetId(normalizeAzureMapsTilesetId(event.target.value));
-  }, []);
+  const openPopupForMarker = (siteName, markerInstance) => {
+    clearPendingClose(siteName);
+
+    const latLng = markerInstance?.getLatLng?.();
+    const map = markerInstance?._map;
+    const nextLayout = getAdaptivePopupLayout({
+      containerPoint:
+        latLng && map && typeof map.latLngToContainerPoint === "function"
+          ? map.latLngToContainerPoint(latLng)
+          : null,
+      mapSize: map && typeof map.getSize === "function" ? map.getSize() : null,
+    });
+
+    flushSync(() => {
+      setPopupLayouts((currentLayouts) => {
+        const previousLayout = currentLayouts[siteName] || DEFAULT_POPUP_LAYOUT;
+        if (arePopupLayoutsEqual(previousLayout, nextLayout)) {
+          return currentLayouts;
+        }
+
+        return {
+          ...currentLayouts,
+          [siteName]: nextLayout,
+        };
+      });
+    });
+
+    markerInstance?.openPopup?.();
+  };
 
   // Fetch locations once from the shipped static dataset
   useEffect(() => {
@@ -171,24 +202,6 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
   return (
     <div className="map-panel">
-      <div className="map-panel-toolbar">
-        <div className="filter-dropdown map-panel-select-group">
-          <label htmlFor="map-basemap-select">Basemap</label>
-          <select
-            id="map-basemap-select"
-            className="year-select map-style-select"
-            value={selectedTilesetId}
-            onChange={handleTilesetChange}
-          >
-            {AZURE_MAPS_TILESET_OPTIONS.map(({ label, value }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="map-panel-canvas">
         <MapContainer
           style={{ height: "100%" }}
@@ -202,16 +215,17 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
         >
           <AzureMapsBaseLayer
             onStatusChange={handleBaseLayerStatus}
-            tilesetId={selectedTilesetId}
+            tilesetId={FIXED_TILESET_ID}
           />
           <MapTileWarmController
             isBaseLayerReady={isBaseLayerReady}
-            tilesetId={selectedTilesetId}
+            tilesetId={FIXED_TILESET_ID}
           />
 
           {allLocations.map((loc) => {
             const isSelected = selectedSites.includes(loc.name);
             const icon = isSelected ? greenIcon : redIcon; // green = selected, red = unselected
+            const popupLayout = popupLayouts[loc.name] || DEFAULT_POPUP_LAYOUT;
             return (
               <Marker
                 key={loc.name}
@@ -227,13 +241,17 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                 eventHandlers={{
                   click: () => onMarkerClick && onMarkerClick(loc.name),
                   mouseover: (e) => {
-                    clearPendingClose(loc.name);
-                    e.target.openPopup();
+                    openPopupForMarker(loc.name, e.target);
                   },
                   mouseout: () => scheduleClose(loc.name),
                 }}
               >
-                <Popup>
+                <Popup
+                  autoPan={false}
+                  className={popupLayout.className}
+                  keepInView={false}
+                  offset={popupLayout.offset}
+                >
                   <div
                     onMouseEnter={() => clearPendingClose(loc.name)}
                     onMouseLeave={() => scheduleClose(loc.name)}

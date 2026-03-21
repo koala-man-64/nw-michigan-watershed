@@ -1,4 +1,4 @@
-export const DEFAULT_AZURE_MAPS_TILESET_ID = "microsoft.base.hybrid.road";
+export const DEFAULT_AZURE_MAPS_TILESET_ID = "microsoft.base.road";
 
 export const AZURE_MAPS_TILESET_OPTIONS = [
   {
