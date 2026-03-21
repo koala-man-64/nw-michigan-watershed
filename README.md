@@ -1,56 +1,141 @@
 # NW Michigan Water Quality Database
 
-React single-page application for browsing, charting, and downloading northern Michigan water quality data. The deployed app ships its CSV datasets as static assets under `client/public/data/`, runs on Azure Static Web Apps, and now uses an Azure Maps-backed basemap via a managed Static Web Apps API broker.
+This README is split into two versions:
 
-## Repository layout
+| Audience | Start here |
+| --- | --- |
+| Owners, investors, partners, and other clients | [Non-Technical Version](#non-technical-version-for-owners-investors-and-partners) |
+| Developers, operators, and support staff | [Technical Version](#technical-version-for-operators-developers-and-support) |
 
-- `client/` React application, static datasets, telemetry bootstrap, and Static Web Apps config
-- `api/` managed Static Web Apps API that issues short-lived Azure Maps SAS tokens
-- `data/` non-runtime source reference material
-- `docs/runbooks/` release validation instructions
-- `infra/azuremaps/` Bicep templates for Azure Maps, identity, and RBAC
-- `scripts/` PowerShell entrypoints, shared modules, environment config, and bootstrap helpers
+## Non-Technical Version for Owners, Investors, and Partners
 
-## Runtime configuration
+### What this application is
 
-The React build reads these variables:
+The NW Michigan Water Quality Database is a web application for exploring water quality data for lakes and streams in northern Michigan. It combines mapped site locations, historical measurements, charts, and downloadable data in one place.
 
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING`
-- `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` optional, defaults to `86400000`
+### What people can do with it
 
-The managed API reads these settings from Static Web Apps application settings:
+- Find monitoring sites on a map or from a list
+- Select water-quality parameters and time ranges
+- View trend charts to see how measurements change over time
+- Compare conditions across multiple sites
+- Download data for offline review, reporting, or analysis
 
-- `AZURE_TENANT_ID`
-- `AZURE_CLIENT_ID`
-- `AZURE_CLIENT_SECRET`
-- `AZURE_MAPS_SUBSCRIPTION_ID`
-- `AZURE_MAPS_RESOURCE_GROUP`
-- `AZURE_MAPS_ACCOUNT_NAME`
-- `AZURE_MAPS_ACCOUNT_CLIENT_ID`
-- `AZURE_MAPS_UAMI_PRINCIPAL_ID`
-- `AZURE_MAPS_ALLOWED_ORIGINS`
-- `AZURE_MAPS_SAS_TTL_MINUTES`
-- `AZURE_MAPS_SAS_MAX_RPS`
-- `AZURE_MAPS_SAS_SIGNING_KEY`
+### Why it matters
 
-The included GitHub Actions workflows map the Application Insights value from repository secrets:
+- It gives partners a shared view of the same published dataset.
+- It makes long-term trends easier to understand without working directly in raw spreadsheets.
+- It helps discussions about watershed conditions, reporting, planning, and stakeholder communication start from the same information.
 
+### What this system is not
+
+- It is not a live field-data entry system.
+- It is not designed for clients to edit or manage records directly in the browser.
+- Data changes are published by the support team updating source files and redeploying the application.
+
+### Current support contact shown in the app
+
+- John Ransom
+- Benzie County Conservation District
+- 231-882-4391
+- john@benziecd.org
+
+## Technical Version for Operators, Developers, and Support
+
+### System summary
+
+- `client/` is a React single-page application.
+- `client/public/data/` contains the CSV files the live site reads at runtime.
+- `api/` is a managed Azure Functions API that issues short-lived Azure Maps SAS tokens.
+- Azure Static Web Apps hosts the client and the managed API together.
+- GitHub Actions deploys `dev` and `main` to separate Static Web Apps environments.
+
+### Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `client/` | React app, map UI, plots, static data assets, and client telemetry |
+| `api/` | Azure Functions managed API for Azure Maps token brokering |
+| `data/` | Reference material that is not read by the deployed app at runtime |
+| `infra/azuremaps/` | Bicep templates for Azure Maps, identity, and RBAC |
+| `scripts/` | PowerShell operator tooling for provisioning, validation, local setup, and GitHub configuration |
+| `.github/workflows/` | Dev and prod deployment pipelines |
+
+### How the app works
+
+1. The browser loads the React app from Azure Static Web Apps.
+2. The client reads CSV data from `/data/...` under `client/public/data/`.
+3. The client caches CSV responses locally and revalidates them after the configured interval.
+4. When the basemap needs Azure Maps access, the client calls `/api/maps/token`.
+5. The managed API validates the request origin and returns a short-lived Azure Maps token bundle.
+
+### Required local tooling
+
+- Node.js 20
+- npm
+- PowerShell for the repo's `.ps1` scripts (`pwsh` / PowerShell 7 on Linux and macOS; `powershell.exe` on Windows)
+- Azure Functions Core Tools
+- Azure CLI for provisioning and validation scripts
+- GitHub CLI for GitHub secret and variable sync
+- Optional: Static Web Apps CLI for production-like local validation
+
+### Runtime configuration
+
+#### Client build variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING` | Yes for deployed builds | Application Insights connection string for client telemetry |
+| `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` | No | CSV cache revalidation interval in milliseconds; defaults to `86400000` |
+| `REACT_APP_PRIMARY_DATA_BLOB` | No | Defaults to `NWMIWS_Site_Data_testing_varied.csv` |
+| `REACT_APP_INFO_DATA_BLOB` | No | Defaults to `info.csv` |
+| `REACT_APP_LOCATIONS_DATA_BLOB` | No | Defaults to `locations.csv` |
+
+#### Static Web Apps API settings
+
+| Setting | Required | Notes |
+| --- | --- | --- |
+| `AZURE_TENANT_ID` | Yes | Entra tenant used by the token broker |
+| `AZURE_CLIENT_ID` | Yes | Entra app client ID |
+| `AZURE_CLIENT_SECRET` | Yes | Entra app client secret |
+| `AZURE_MAPS_SUBSCRIPTION_ID` | Yes | Azure subscription containing the Maps account |
+| `AZURE_MAPS_RESOURCE_GROUP` | Yes | Resource group for the Maps account |
+| `AZURE_MAPS_ACCOUNT_NAME` | Yes | Azure Maps account name |
+| `AZURE_MAPS_ACCOUNT_CLIENT_ID` | Yes | Azure Maps account client ID |
+| `AZURE_MAPS_UAMI_PRINCIPAL_ID` | Yes | User-assigned managed identity principal ID |
+| `AZURE_MAPS_ALLOWED_ORIGINS` | Yes | Comma-separated allowed origins for token requests |
+| `AZURE_MAPS_SAS_TTL_MINUTES` | No | Defaults to `30` |
+| `AZURE_MAPS_SAS_MAX_RPS` | No | Defaults to `500` |
+| `AZURE_MAPS_SAS_SIGNING_KEY` | No | Defaults to `secondaryKey`; valid values are `primaryKey`, `secondaryKey`, or `managedIdentity` |
+
+#### GitHub Actions secrets used by deploy workflows
+
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_DEV`
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD`
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
 - `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
 
-## Static data
+### Static data operations
 
-The deployed application reads these tracked files directly:
+The deployed application currently reads these tracked files directly:
 
 - `client/public/data/NWMIWS_Site_Data_testing_varied.csv`
 - `client/public/data/info.csv`
 - `client/public/data/locations.csv`
 
-To refresh data, replace those files and redeploy the client. The workbook in `data/` is reference material only and is not used at runtime.
+To publish a data refresh:
 
-## Local development
+1. Replace the relevant CSV files in `client/public/data/`.
+2. Commit the changes.
+3. Deploy through the normal branch or workflow path.
 
-Install both workspaces first:
+If you redeploy the same filenames, browsers that already opened the site can continue serving cached CSV content from `localStorage` until `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` expires (`86400000` / 24 hours by default). For an immediate refresh, clear the site's stored data in the browser or publish new filenames via the `REACT_APP_*_DATA_BLOB` settings.
+
+The workbook and other materials under `data/` are reference-only and are not read by the live site at runtime.
+
+### Local development
+
+#### Install dependencies
 
 ```powershell
 cd client
@@ -59,14 +144,20 @@ cd ..\api
 npm ci
 ```
 
-For client-only UI work without the Azure Maps basemap:
+#### Client-only UI work
+
+Use this when you do not need the live Azure Maps basemap:
 
 ```powershell
 cd client
 npm start
 ```
 
-For local development with the live Azure Maps basemap on `http://localhost:3000`, export local settings once, start the Functions host, then start the React dev server:
+#### Full local app with Azure Maps basemap
+
+Export local settings, start the Functions host, then start the React dev server.
+
+Terminal 1:
 
 ```powershell
 .\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment dev
@@ -74,16 +165,16 @@ cd api
 npm start
 ```
 
-In a second terminal:
+Terminal 2:
 
 ```powershell
 cd client
 npm start
 ```
 
-The export script now adds both `http://localhost:3000` and `http://localhost:4280` to the local allowed-origin list so the token broker accepts the CRA dev server and the Static Web Apps CLI.
+The export script writes `api/local.settings.json` and adds `http://localhost:3000` and `http://localhost:4280` to the local allowed-origin list.
 
-For production-like local validation with the managed API, export local settings and run through the Static Web Apps CLI:
+#### Production-like local validation with Static Web Apps CLI
 
 ```powershell
 .\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment dev
@@ -93,96 +184,9 @@ cd ..
 npx swa start client/build --api-location api
 ```
 
-The exported `api/local.settings.json` is untracked and contains the current Azure Maps broker settings from the target Static Web App.
+### Local verification
 
-## Azure Maps provisioning
-
-Fill in `scripts/environments/dev.psd1` and `scripts/environments/prod.psd1` with real subscription, resource, Static Web App, and Application Insights names first.
-
-Provision or update the Azure Maps stack with:
-
-```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev
-```
-
-Preview changes without applying them:
-
-```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -WhatIf
-```
-
-Validate the deployed stack:
-
-```powershell
-.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment dev
-```
-
-Rotate the Entra client secret and republish SWA settings:
-
-```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -RotateClientSecret
-```
-
-Remove only the Azure Maps-related resources and settings:
-
-```powershell
-.\scripts\azuremaps\Remove-AzureMapsStack.ps1 -Environment dev
-```
-
-## Autonomous bootstrap scripts
-
-The repo now includes two end-to-end bootstrap scripts under `scripts/bootstrap/`:
-
-- `scripts/bootstrap/Provision-AzurePlatform.ps1`
-  - creates missing Log Analytics and Application Insights resources for dev and prod
-  - runs the Azure Maps provisioning flow for both environments
-  - validates the deployed Azure Maps stack after apply
-- `scripts/bootstrap/Sync-GitHubActionsConfig.ps1`
-  - reads workflow secret names directly from the GitHub Actions YAML
-  - reads the GitHub secret values from `api/.env`
-  - writes the required GitHub Actions secrets and supporting repository variables
-  - prunes stale repository secrets that match the managed workflow secret patterns and stale repository variables in the `NWMIWS_` namespace
-  - reads `api/.env` for GitHub authentication and optional repository variable overrides such as `STATIC_CUTOVER_GITHUB_TOKEN`, `STATIC_CUTOVER_SUBSCRIPTION_ID`, `STATIC_CUTOVER_VALIDATION_BASE_URLS`, `BLOB_CONN`, and `NWMIWS_*`
-
-Before running the GitHub sync script, add these required entries to `api/.env`:
-
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_DEV`
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
-
-Dry run the Azure bootstrap:
-
-```powershell
-.\scripts\bootstrap\Provision-AzurePlatform.ps1 -WhatIf
-```
-
-Apply Azure bootstrap:
-
-```powershell
-.\scripts\bootstrap\Provision-AzurePlatform.ps1
-```
-
-Dry run GitHub secret and variable sync:
-
-```powershell
-.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1 -WhatIf
-```
-
-Apply GitHub secret and variable sync:
-
-```powershell
-.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1
-```
-
-VS Code users can run the `start full application` task from `.vscode/tasks.json`.
-VS Code users can also use the `Launch Full Application in Chrome` config from [.vscode/launch.json](/C:/Users/rdpro/Projects/nw-michigan-watershed/.vscode/launch.json) to export local settings, start the API and client, and open the app in one step.
-Script entrypoints and helper-module ownership are documented in [scripts/README.md](/C:/Users/rdpro/Projects/nw-michigan-watershed/scripts/README.md).
-The operator workflow and script architecture are documented in [scripts/ARCHITECTURE.md](/C:/Users/rdpro/Projects/nw-michigan-watershed/scripts/ARCHITECTURE.md).
-
-## Quality gates
-
-Run these locally before pushing changes:
+Run these checks before pushing changes:
 
 ```powershell
 cd client
@@ -194,14 +198,89 @@ npm run lint
 npm test
 ```
 
-## CI/CD
+### Azure Maps provisioning and operator scripts
 
-Two GitHub Actions workflows deploy the app:
+Populate `scripts/environments/dev.psd1` and `scripts/environments/prod.psd1` with real subscription, resource, Static Web App, and Application Insights values before running the provisioning scripts.
+
+Provision or update the Azure Maps stack:
+
+```powershell
+.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev
+```
+
+Preview the Azure Maps change set:
+
+```powershell
+.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -WhatIf
+```
+
+Validate the deployed Azure Maps stack:
+
+```powershell
+.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment dev
+```
+
+Rotate the Entra client secret and republish Static Web Apps settings:
+
+```powershell
+.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -RotateClientSecret
+```
+
+Remove Azure Maps-related resources and settings:
+
+```powershell
+.\scripts\azuremaps\Remove-AzureMapsStack.ps1 -Environment dev
+```
+
+Bootstrap shared Azure prerequisites for both environments:
+
+```powershell
+.\scripts\bootstrap\Provision-AzurePlatform.ps1
+```
+
+Dry run the bootstrap:
+
+```powershell
+.\scripts\bootstrap\Provision-AzurePlatform.ps1 -WhatIf
+```
+
+Sync GitHub Actions secrets and repository variables from local config:
+
+```powershell
+.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1
+```
+
+Dry run the GitHub sync:
+
+```powershell
+.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1 -WhatIf
+```
+
+Before running the GitHub sync script, make sure `api/.env` contains these required values:
+
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_DEV`
+- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD`
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
+- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
+
+Additional operator detail is documented in:
+
+- `scripts/README.md`
+- `scripts/ARCHITECTURE.md`
+
+### CI/CD
+
+The deployment pipelines are:
 
 - `.github/workflows/build-deploy-nwmiws-swa-dev.yml`
 - `.github/workflows/build-deploy-nwmiws-swa-prod.yml`
 
-Each workflow now runs:
+Branch mapping:
+
+- `dev` deploys the dev environment
+- `main` deploys the prod environment
+
+Each workflow performs:
 
 - client dependency install
 - api dependency install
@@ -210,22 +289,18 @@ Each workflow now runs:
 - client unit tests
 - api unit tests
 - client production build
-- Azure Static Web Apps deploy
+- Azure Static Web Apps deployment
 
-## Production validation
+### Support checklist
 
-Use the static-data runbook after each deployment:
+If you are supporting the live system, start here:
 
-- `docs/runbooks/prod-static-data-validation.md`
+- Data looks outdated: verify the CSV files in `client/public/data/`, redeploy the client, and remember that browsers may keep serving cached CSV data from `localStorage` for up to 24 hours by default. If the update must appear immediately, clear the site's stored browser data or publish new blob filenames through the `REACT_APP_*_DATA_BLOB` settings.
+- The map is failing: validate Azure Maps settings and allowed origins with `.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment <env>`.
+- Local map development is failing: rerun `.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment <env>` and restart the API host.
+- Deployment secrets look wrong: rerun `.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1` after updating `api/.env`.
 
-Or run the helper directly:
+### VS Code shortcuts
 
-```bash
-python scripts/validate_static_data.py
-```
-
-The script reads `STATIC_DATA_VALIDATION_BASE_URLS` from `.env` or `.env.local` by default. To validate a single site explicitly:
-
-```bash
-python scripts/validate_static_data.py --base-url https://<app>.azurestaticapps.net
-```
+- The `start full application` task in `.vscode/tasks.json` starts the full local workflow.
+- The `Launch Full Application in Chrome` launch config in `.vscode/launch.json` exports local settings, starts the API and client, and opens the app.
