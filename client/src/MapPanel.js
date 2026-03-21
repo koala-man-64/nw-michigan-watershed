@@ -13,10 +13,6 @@ import AzureMapsBaseLayer from "./map/AzureMapsBaseLayer";
 import MapTileWarmController from "./map/MapTileWarmController";
 import { DEFAULT_AZURE_MAPS_TILESET_ID } from "./map/azureMapsTilesets";
 import {
-  DEFAULT_POPUP_LAYOUT,
-  getAdaptivePopupLayout,
-} from "./map/popupLayout";
-import {
   MAP_DEFAULT_CENTER,
   MAP_DEFAULT_ZOOM,
   MAP_MAX_BOUNDS_VISCOSITY,
@@ -49,65 +45,7 @@ const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
 const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 
 const POPUP_CLOSE_DELAY_MS = 220;
-const MAX_POPUP_LAYOUT_PASSES = 2;
-const LIVE_POPUP_LAYOUT_EVENTS = ["move", "moveend", "zoom", "zoomend", "resize"];
 const FIXED_TILESET_ID = DEFAULT_AZURE_MAPS_TILESET_ID;
-
-function arePopupLayoutsEqual(left, right) {
-  return (
-    left?.className === right?.className &&
-    left?.offset?.[0] === right?.offset?.[0] &&
-    left?.offset?.[1] === right?.offset?.[1] &&
-    left?.tipLeft === right?.tipLeft
-  );
-}
-
-function getPopupOffset(offset) {
-  if (Array.isArray(offset)) {
-    return [Number(offset[0]) || 0, Number(offset[1]) || 0];
-  }
-
-  return [Number(offset?.x) || 0, Number(offset?.y) || 0];
-}
-
-function readPopupLayout(popupInstance) {
-  const popupElement = popupInstance?.getElement?.();
-  const rawTipLeft = popupElement?.style?.getPropertyValue("--map-site-popup-tip-left");
-  const parsedTipLeft = Number.parseFloat(rawTipLeft);
-
-  return {
-    className: popupInstance?.options?.className || DEFAULT_POPUP_LAYOUT.className,
-    offset: getPopupOffset(popupInstance?.options?.offset),
-    tipLeft: Number.isFinite(parsedTipLeft) ? parsedTipLeft : DEFAULT_POPUP_LAYOUT.tipLeft,
-  };
-}
-
-function writePopupLayout(popupInstance, layout) {
-  if (!popupInstance) {
-    return;
-  }
-
-  popupInstance.options.className = layout.className;
-  popupInstance.options.offset = L.point(layout.offset);
-
-  const popupElement = popupInstance.getElement?.();
-  if (popupElement) {
-    if (Number.isFinite(layout.tipLeft)) {
-      popupElement.style.setProperty("--map-site-popup-tip-left", `${layout.tipLeft}px`);
-    } else {
-      popupElement.style.removeProperty("--map-site-popup-tip-left");
-    }
-
-    popupElement.className = [
-      "leaflet-popup",
-      layout.className,
-      "leaflet-zoom-animated",
-      popupInstance.options.interactive ? "leaflet-interactive" : "",
-    ]
-      .filter(Boolean)
-      .join(" ");
-  }
-}
 
 function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [allLocations, setAllLocations] = useState([]);
@@ -115,13 +53,6 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   const [mapError, setMapError] = useState("");
   const markerRefs = useRef(new Map());
   const closeTimeouts = useRef(new Map());
-  const popupLayoutFrames = useRef(new Map());
-  const activePopupRef = useRef({
-    mapInstance: null,
-    markerInstance: null,
-    siteName: "",
-  });
-  const livePopupLayoutHandlerRef = useRef(null);
 
   const clearPendingClose = (siteName) => {
     const timeoutId = closeTimeouts.current.get(siteName);
@@ -140,141 +71,10 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     closeTimeouts.current.set(siteName, timeoutId);
   };
 
-  const cancelPendingLayout = (siteName) => {
-    const frameId = popupLayoutFrames.current.get(siteName);
-    if (frameId) {
-      window.cancelAnimationFrame(frameId);
-      popupLayoutFrames.current.delete(siteName);
-    }
-  };
-
-  const adjustPopupLayout = (siteName, markerInstance) => {
-    const popupInstance = markerInstance?.getPopup?.();
-    const popupElement = popupInstance?.getElement?.();
-    const mapInstance = markerInstance?._map;
-    const mapElement = mapInstance?.getContainer?.();
-    const latLng = markerInstance?.getLatLng?.();
-
-    if (!popupInstance || !popupElement || !mapInstance || !mapElement || !latLng) {
-      return false;
-    }
-
-    const markerPoint = mapInstance.latLngToContainerPoint?.(latLng);
-    const mapRect = mapElement.getBoundingClientRect();
-    const popupRect = popupElement.getBoundingClientRect();
-    const nextLayout = getAdaptivePopupLayout({
-      currentLayout: readPopupLayout(popupInstance),
-      popupRect,
-      mapRect,
-      markerScreenPoint:
-        markerPoint && Number.isFinite(Number(markerPoint.y))
-          ? {
-              x: mapRect.left + Number(markerPoint.x || 0),
-              y: mapRect.top + Number(markerPoint.y),
-            }
-          : null,
-    });
-    const currentLayout = readPopupLayout(popupInstance);
-
-    if (arePopupLayoutsEqual(currentLayout, nextLayout)) {
-      return false;
-    }
-
-    writePopupLayout(popupInstance, nextLayout);
-    popupInstance.update();
-    return true;
-  };
-
-  const schedulePopupLayoutAdjustment = (siteName, markerInstance, attempt = 0) => {
-    cancelPendingLayout(siteName);
-
-    const frameId = window.requestAnimationFrame(() => {
-      popupLayoutFrames.current.delete(siteName);
-      const layoutChanged = adjustPopupLayout(siteName, markerInstance);
-
-      if (layoutChanged && attempt + 1 < MAX_POPUP_LAYOUT_PASSES) {
-        schedulePopupLayoutAdjustment(siteName, markerInstance, attempt + 1);
-      }
-    });
-
-    popupLayoutFrames.current.set(siteName, frameId);
-  };
-
-  const detachLivePopupLayoutTracking = () => {
-    const mapInstance = activePopupRef.current.mapInstance;
-    const liveHandler = livePopupLayoutHandlerRef.current;
-    if (!mapInstance || !liveHandler) {
-      livePopupLayoutHandlerRef.current = null;
-      return;
-    }
-
-    LIVE_POPUP_LAYOUT_EVENTS.forEach((eventName) => {
-      mapInstance.off(eventName, liveHandler);
-    });
-    livePopupLayoutHandlerRef.current = null;
-  };
-
-  const clearActivePopupTracking = (siteName) => {
-    if (siteName && activePopupRef.current.siteName !== siteName) {
-      return;
-    }
-
-    cancelPendingLayout(activePopupRef.current.siteName);
-    detachLivePopupLayoutTracking();
-    activePopupRef.current = {
-      mapInstance: null,
-      markerInstance: null,
-      siteName: "",
-    };
-  };
-
-  const trackActivePopup = (siteName, markerInstance) => {
-    const previousSiteName = activePopupRef.current.siteName;
-    const mapInstance = markerInstance?._map || null;
-    const nextActivePopup = {
-      mapInstance,
-      markerInstance: markerInstance || null,
-      siteName,
-    };
-    const previousMapInstance = activePopupRef.current.mapInstance;
-
-    if (previousMapInstance && previousMapInstance !== mapInstance) {
-      detachLivePopupLayoutTracking();
-    }
-
-    if (previousSiteName && previousSiteName !== siteName) {
-      cancelPendingLayout(previousSiteName);
-    }
-
-    activePopupRef.current = nextActivePopup;
-
-    if (!mapInstance) {
-      return;
-    }
-
-    if (!livePopupLayoutHandlerRef.current) {
-      livePopupLayoutHandlerRef.current = () => {
-        const { markerInstance: activeMarker, siteName: activeSiteName } = activePopupRef.current;
-        if (!activeMarker?.isPopupOpen?.() || !activeSiteName) {
-          return;
-        }
-
-        schedulePopupLayoutAdjustment(activeSiteName, activeMarker);
-      };
-
-      LIVE_POPUP_LAYOUT_EVENTS.forEach((eventName) => {
-        mapInstance.on(eventName, livePopupLayoutHandlerRef.current);
-      });
-    }
-  };
-
   useEffect(() => {
     return () => {
       closeTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
       closeTimeouts.current.clear();
-      popupLayoutFrames.current.forEach((frameId) => window.cancelAnimationFrame(frameId));
-      popupLayoutFrames.current.clear();
-      detachLivePopupLayoutTracking();
     };
   }, []);
 
@@ -302,14 +102,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
   const openPopupForMarker = (siteName, markerInstance) => {
     clearPendingClose(siteName);
-    cancelPendingLayout(siteName);
-
-    const popupInstance = markerInstance?.getPopup?.();
-    writePopupLayout(popupInstance, DEFAULT_POPUP_LAYOUT);
-    popupInstance?.update?.();
-    trackActivePopup(siteName, markerInstance);
     markerInstance?.openPopup?.();
-    schedulePopupLayoutAdjustment(siteName, markerInstance);
   };
 
   // Fetch locations once from the shipped static dataset
@@ -415,14 +208,13 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
                     openPopupForMarker(loc.name, e.target);
                   },
                   mouseout: () => scheduleClose(loc.name),
-                  popupclose: () => clearActivePopupTracking(loc.name),
                 }}
               >
                 <Popup
                   autoPan={false}
-                  className={DEFAULT_POPUP_LAYOUT.className}
+                  className="map-site-popup"
                   keepInView={false}
-                  offset={DEFAULT_POPUP_LAYOUT.offset}
+                  offset={[0, 0]}
                 >
                   <div
                     onMouseEnter={() => clearPendingClose(loc.name)}
