@@ -1,5 +1,6 @@
 /* eslint-env jest */
 import {
+  AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY,
   getAzureMapsAuthBundle,
   isAzureMapsAuthBundleFresh,
   resetAzureMapsTokenCacheForTests,
@@ -67,6 +68,23 @@ describe("azureMapsToken", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(first).toEqual(second);
+  });
+
+  test("reuses a fresh sessionStorage bundle across refreshes", async () => {
+    window.sessionStorage.setItem(
+      AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY,
+      JSON.stringify({
+        token: "persisted-token",
+        clientId: "persisted-client",
+        expiresOnUtc: "2099-01-01T00:30:00Z",
+      })
+    );
+
+    await expect(getAzureMapsAuthBundle({ fetchImpl: jest.fn() })).resolves.toEqual({
+      token: "persisted-token",
+      clientId: "persisted-client",
+      expiresOnUtc: "2099-01-01T00:30:00Z",
+    });
   });
 
   test("detects refresh windows correctly", () => {

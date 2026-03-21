@@ -377,6 +377,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
         <MapContainer
           style={{ height: "100%" }}
           center={MAP_DEFAULT_CENTER}
+          fadeAnimation={false}
           maxBounds={NW_MICHIGAN_MAX_BOUNDS}
           maxBoundsViscosity={MAP_MAX_BOUNDS_VISCOSITY}
           maxZoom={MAP_MAX_ZOOM}

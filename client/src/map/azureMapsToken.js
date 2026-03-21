@@ -2,6 +2,7 @@ import { trackEvent, trackException } from "../utils/telemetry";
 
 const TOKEN_ENDPOINT = "/api/maps/token";
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+export const AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY = "nwmiws.azureMapsAuthBundle.v1";
 
 let cachedAuthBundle = null;
 let inFlightPromise = null;
@@ -53,6 +54,49 @@ async function fetchAzureMapsAuthBundleFromApi(fetchImpl) {
   return normalizeAuthBundle(await response.json());
 }
 
+function getSessionStorage() {
+  return globalThis.sessionStorage || null;
+}
+
+function persistAzureMapsAuthBundle(bundle, storage = getSessionStorage()) {
+  if (!storage?.setItem || !bundle) {
+    return;
+  }
+
+  try {
+    storage.setItem(AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY, JSON.stringify(bundle));
+  } catch (error) {
+    // Ignore storage failures and continue with in-memory caching only.
+  }
+}
+
+function readPersistedAzureMapsAuthBundle(storage = getSessionStorage()) {
+  if (!storage?.getItem) {
+    return null;
+  }
+
+  try {
+    const rawValue = storage.getItem(AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const bundle = normalizeAuthBundle(JSON.parse(rawValue));
+    if (isAzureMapsAuthBundleFresh(bundle)) {
+      return bundle;
+    }
+  } catch (error) {
+    // Fall through to remove any malformed or expired payload.
+  }
+
+  try {
+    storage.removeItem(AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY);
+  } catch (error) {
+    // Ignore storage cleanup failures.
+  }
+  return null;
+}
+
 export function isAzureMapsAuthBundleFresh(bundle, nowMs = Date.now()) {
   if (!bundle) {
     return false;
@@ -69,6 +113,14 @@ export async function getAzureMapsAuthBundle(options = {}) {
     return cachedAuthBundle;
   }
 
+  if (!forceRefresh) {
+    const persistedBundle = readPersistedAzureMapsAuthBundle();
+    if (persistedBundle) {
+      cachedAuthBundle = persistedBundle;
+      return cachedAuthBundle;
+    }
+  }
+
   if (inFlightPromise) {
     return inFlightPromise;
   }
@@ -76,6 +128,7 @@ export async function getAzureMapsAuthBundle(options = {}) {
   inFlightPromise = fetchAzureMapsAuthBundleFromApi(fetchImpl)
     .then((bundle) => {
       cachedAuthBundle = bundle;
+      persistAzureMapsAuthBundle(bundle);
       return bundle;
     })
     .catch((error) => {
@@ -105,5 +158,11 @@ export async function getAzureMapsSasToken(options = {}) {
 export function resetAzureMapsTokenCacheForTests() {
   cachedAuthBundle = null;
   inFlightPromise = null;
+  const storage = getSessionStorage();
+  try {
+    storage?.removeItem?.(AZURE_MAPS_AUTH_BUNDLE_STORAGE_KEY);
+  } catch (error) {
+    // Ignore storage cleanup failures during tests.
+  }
 }
 

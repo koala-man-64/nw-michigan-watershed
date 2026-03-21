@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import L from "leaflet";
 import { useMap } from "react-leaflet";
-import "azure-maps-leaflet";
-import { getAzureMapsAuthBundle, getAzureMapsSasToken } from "./azureMapsToken";
+import { getAzureMapsAuthBundle } from "./azureMapsToken";
 import { trackEvent, trackException } from "../utils/telemetry";
+import { createAzureMapsTileLayer } from "./createAzureMapsTileLayer";
 import {
   DEFAULT_AZURE_MAPS_TILESET_ID,
   normalizeAzureMapsTilesetId,
@@ -24,6 +23,7 @@ function AzureMapsBaseLayer({ onStatusChange, tilesetId = DEFAULT_AZURE_MAPS_TIL
     let failureReported = false;
     let layer = null;
     let loadTimeoutId = null;
+    const loadStartedAtMs = globalThis.performance?.now?.() || Date.now();
 
     hasTrackedReady.current = false;
 
@@ -79,6 +79,10 @@ function AzureMapsBaseLayer({ onStatusChange, tilesetId = DEFAULT_AZURE_MAPS_TIL
       hasTrackedReady.current = true;
       updateStatus({ state: "ready", tilesetId: resolvedTilesetId });
       trackEvent("azure_maps_provider_loaded", {
+        durationMs: Math.max(
+          0,
+          Math.round((globalThis.performance?.now?.() || Date.now()) - loadStartedAtMs)
+        ),
         tilesetId: resolvedTilesetId,
         language: DEFAULT_LANGUAGE,
         view: DEFAULT_VIEW,
@@ -104,26 +108,14 @@ function AzureMapsBaseLayer({ onStatusChange, tilesetId = DEFAULT_AZURE_MAPS_TIL
       try {
         updateStatus({ state: "loading", tilesetId: resolvedTilesetId });
 
-        const { clientId } = await getAzureMapsAuthBundle();
-
-        if (!L?.tileLayer || typeof L.tileLayer.azureMaps !== "function") {
-          throw new Error("Azure Maps Leaflet plugin did not register correctly.");
-        }
+        await getAzureMapsAuthBundle();
 
         if (disposed) {
           return;
         }
 
-        layer = L.tileLayer.azureMaps({
-          authOptions: {
-            authType: "sas",
-            clientId,
-            getToken: (resolve, reject) => {
-              getAzureMapsSasToken()
-                .then(resolve)
-                .catch(reject);
-            },
-          },
+        layer = createAzureMapsTileLayer({
+          getAuthBundle: getAzureMapsAuthBundle,
           tilesetId: resolvedTilesetId,
           language: DEFAULT_LANGUAGE,
           view: DEFAULT_VIEW,
