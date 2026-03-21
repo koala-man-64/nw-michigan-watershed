@@ -30,7 +30,7 @@ describe("registerMapTileServiceWorker", () => {
     setGlobalValue("location", originalLocation);
   });
 
-  test("does nothing outside production", async () => {
+  test("does nothing in tests", async () => {
     process.env.NODE_ENV = "test";
     setGlobalValue("navigator", {
       serviceWorker: {
@@ -40,6 +40,21 @@ describe("registerMapTileServiceWorker", () => {
 
     await expect(registerMapTileServiceWorker()).resolves.toBeNull();
     expect(trackException).not.toHaveBeenCalled();
+  });
+
+  test("registers the service worker in development", async () => {
+    process.env.NODE_ENV = "development";
+    const registration = { scope: "https://example.test/" };
+    setGlobalValue("navigator", {
+      serviceWorker: {
+        register: jest.fn().mockResolvedValue(registration),
+      },
+    });
+
+    await expect(registerMapTileServiceWorker()).resolves.toBe(registration);
+    expect(global.navigator.serviceWorker.register).toHaveBeenCalledWith(
+      "https://example.test/sw.js"
+    );
   });
 
   test("registers the service worker in production", async () => {

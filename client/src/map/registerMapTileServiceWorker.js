@@ -1,7 +1,7 @@
 import { trackException } from "../utils/telemetry";
 
 export async function registerMapTileServiceWorker() {
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV === "test") {
     return null;
   }
 
