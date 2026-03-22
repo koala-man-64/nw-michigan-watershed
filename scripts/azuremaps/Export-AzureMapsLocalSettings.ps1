@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)]
-  [ValidateSet("dev", "prod")]
+  [ValidateSet("sbx", "dev", "prod")]
   [string]$Environment,
 
   [string]$Path,
@@ -10,6 +10,7 @@ param(
 
   [string[]]$LocalClientOrigins = @(
     "http://localhost:3000",
+    "http://localhost:4173",
     "http://localhost:4280"
   )
 )
@@ -22,7 +23,7 @@ Import-Module (Join-Path $PSScriptRoot "..\common\Repo.Common.psm1") -Force -Dis
 
 $repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($Path)) {
-  $Path = Join-Path $repoRoot "api/local.settings.json"
+  $Path = Join-Path $repoRoot "apps/platform-api/local.settings.json"
 }
 
 $environmentPath = Join-Path $repoRoot ("scripts/environments/{0}.psd1" -f $Environment)
@@ -134,6 +135,8 @@ $output = [ordered]@{
   Values = [ordered]@{
     FUNCTIONS_WORKER_RUNTIME = "node"
     AzureWebJobsStorage = "UseDevelopmentStorage=true"
+    NWMIWS_ADMIN_AUTH_MODE = "mock"
+    NWMIWS_ADMIN_REQUIRED_ROLES = "admin"
   }
 }
 

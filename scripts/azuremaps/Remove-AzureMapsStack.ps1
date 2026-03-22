@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [Parameter(Mandatory)]
-  [ValidateSet("dev", "prod")]
+  [ValidateSet("sbx", "dev", "prod")]
   [string]$Environment,
 
   [switch]$KeepAppRegistration

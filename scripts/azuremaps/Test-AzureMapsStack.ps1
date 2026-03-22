@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)]
-  [ValidateSet("dev", "prod")]
+  [ValidateSet("sbx", "dev", "prod")]
   [string]$Environment
 )
 
@@ -84,6 +84,33 @@ function ConvertTo-SettingHashtable {
   return $settings
 }
 
+function Get-ExpectedAllowedOrigins {
+  param(
+    [hashtable]$Config,
+    [object]$StaticWebApp
+  )
+
+  $origins = @(
+    @($Config.AllowedOrigins) |
+      ForEach-Object { [string]$_ } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  )
+
+  $defaultHostname = $null
+  if (
+    $null -ne $StaticWebApp -and
+    $StaticWebApp.PSObject.Properties.Match("defaultHostname").Count -gt 0
+  ) {
+    $defaultHostname = [string]$StaticWebApp.defaultHostname
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($defaultHostname)) {
+    $origins += "https://$defaultHostname"
+  }
+
+  return @($origins | Select-Object -Unique)
+}
+
 Write-ScriptSection "Azure Maps validation ($Environment)"
 Write-ScriptStep "Loading environment configuration from '$environmentPath'."
 $config = Get-EnvironmentConfig -Path $environmentPath
@@ -108,6 +135,7 @@ $staticWebApp = Invoke-AzJson -Arguments @(
 if (-not $staticWebApp) {
   $issues.Add("Static Web App '$($config.StaticWebAppName)' was not found.")
 }
+$expectedAllowedOrigins = Get-ExpectedAllowedOrigins -Config $config -StaticWebApp $staticWebApp
 
 $appInsights = Invoke-AzJson -Arguments @(
   "monitor",
@@ -179,7 +207,7 @@ if ($mapsAccount) {
     $configuredOrigins = @($mapsProperties.cors.corsRules[0].allowedOrigins)
   }
 
-  $expectedOrigins = @($config.AllowedOrigins)
+  $expectedOrigins = @($expectedAllowedOrigins)
   $configuredOriginsValue = [string](@($configuredOrigins | Sort-Object) -join ",")
   $expectedOriginsValue = [string](@($expectedOrigins | Sort-Object) -join ",")
   if ($configuredOriginsValue -ne $expectedOriginsValue) {
@@ -257,7 +285,7 @@ $requiredAppSettings = [ordered]@{
   AZURE_MAPS_SUBSCRIPTION_ID = [string]$config.SubscriptionId
   AZURE_MAPS_RESOURCE_GROUP = [string]$config.ResourceGroupName
   AZURE_MAPS_ACCOUNT_NAME = [string]$config.AzureMapsAccountName
-  AZURE_MAPS_ALLOWED_ORIGINS = [string](@($config.AllowedOrigins) -join ",")
+  AZURE_MAPS_ALLOWED_ORIGINS = [string](@($expectedAllowedOrigins) -join ",")
   AZURE_MAPS_SAS_TTL_MINUTES = [string]$config.SasTtlMinutes
   AZURE_MAPS_SAS_MAX_RPS = [string]$config.SasMaxRps
   AZURE_MAPS_SAS_SIGNING_KEY = [string]$config.SasSigningKey

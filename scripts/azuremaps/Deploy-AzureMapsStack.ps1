@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
   [Parameter(Mandatory)]
-  [ValidateSet("dev", "prod")]
+  [ValidateSet("sbx", "dev", "prod")]
   [string]$Environment,
 
   [switch]$RotateClientSecret
@@ -35,18 +35,83 @@ function Get-EnvironmentConfig {
   return Import-PowerShellDataFile -LiteralPath $Path
 }
 
+function Get-StaticWebAppLocation {
+  param([hashtable]$Config)
+
+  if (
+    $Config.ContainsKey("StaticWebAppLocation") -and
+    -not [string]::IsNullOrWhiteSpace([string]$Config.StaticWebAppLocation)
+  ) {
+    return [string]$Config.StaticWebAppLocation
+  }
+
+  return [string]$Config.Location
+}
+
+function Get-StaticWebAppSku {
+  param([hashtable]$Config)
+
+  if (
+    $Config.ContainsKey("StaticWebAppSku") -and
+    -not [string]::IsNullOrWhiteSpace([string]$Config.StaticWebAppSku)
+  ) {
+    return [string]$Config.StaticWebAppSku
+  }
+
+  return "Free"
+}
+
 function Assert-ExistingStaticWebApp {
   param([hashtable]$Config)
 
   Write-ScriptStep "Validating Static Web App '$($Config.StaticWebAppName)'."
-  $null = Invoke-AzJson -Arguments @(
+  $staticWebApp = Invoke-AzJson -Arguments @(
     "staticwebapp",
     "show",
     "--name",
     $Config.StaticWebAppName,
     "--resource-group",
     $Config.StaticWebAppResourceGroupName
+  ) -AllowFailure
+
+  if ($staticWebApp) {
+    return $staticWebApp
+  }
+
+  $location = Get-StaticWebAppLocation -Config $Config
+  $sku = Get-StaticWebAppSku -Config $Config
+  throw (
+    "Static Web App '{0}' was not found in resource group '{1}'. " +
+    "Run 'scripts/bootstrap/Provision-AzurePlatform.ps1' or create it with " +
+    "'az staticwebapp create --name {0} --resource-group {1} --location {2} --sku {3}' and retry."
+  ) -f $Config.StaticWebAppName, $Config.StaticWebAppResourceGroupName, $location, $sku
+}
+
+function Get-ConfiguredAllowedOrigins {
+  param(
+    [hashtable]$Config,
+    [object]$StaticWebApp
   )
+
+  $origins = @(
+    @($Config.AllowedOrigins) |
+      ForEach-Object { [string]$_ } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  )
+
+  $defaultHostname = $null
+  if (
+    $null -ne $StaticWebApp -and
+    $StaticWebApp.PSObject.Properties.Match("defaultHostname").Count -gt 0
+  ) {
+    $defaultHostname = [string]$StaticWebApp.defaultHostname
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($defaultHostname)) {
+    $origins += "https://$defaultHostname"
+  }
+
+  return @($origins | Select-Object -Unique)
 }
 
 function Assert-ExistingApplicationInsights {
@@ -304,8 +369,9 @@ Ensure-ProviderRegistered -Namespace "Microsoft.ManagedIdentity"
 Ensure-BicepAvailable
 
 Write-ScriptStep "Validating prerequisite resources."
-Assert-ExistingStaticWebApp -Config $config
+$staticWebApp = Assert-ExistingStaticWebApp -Config $config
 Assert-ExistingApplicationInsights -Config $config
+$allowedOrigins = Get-ConfiguredAllowedOrigins -Config $config -StaticWebApp $staticWebApp
 
 $deploymentParameters = [ordered]@{
   '$schema' = "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#"
@@ -321,7 +387,7 @@ $deploymentParameters = [ordered]@{
       value = $config.ManagedIdentityName
     }
     allowedOrigins = @{
-      value = @($config.AllowedOrigins)
+      value = @($allowedOrigins)
     }
     tags = @{
       value = $config.Tags
@@ -428,7 +494,7 @@ try {
     AZURE_MAPS_ACCOUNT_NAME = [string]$config.AzureMapsAccountName
     AZURE_MAPS_ACCOUNT_CLIENT_ID = [string]$mapsAccount.ClientId
     AZURE_MAPS_UAMI_PRINCIPAL_ID = [string]$mapsAccount.ManagedIdentityPrincipalId
-    AZURE_MAPS_ALLOWED_ORIGINS = [string](@($config.AllowedOrigins) -join ",")
+    AZURE_MAPS_ALLOWED_ORIGINS = [string](@($allowedOrigins) -join ",")
     AZURE_MAPS_SAS_TTL_MINUTES = [string]$config.SasTtlMinutes
     AZURE_MAPS_SAS_MAX_RPS = [string]$config.SasMaxRps
     AZURE_MAPS_SAS_SIGNING_KEY = [string]$config.SasSigningKey
@@ -460,7 +526,7 @@ try {
   Write-Host "  Static Web App:           $($config.StaticWebAppName)"
   Write-Host "  Entra application:        $($config.AppRegistrationDisplayName)"
   Write-Host "  Client secret in SWA:     $(Mask-Secret -Secret $clientSecret)"
-  Write-Host "  Allowed origins:          $(@($config.AllowedOrigins) -join ', ')"
+  Write-Host "  Allowed origins:          $(@($allowedOrigins) -join ', ')"
 } finally {
   if (Test-Path -LiteralPath $parameterFile) {
     Write-Verbose "Removing temporary deployment parameter file '$parameterFile'."

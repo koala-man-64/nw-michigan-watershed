@@ -13,9 +13,9 @@ All entrypoint scripts emit high-level progress by default. Add `-Verbose` to se
 | `scripts/azuremaps/Deploy-AzureMapsStack.ps1` | Provision or update Azure Maps resources and SWA settings | Supports `-WhatIf` |
 | `scripts/azuremaps/Test-AzureMapsStack.ps1` | Validate Azure Maps deployment and settings | Read-only validation |
 | `scripts/azuremaps/Remove-AzureMapsStack.ps1` | Tear down Azure Maps resources and related SWA settings | Destructive |
-| `scripts/azuremaps/Export-AzureMapsLocalSettings.ps1` | Export `api/local.settings.json` for local basemap development | Writes local secrets |
+| `scripts/azuremaps/Export-AzureMapsLocalSettings.ps1` | Export `apps/platform-api/local.settings.json` for local basemap development | Writes local secrets |
 | `scripts/bootstrap/Provision-AzurePlatform.ps1` | Bootstrap Azure platform prerequisites across environments | Supports `-WhatIf` |
-| `scripts/bootstrap/Sync-GitHubActionsConfig.ps1` | Sync GitHub Actions secrets from `api/.env` and repository variables from local config or `api/.env` overrides | Supports `-WhatIf` |
+| `scripts/bootstrap/Sync-GitHubActionsConfig.ps1` | Sync GitHub Actions secrets from `apps/platform-api/.env` and repository variables from local config or `apps/platform-api/.env` overrides | Supports `-WhatIf` |
 
 ## Shared modules
 
@@ -27,3 +27,4 @@ All entrypoint scripts emit high-level progress by default. Add `-Verbose` to se
 ## Environment config
 
 Shared environment definitions live under `scripts/environments/`.
+Provisioning currently treats them in `sbx`, `dev`, `prod` order.

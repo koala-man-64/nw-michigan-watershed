@@ -1,10 +1,10 @@
 {
     "debug.internalConsoleOptions": "neverOpen",
-    "jest.rootPath": "client",
+    "jest.rootPath": "apps/portal-web",
     "jest.jestCommandLine": "npm test --",
     "jest.runMode": "on-demand",
     "python.testing.pytestArgs": [
-        "api"
+        "apps/platform-api"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true

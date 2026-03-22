@@ -4,25 +4,25 @@
 node_modules/
 **/node_modules/
 **/build/
-client/build/
+apps/**/build/
+apps/**/dist/
+packages/**/dist/
 
 # ==================================================
 # Python Artifacts
 # ==================================================
 **/__pycache__/
-**/client/build/
 **/.python_packages/
 **/.venv/
 **/venv/
 **/env/
-api/local.settings.json
-api/.codex-func*.log
+apps/platform-api/local.settings.json
+apps/platform-api/.codex-func*.log
 # ==================================================
 # Configuration & Environment
 # ==================================================
 .pnp
 .pnp.js
-/api/local.settings.json
 .vscode/
 .env.local
 .env.development.local
@@ -51,7 +51,3 @@ coverage/
 data/~$*
 
 # ==================================================
-# GitHub Workflows (ignored explicitly if desired)
-# ==================================================
-/.github/workflows/azure-static-web-apps-agreeable-pebble-063e41e1e.yml
-/.github/workflows/build-deploy-function-app.yml

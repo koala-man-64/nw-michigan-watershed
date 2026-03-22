@@ -1,0 +1,32 @@
+{
+  "name": "nwmiws-platform-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Managed Static Web Apps API for bootstrap, data, and Azure Maps token brokering",
+  "main": "dist/index.js",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build:contracts": "npm run build --prefix ../../packages/contracts",
+    "build": "npm run clean && npm run build:contracts && tsc -p tsconfig.build.json",
+    "lint": "npm run build:contracts && tsc -p tsconfig.json --noEmit",
+    "start": "npm run build && func start --port 9091",
+    "kill:9091": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\..\\scripts\\local\\Stop-ProcessOnPort.ps1",
+    "test": "npm run build:contracts && tsx --test tests/**/*.test.ts"
+  },
+  "dependencies": {
+    "@azure/arm-maps": "^3.1.0",
+    "@azure/functions": "^4.7.3",
+    "@azure/identity": "^4.13.0",
+    "@nwmiws/contracts": "file:../../packages/contracts",
+    "papaparse": "^5.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/papaparse": "^5.5.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

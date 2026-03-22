@@ -71,18 +71,93 @@ function Ensure-ResourceGroup {
   $null = Invoke-AzJson -Arguments $arguments
 }
 
-function Ensure-StaticWebAppExists {
+function Get-StaticWebAppLocation {
   param([hashtable]$Config)
 
-  Write-ScriptStep "Validating Static Web App '$($Config.StaticWebAppName)'."
-  $null = Invoke-AzJson -Arguments @(
+  if (
+    $Config.ContainsKey("StaticWebAppLocation") -and
+    -not [string]::IsNullOrWhiteSpace([string]$Config.StaticWebAppLocation)
+  ) {
+    return [string]$Config.StaticWebAppLocation
+  }
+
+  return [string]$Config.Location
+}
+
+function Get-StaticWebAppSku {
+  param([hashtable]$Config)
+
+  if (
+    $Config.ContainsKey("StaticWebAppSku") -and
+    -not [string]::IsNullOrWhiteSpace([string]$Config.StaticWebAppSku)
+  ) {
+    return [string]$Config.StaticWebAppSku
+  }
+
+  return "Free"
+}
+
+function Get-StaticWebApp {
+  param([hashtable]$Config)
+
+  return Invoke-AzJson -Arguments @(
     "staticwebapp",
     "show",
     "--name",
     $Config.StaticWebAppName,
     "--resource-group",
     $Config.StaticWebAppResourceGroupName
+  ) -AllowFailure
+}
+
+function Ensure-StaticWebApp {
+  param(
+    [hashtable]$Config,
+    [bool]$WhatIfMode
   )
+
+  Write-ScriptStep "Ensuring Static Web App '$($Config.StaticWebAppName)'."
+  $staticWebApp = Get-StaticWebApp -Config $Config
+  if ($staticWebApp) {
+    Write-ScriptStep "Static Web App '$($Config.StaticWebAppName)' already exists."
+    return $staticWebApp
+  }
+
+  $location = Get-StaticWebAppLocation -Config $Config
+  $sku = Get-StaticWebAppSku -Config $Config
+
+  if ($WhatIfMode) {
+    Write-Host "WhatIf: would create Static Web App '$($Config.StaticWebAppName)' in '$location' with SKU '$sku'."
+    return [pscustomobject]@{
+      name = $Config.StaticWebAppName
+      resourceGroup = $Config.StaticWebAppResourceGroupName
+      location = $location
+      sku = [pscustomobject]@{
+        name = $sku
+      }
+    }
+  }
+
+  Write-Host "Creating Static Web App '$($Config.StaticWebAppName)' in '$location' with SKU '$sku'..."
+  $tagArguments = ConvertTo-TagArgumentList -Tags $Config.Tags
+  $arguments = @(
+    "staticwebapp",
+    "create",
+    "--name",
+    $Config.StaticWebAppName,
+    "--resource-group",
+    $Config.StaticWebAppResourceGroupName,
+    "--location",
+    $location,
+    "--sku",
+    $sku
+  )
+
+  if ($tagArguments.Count -gt 0) {
+    $arguments += @("--tags") + $tagArguments
+  }
+
+  return Invoke-AzJson -Arguments $arguments
 }
 
 function Ensure-LogAnalyticsWorkspace {
@@ -264,7 +339,7 @@ Ensure-AzCli
 Require-AzLogin
 Ensure-AzExtensionInstalled -Name "application-insights"
 
-foreach ($environment in @("dev", "prod")) {
+foreach ($environment in @("sbx", "dev", "prod")) {
   Write-ScriptSection "Environment: $environment"
   Write-ScriptStep "Loading environment configuration."
   $config = Get-EnvironmentConfig -Environment $environment
@@ -279,11 +354,12 @@ foreach ($environment in @("dev", "prod")) {
   Ensure-ProviderRegistered -Namespace "Microsoft.OperationalInsights"
   Ensure-ProviderRegistered -Namespace "Microsoft.Maps"
   Ensure-ProviderRegistered -Namespace "Microsoft.ManagedIdentity"
+  Ensure-ProviderRegistered -Namespace "Microsoft.Web"
 
   Write-ScriptStep "Ensuring resource group '$($config.ResourceGroupName)'."
   Ensure-ResourceGroup -Config $config -WhatIfMode $whatIfMode
 
-  Ensure-StaticWebAppExists -Config $config
+  $null = Ensure-StaticWebApp -Config $config -WhatIfMode $whatIfMode
 
   Write-ScriptStep "Ensuring Log Analytics workspace for '$($config.ApplicationInsightsName)'."
   $workspace = Ensure-LogAnalyticsWorkspace -Config $config -WhatIfMode $whatIfMode
@@ -295,4 +371,4 @@ foreach ($environment in @("dev", "prod")) {
 }
 
 Write-ScriptSection "Completed"
-Write-Host "Azure platform provisioning completed for dev and prod."
+Write-Host "Azure platform provisioning completed for sbx, dev, and prod."

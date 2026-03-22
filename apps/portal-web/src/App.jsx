@@ -1,0 +1,295 @@
+import React, { useCallback, useState } from "react";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
+import PropTypes from "prop-types";
+import "./App.css";
+import trendPlotIcon from "./trend_plot_icon.png";
+import comparisonPlotIcon from "./comparison_plot_icon.png";
+import FiltersPanel from "./FiltersPanel";
+import Header from "./Header";
+import Plots from "./Plots";
+import MapPanel from "./MapPanel";
+import { upsertPlotConfig } from "./plots/plotConfigs";
+import { RuntimeConfigProvider, useRuntimeConfig } from "./runtime/runtimeConfigContext";
+
+function FilterMapPanel({
+  filters,
+  onFiltersChange,
+  onUpdatePlot1,
+  onUpdatePlot2,
+  onDataLoaded,
+  resetSignal,
+  trendSingleSite = false,
+  updateEnabled = false,
+}) {
+  const handleMarkerClick = (siteName) => {
+    const nextSelected = filters.selectedSites.includes(siteName)
+      ? filters.selectedSites.filter((name) => name !== siteName)
+      : [...filters.selectedSites, siteName];
+
+    onFiltersChange({ selectedSites: nextSelected });
+  };
+
+  return (
+    <div className="filter-map-panel">
+      <FiltersPanel
+        selectedSites={filters.selectedSites}
+        onFiltersChange={onFiltersChange}
+        onUpdatePlot1={onUpdatePlot1}
+        onUpdatePlot2={onUpdatePlot2}
+        onDataLoaded={onDataLoaded}
+        resetSignal={resetSignal}
+        trendSingleSite={trendSingleSite}
+        updateEnabled={updateEnabled}
+      />
+
+      <section className="map">
+        <MapPanel
+          selectedSites={filters.selectedSites}
+          onMarkerClick={handleMarkerClick}
+        />
+      </section>
+    </div>
+  );
+}
+
+FilterMapPanel.propTypes = {
+  filters: PropTypes.shape({
+    selectedSites: PropTypes.arrayOf(PropTypes.string).isRequired,
+    startYear: PropTypes.number,
+    endYear: PropTypes.number,
+    parameter: PropTypes.string,
+    chartType: PropTypes.oneOf(["trend", "comparison"]),
+  }).isRequired,
+  onFiltersChange: PropTypes.func.isRequired,
+  onUpdatePlot1: PropTypes.func.isRequired,
+  onUpdatePlot2: PropTypes.func.isRequired,
+  onDataLoaded: PropTypes.func,
+  resetSignal: PropTypes.number.isRequired,
+  trendSingleSite: PropTypes.bool,
+  updateEnabled: PropTypes.bool,
+};
+
+function WelcomePanel({ onContinue }) {
+  const { appTitle, supportContact } = useRuntimeConfig();
+
+  return (
+    <div className="plots" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        <h1
+          style={{
+            marginTop: 0,
+            marginBottom: 12,
+            fontSize: 28,
+            fontFamily: "Lora, Georgia, serif",
+            color: "var(--color-secondary)",
+          }}
+        >
+          Welcome to the {appTitle}!
+        </h1>
+
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          This database can be used to retrieve, display, and download water quality data
+          for lakes and streams in northern Michigan. Click the markers on the map
+          or use the dropdown list to identify sites that are included in the database.
+        </p>
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          You can display data for the following parameters (measurements) for lakes:
+          Chlorophyll, Chloride, Nitrate, Secchi Depth, Total Phosphorus, and Trophic
+          State Index and Chloride, Nitrate, Total Phosphorus, Flow Rate, and
+          Conductivity for streams.
+        </p>
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          Data can be displayed as <strong>Trend</strong> lines{" "}
+          <img src={trendPlotIcon} alt="Trend plot icon" /> that show how a parameter
+          changes over time. This allows you to determine if a parameter is increasing
+          or decreasing. You can compare the trend of a single parameter for two different
+          sites or compare two different parameters for the same site.
+        </p>
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          Data can also be displayed as a bar graph{" "}
+          <img src={comparisonPlotIcon} alt="Comparison plot icon" /> to <strong>Compare</strong>{" "}
+          the overall water quality of up to 10 different sites. This allows you to
+          attain an overview of conditions on a more regional basis.
+        </p>
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          Click the Continue button below to proceed to the database. There you will be
+          able to select one or more sites, select the parameter, select the time
+          interval, and choose between <strong>Trend</strong> and <strong>Comparison</strong> options.
+        </p>
+        <p
+          style={{
+            marginBottom: 10,
+            lineHeight: 1.5,
+            fontSize: "calc(1em * var(--font-scale, 1))",
+          }}
+        >
+          If you have questions or comments, please contact {supportContact.name} at the{" "}
+          {supportContact.organization} at {supportContact.phoneDisplay} or email at{" "}
+          {supportContact.email}.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+        <button
+          type="button"
+          className="reset-btn welcome-continue-button"
+          onClick={onContinue}
+          style={{ marginLeft: "auto" }}
+          title="Enable plotting and show the charts panel"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+
+WelcomePanel.propTypes = {
+  onContinue: PropTypes.func.isRequired,
+};
+
+function createInitialFilters() {
+  return {
+    selectedSites: [],
+    startYear: null,
+    endYear: null,
+    parameter: "",
+    chartType: "trend",
+  };
+}
+
+function App() {
+  const [filters, setFilters] = useState(createInitialFilters);
+  const [plotConfigs, setPlotConfigs] = useState([]);
+  const [rawData, setRawData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [updateEnabled, setUpdateEnabled] = useState(false);
+  const [resetSignal, setResetSignal] = useState(0);
+
+  const onFiltersChange = useCallback((partialOrFull) => {
+    setFilters((prev) => ({ ...prev, ...partialOrFull }));
+  }, []);
+
+  const handleDataLoaded = useCallback(({ rawData: nextRawData }) => {
+    setRawData(Array.isArray(nextRawData) ? nextRawData : []);
+    setLoading(false);
+  }, []);
+
+  const resetToWelcome = useCallback(() => {
+    setFilters(createInitialFilters());
+    setPlotConfigs([]);
+    setShowWelcome(true);
+    setUpdateEnabled(false);
+    setResetSignal((current) => current + 1);
+  }, []);
+
+  const handlePlotUpdate = useCallback((slot, plotFilters) => {
+    setPlotConfigs((prev) => upsertPlotConfig(prev, slot, plotFilters));
+  }, []);
+
+  const handleUpdatePlot1 = useCallback((plotFilters) => {
+    handlePlotUpdate(0, plotFilters);
+  }, [handlePlotUpdate]);
+
+  const handleUpdatePlot2 = useCallback((plotFilters) => {
+    handlePlotUpdate(1, plotFilters);
+  }, [handlePlotUpdate]);
+
+  const rightSide = showWelcome ? (
+    <WelcomePanel
+      onContinue={() => {
+        setShowWelcome(false);
+        setUpdateEnabled(true);
+      }}
+    />
+  ) : (
+    <div className="plots-view">
+      <Plots
+        plotConfigs={plotConfigs}
+        setPlotConfigs={setPlotConfigs}
+        rawData={rawData}
+        loading={loading}
+      />
+
+      <div className="plots-footer-actions">
+        <button
+          type="button"
+          className="reset-btn plots-footer-button plots-footer-button-back"
+          onClick={resetToWelcome}
+          title="Return to the welcome page"
+        >
+          Back
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <RuntimeConfigProvider>
+      <Router>
+        <div className="app">
+          <Header onHomeClick={resetToWelcome} />
+          <div className="app-content">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <div className="main">
+                    <div className="left">
+                      <FilterMapPanel
+                        filters={filters}
+                        onFiltersChange={onFiltersChange}
+                        onUpdatePlot1={handleUpdatePlot1}
+                        onUpdatePlot2={handleUpdatePlot2}
+                        onDataLoaded={handleDataLoaded}
+                        resetSignal={resetSignal}
+                        trendSingleSite={false}
+                        updateEnabled={updateEnabled}
+                      />
+                    </div>
+
+                    <div className="right">{rightSide}</div>
+                  </div>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </div>
+      </Router>
+    </RuntimeConfigProvider>
+  );
+}
+
+export default App;

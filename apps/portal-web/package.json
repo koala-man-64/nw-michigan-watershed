@@ -1,0 +1,68 @@
+{
+  "name": "@nwmiws/portal-web",
+  "version": "1.0.0",
+  "description": "Client facing portion of the NWMIWS application",
+  "main": "src/App.jsx",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext js,jsx,ts,tsx"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koala-man-64/nw-michigan-watershed.git"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^7.0.0",
+    "@fortawesome/free-solid-svg-icons": "^7.0.0",
+    "@fortawesome/react-fontawesome": "^3.0.1",
+    "@microsoft/applicationinsights-web": "^3.3.11",
+    "@sgratzl/chartjs-chart-boxplot": "^4.4.4",
+    "chart.js": "^4.5.0",
+    "d3": "^7.9.0",
+    "leaflet": "^1.9.4",
+    "papaparse": "^5.5.2",
+    "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.4.0",
+    "web-vitals": "^4.2.4"
+  },
+  "jsx": "react-jsx",
+  "keywords": [
+    "nwmiws"
+  ],
+  "author": "rudy prokes",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/koala-man-64/nw-michigan-watershed/issues"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^8.57.1",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "jsdom": "^25.0.1",
+    "prop-types": "^15.8.1",
+    "vite": "^5.4.14",
+    "vitest": "^2.1.8"
+  }
+}

@@ -55,8 +55,8 @@ This is the cleanup path when the Azure Maps integration needs to be removed.
 Local development export entrypoint.
 
 - Reads the current Azure Maps broker settings from the target Static Web App
-- Writes `api/local.settings.json`
-- Merges in local browser origins for `localhost:3000` and `localhost:4280`
+- Writes `apps/platform-api/local.settings.json`
+- Merges in local browser origins for `localhost:3000`, `localhost:4173`, and `localhost:4280`
 
 This is the bridge between deployed cloud configuration and the local Functions host. It is what allows the basemap token broker to run locally with real Azure Maps settings.
 
@@ -64,7 +64,7 @@ This is the bridge between deployed cloud configuration and the local Functions 
 
 Higher-level Azure bootstrap entrypoint.
 
-- Ensures shared Azure prerequisites exist for `dev` and `prod`
+- Ensures shared Azure prerequisites exist for `sbx`, `dev`, and `prod`
 - Creates Log Analytics and Application Insights when missing
 - Calls the Azure Maps deploy script
 - Calls the Azure Maps test script after deployment
@@ -107,6 +107,7 @@ This keeps repo-relative path handling and GitHub operations consistent.
 
 ## Environment Configuration
 
+### `scripts/environments/sbx.psd1`
 ### `scripts/environments/dev.psd1`
 ### `scripts/environments/prod.psd1`
 
@@ -120,6 +121,8 @@ They define:
 - Application Insights names
 - Azure Maps account and managed identity names
 - allowed origins and SAS settings
+
+The Azure Maps deployment and validation scripts also merge the live Static Web App default hostname into the configured allowed-origin set so new environments do not depend on hand-copied Azure hostnames before first bootstrap.
 
 Every entrypoint script depends on these files. They are the single source of truth for environment-specific operator behavior.
 
@@ -138,7 +141,7 @@ This is the main delivery path for the Azure Maps feature.
 
 1. An operator or VS Code task runs `scripts/azuremaps/Export-AzureMapsLocalSettings.ps1`.
 2. The script reads the live SWA application settings for the selected environment.
-3. The script writes `api/local.settings.json`.
+3. The script writes `apps/platform-api/local.settings.json`.
 4. The local Functions host reads that file and can issue Azure Maps SAS tokens.
 5. The React dev server calls `/api/maps/token`, and the basemap works locally.
 
@@ -148,7 +151,7 @@ This is the only script flow that feeds the day-to-day local developer loop.
 
 1. An operator runs `scripts/bootstrap/Sync-GitHubActionsConfig.ps1`.
 2. The script reads the expected secret names from the workflow YAML.
-3. The script reads the required secret values from `api/.env` and applies any optional repo-local overrides.
+3. The script reads the required secret values from `apps/platform-api/.env` and applies any optional repo-local overrides.
 4. The script updates GitHub repository secrets and variables.
 
 This keeps CI/CD aligned with the locally curated deployment credentials and environment metadata.
@@ -181,7 +184,7 @@ They are not invoked by the React app at runtime, and they are not part of norma
 
 - Azure CLI for all Azure-facing scripts
 - GitHub CLI for `Sync-GitHubActionsConfig.ps1`
-- Azure Functions Core Tools for the local API startup that consumes `api/local.settings.json`
+- Azure Functions Core Tools for the local API startup that consumes `apps/platform-api/local.settings.json`
 - Azure login for scripts that query or mutate Azure
 - GitHub authentication for scripts that update repo secrets or variables
 

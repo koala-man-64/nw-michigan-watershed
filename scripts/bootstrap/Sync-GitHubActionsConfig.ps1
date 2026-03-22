@@ -20,7 +20,7 @@ $repoRoot = Get-WorkspaceRoot -StartPath $PSScriptRoot
 $whatIfMode = [bool]$WhatIfPreference
 
 if (-not $EnvFilePath) {
-  $EnvFilePath = Join-Path $repoRoot "api/.env"
+  $EnvFilePath = Join-Path $repoRoot "apps/platform-api/.env"
 }
 
 function Get-EnvironmentConfig {
@@ -45,7 +45,7 @@ function Get-WorkflowSecretNames {
   Write-Verbose "Inspecting workflow file '$WorkflowPath' for managed secret names."
   $connectionStringMatch = [regex]::Match(
     $content,
-    'REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING:\s*\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}'
+    '(?:REACT_APP|VITE)_APPLICATIONINSIGHTS_CONNECTION_STRING:\s*\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}'
   )
   $staticWebAppMatches = [regex]::Matches(
     $content,
@@ -272,6 +272,7 @@ function Test-ManagedSecretName {
 
   return (
     $Name -like "REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_*" -or
+    $Name -like "VITE_APPLICATIONINSIGHTS_CONNECTION_STRING_*" -or
     $Name -like "AZURE_STATIC_WEB_APPS_API_TOKEN_*"
   )
 }
@@ -310,6 +311,7 @@ function Write-NameList {
 $envValues = Import-LooseEnvFile -Path $EnvFilePath
 Write-ScriptSection "GitHub Actions configuration sync"
 Write-ScriptStep "Loading environment configurations."
+$sbxConfig = Get-EnvironmentConfig -Environment "sbx"
 $devConfig = Get-EnvironmentConfig -Environment "dev"
 $prodConfig = Get-EnvironmentConfig -Environment "prod"
 
@@ -324,6 +326,11 @@ if (-not $Repository) {
 
 Write-ScriptStep "Target repository: $Repository"
 Write-ScriptStep "Reading managed secret names from workflow definitions."
+$sbxWorkflowSecrets = Get-WorkflowSecretNames `
+  -WorkflowPath (Join-Path $repoRoot ".github/workflows/build-deploy-nwmiws-swa-sbx.yml") `
+  -ConnectionStringFallback "REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_SBX" `
+  -StaticWebAppTokenFallback "AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_SBX"
+
 $devWorkflowSecrets = Get-WorkflowSecretNames `
   -WorkflowPath (Join-Path $repoRoot ".github/workflows/build-deploy-nwmiws-swa-dev.yml") `
   -ConnectionStringFallback "REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV" `
@@ -335,6 +342,9 @@ $prodWorkflowSecrets = Get-WorkflowSecretNames `
   -StaticWebAppTokenFallback "AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD"
 
 Write-ScriptStep "Resolving managed secret values from the local env file."
+$sbxConnectionString = Get-EnvValue `
+  -EnvValues $envValues `
+  -Names @($sbxWorkflowSecrets.ConnectionStringSecretName)
 $devConnectionString = Get-RequiredEnvValue `
   -EnvValues $envValues `
   -Description "dev Application Insights connection string" `
@@ -343,6 +353,9 @@ $prodConnectionString = Get-RequiredEnvValue `
   -EnvValues $envValues `
   -Description "prod Application Insights connection string" `
   -Names @($prodWorkflowSecrets.ConnectionStringSecretName)
+$sbxStaticWebAppToken = Get-EnvValue `
+  -EnvValues $envValues `
+  -Names @($sbxWorkflowSecrets.StaticWebAppTokenSecretName)
 $devStaticWebAppToken = Get-RequiredEnvValue `
   -EnvValues $envValues `
   -Description "dev Static Web Apps deployment token" `
@@ -352,27 +365,49 @@ $prodStaticWebAppToken = Get-RequiredEnvValue `
   -Description "prod Static Web Apps deployment token" `
   -Names @($prodWorkflowSecrets.StaticWebAppTokenSecretName)
 
-Write-ScriptStep "Computing desired GitHub secrets and variables."
-$desiredSecrets = [ordered]@{
-  $devWorkflowSecrets.ConnectionStringSecretName = $devConnectionString
-  $prodWorkflowSecrets.ConnectionStringSecretName = $prodConnectionString
-  $devWorkflowSecrets.StaticWebAppTokenSecretName = $devStaticWebAppToken
-  $prodWorkflowSecrets.StaticWebAppTokenSecretName = $prodStaticWebAppToken
+$sbxSecretsConfigured = (
+  -not [string]::IsNullOrWhiteSpace($sbxConnectionString) -and
+  -not [string]::IsNullOrWhiteSpace($sbxStaticWebAppToken)
+)
+
+if (-not $sbxSecretsConfigured) {
+  Write-Warning (
+    "Skipping sbx secret sync because '{0}' and/or '{1}' are missing from '{2}'. Add both values after the sbx Static Web App and Application Insights resources exist." -f
+    $sbxWorkflowSecrets.ConnectionStringSecretName,
+    $sbxWorkflowSecrets.StaticWebAppTokenSecretName,
+    $EnvFilePath
+  )
 }
+
+Write-ScriptStep "Computing desired GitHub secrets and variables."
+$desiredSecrets = [ordered]@{}
+if ($sbxSecretsConfigured) {
+  $desiredSecrets[$sbxWorkflowSecrets.ConnectionStringSecretName] = $sbxConnectionString
+  $desiredSecrets[$sbxWorkflowSecrets.StaticWebAppTokenSecretName] = $sbxStaticWebAppToken
+}
+$desiredSecrets[$devWorkflowSecrets.ConnectionStringSecretName] = $devConnectionString
+$desiredSecrets[$prodWorkflowSecrets.ConnectionStringSecretName] = $prodConnectionString
+$desiredSecrets[$devWorkflowSecrets.StaticWebAppTokenSecretName] = $devStaticWebAppToken
+$desiredSecrets[$prodWorkflowSecrets.StaticWebAppTokenSecretName] = $prodStaticWebAppToken
 
 $desiredVariables = [ordered]@{
   NWMIWS_AZURE_SUBSCRIPTION_ID = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_AZURE_SUBSCRIPTION_ID", "STATIC_CUTOVER_SUBSCRIPTION_ID") -DefaultValue ([string]$devConfig.SubscriptionId)
   NWMIWS_AZURE_TENANT_ID = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_AZURE_TENANT_ID") -DefaultValue ([string]$devConfig.TenantId)
   NWMIWS_RESOURCE_GROUP = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_RESOURCE_GROUP") -DefaultValue ([string]$devConfig.ResourceGroupName)
   NWMIWS_STORAGE_ACCOUNT = Get-StorageAccountNameFromEnv -EnvValues $envValues
+  NWMIWS_STATIC_WEB_APP_SBX = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_STATIC_WEB_APP_SBX") -DefaultValue ([string]$sbxConfig.StaticWebAppName)
   NWMIWS_STATIC_WEB_APP_DEV = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_STATIC_WEB_APP_DEV") -DefaultValue ([string]$devConfig.StaticWebAppName)
   NWMIWS_STATIC_WEB_APP_PROD = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_STATIC_WEB_APP_PROD") -DefaultValue ([string]$prodConfig.StaticWebAppName)
+  NWMIWS_APP_INSIGHTS_SBX = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_APP_INSIGHTS_SBX") -DefaultValue ([string]$sbxConfig.ApplicationInsightsName)
   NWMIWS_APP_INSIGHTS_DEV = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_APP_INSIGHTS_DEV") -DefaultValue ([string]$devConfig.ApplicationInsightsName)
   NWMIWS_APP_INSIGHTS_PROD = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_APP_INSIGHTS_PROD") -DefaultValue ([string]$prodConfig.ApplicationInsightsName)
+  NWMIWS_LOG_ANALYTICS_SBX = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_LOG_ANALYTICS_SBX") -DefaultValue ([string](Get-LogAnalyticsWorkspaceName -ApplicationInsightsName $sbxConfig.ApplicationInsightsName))
   NWMIWS_LOG_ANALYTICS_DEV = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_LOG_ANALYTICS_DEV") -DefaultValue ([string](Get-LogAnalyticsWorkspaceName -ApplicationInsightsName $devConfig.ApplicationInsightsName))
   NWMIWS_LOG_ANALYTICS_PROD = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_LOG_ANALYTICS_PROD") -DefaultValue ([string](Get-LogAnalyticsWorkspaceName -ApplicationInsightsName $prodConfig.ApplicationInsightsName))
+  NWMIWS_AZURE_MAPS_ACCOUNT_SBX = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_AZURE_MAPS_ACCOUNT_SBX") -DefaultValue ([string]$sbxConfig.AzureMapsAccountName)
   NWMIWS_AZURE_MAPS_ACCOUNT_DEV = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_AZURE_MAPS_ACCOUNT_DEV") -DefaultValue ([string]$devConfig.AzureMapsAccountName)
   NWMIWS_AZURE_MAPS_ACCOUNT_PROD = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_AZURE_MAPS_ACCOUNT_PROD") -DefaultValue ([string]$prodConfig.AzureMapsAccountName)
+  NWMIWS_ALLOWED_ORIGINS_SBX = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_ALLOWED_ORIGINS_SBX") -DefaultValue ([string](@($sbxConfig.AllowedOrigins) -join ","))
   NWMIWS_ALLOWED_ORIGINS_DEV = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_ALLOWED_ORIGINS_DEV") -DefaultValue ([string](@($devConfig.AllowedOrigins) -join ","))
   NWMIWS_ALLOWED_ORIGINS_PROD = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_ALLOWED_ORIGINS_PROD") -DefaultValue ([string](@($prodConfig.AllowedOrigins) -join ","))
   NWMIWS_VALIDATION_BASE_URLS = Get-OptionalEnvValue -EnvValues $envValues -Names @("NWMIWS_VALIDATION_BASE_URLS", "STATIC_CUTOVER_VALIDATION_BASE_URLS") -DefaultValue $null
@@ -386,10 +421,17 @@ $existingSecretNames = Get-RepositorySecretNames -Repo $Repository
 $existingVariableNames = Get-RepositoryVariableNames -Repo $Repository
 $desiredSecretNames = @($secrets.Keys)
 $desiredVariableNames = @($variables.Keys)
+$protectedSecretNames = @()
+if (-not $sbxSecretsConfigured) {
+  $protectedSecretNames = @(
+    $sbxWorkflowSecrets.ConnectionStringSecretName
+    $sbxWorkflowSecrets.StaticWebAppTokenSecretName
+  )
+}
 
 $staleSecretNames = @(
   $existingSecretNames |
-    Where-Object { (Test-ManagedSecretName -Name $_) -and $_ -notin $desiredSecretNames } |
+    Where-Object { (Test-ManagedSecretName -Name $_) -and $_ -notin $desiredSecretNames -and $_ -notin $protectedSecretNames } |
     Sort-Object -Unique
 )
 

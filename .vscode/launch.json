@@ -6,16 +6,24 @@
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}/client",
+      "webRoot": "${workspaceFolder}/apps/portal-web",
       "preLaunchTask": "prepare full application"
     },
     {
-      "name": "Launch Client Only in Chrome",
+      "name": "Launch Portal Only in Chrome",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}/client",
-      "preLaunchTask": "npm: start (client)"
+      "webRoot": "${workspaceFolder}/apps/portal-web",
+      "preLaunchTask": "npm: start (portal-web)"
+    },
+    {
+      "name": "Launch Admin Console in Chrome",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:4173",
+      "webRoot": "${workspaceFolder}/apps/admin-web",
+      "preLaunchTask": "npm: start (admin-web)"
     }
   ]
 }

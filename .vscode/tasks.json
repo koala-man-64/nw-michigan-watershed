@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "npm: start (client)",
+      "label": "npm: start (portal-web)",
       "type": "process",
       "windows": {
         "command": "cmd.exe",
@@ -37,7 +37,7 @@
         }
       },
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/apps/portal-web"
       },
       "presentation": {
         "reveal": "always",
@@ -46,7 +46,7 @@
       }
     },
     {
-      "label": "npm: start (api)",
+      "label": "npm: start (platform-api)",
       "type": "process",
       "windows": {
         "command": "cmd.exe",
@@ -81,7 +81,7 @@
         }
       },
       "options": {
-        "cwd": "${workspaceFolder}/api"
+        "cwd": "${workspaceFolder}/apps/platform-api"
       },
       "presentation": {
         "reveal": "always",
@@ -92,11 +92,57 @@
     {
       "label": "start full application",
       "dependsOn": [
-        "npm: start (api)",
-        "npm: start (client)"
+        "npm: start (platform-api)",
+        "npm: start (portal-web)"
       ],
       "dependsOrder": "parallel",
       "problemMatcher": []
+    },
+    {
+      "label": "npm: start (admin-web)",
+      "type": "process",
+      "windows": {
+        "command": "cmd.exe",
+        "args": [
+          "/d",
+          "/c",
+          "npm run dev"
+        ]
+      },
+      "linux": {
+        "command": "npm",
+        "args": [
+          "run",
+          "dev"
+        ]
+      },
+      "osx": {
+        "command": "npm",
+        "args": [
+          "run",
+          "dev"
+        ]
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*VITE.*|.*Local:.*",
+          "endsPattern": ".*Local:.*4173.*|.*ready in.*"
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}/apps/admin-web"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
+      }
     },
     {
       "label": "export azure maps local settings (dev)",

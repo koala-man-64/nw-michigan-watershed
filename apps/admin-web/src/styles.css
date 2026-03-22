@@ -1,0 +1,360 @@
+:root {
+  color-scheme: light;
+  --bg: #f4efe6;
+  --surface: rgba(255, 252, 246, 0.86);
+  --surface-strong: #fffaf1;
+  --ink: #1f2328;
+  --muted: #5e665f;
+  --line: rgba(31, 35, 40, 0.12);
+  --accent: #0f766e;
+  --accent-strong: #134e4a;
+  --shadow: 0 20px 60px rgba(28, 31, 34, 0.12);
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --font-body: "Georgia", "Times New Roman", serif;
+  --font-ui: "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 34%),
+    radial-gradient(circle at right 20%, rgba(138, 90, 0, 0.12), transparent 28%),
+    linear-gradient(180deg, #f8f4eb 0%, #efe7d7 100%);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+}
+
+.sidebar {
+  padding: 28px;
+  border-right: 1px solid var(--line);
+  background: rgba(255, 250, 241, 0.66);
+  backdrop-filter: blur(16px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand-lockup h1,
+.hero h2,
+.login-panel h1,
+.panel h3 {
+  margin: 0;
+  font-family: var(--font-body);
+  letter-spacing: -0.02em;
+}
+
+.brand-kicker,
+.panel-kicker,
+.label {
+  display: inline-block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.brand-lockup p,
+.hero p,
+.login-panel p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.nav {
+  display: grid;
+  gap: 8px;
+}
+
+.nav a,
+.ghost-button,
+.primary-button,
+.flag-row,
+.dataset-row button {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.nav a {
+  padding: 12px 14px;
+}
+
+.nav a:hover,
+.ghost-button:hover,
+.primary-button:hover,
+.flag-row:hover,
+.dataset-row button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 118, 110, 0.34);
+}
+
+.primary-button,
+.ghost-button,
+.dataset-row button {
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 14px 30px rgba(19, 78, 74, 0.22);
+}
+
+.ghost-button,
+.dataset-row button {
+  background: rgba(255, 250, 241, 0.9);
+}
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.workspace {
+  padding: 28px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+
+.hero h2,
+.login-panel h1 {
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  max-width: 14ch;
+}
+
+.status-card {
+  min-width: 280px;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.panel,
+.login-panel {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.panel {
+  padding: 22px;
+}
+
+.panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+}
+
+label span {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+}
+
+textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.34);
+  outline-offset: 2px;
+}
+
+.flag-list,
+.dataset-list,
+.audit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.flag-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.flag-row span,
+.dataset-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.flag-row small,
+.dataset-row small,
+.audit-row span,
+.audit-row small,
+.audit-row em {
+  color: var(--muted);
+}
+
+.flag-row.is-on {
+  border-color: rgba(15, 118, 110, 0.34);
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.1), rgba(255, 250, 241, 0.96));
+}
+
+.action-row,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dataset-row,
+.audit-row {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.dataset-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.audit-row p {
+  margin: 10px 0 8px;
+  line-height: 1.5;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-panel {
+  max-width: 760px;
+  padding: 34px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 241, 0.92), rgba(255, 250, 241, 0.76)),
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.16), transparent 30%);
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace,
+  .sidebar {
+    padding: 20px;
+  }
+
+  .hero,
+  .dataset-row,
+  .panel header {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

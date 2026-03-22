@@ -1,306 +1,213 @@
-# NW Michigan Water Quality Database
+# NW Michigan Water Quality Platform
 
-This README is split into two versions:
+## Recommendation
+Treat this repo as a reusable platform core plus a current customer deployment, not as a one-off site. The code now reflects that direction:
 
-| Audience | Start here |
-| --- | --- |
-| Owners, investors, partners, and other clients | [Non-Technical Version](#non-technical-version-for-owners-investors-and-partners) |
-| Developers, operators, and support staff | [Technical Version](#technical-version-for-operators-developers-and-support) |
+- `apps/portal-web` is the public read-only portal.
+- `apps/admin-web` is the local and validation-only operator console.
+- `apps/platform-api` is the manifest/state/data API, protected admin API, and Azure Maps token broker.
+- `packages/contracts` and `packages/map-adapter` hold shared platform boundaries.
 
-## Non-Technical Version for Owners, Investors, and Partners
+The current milestone is a business-oriented foundation slice. It externalizes customer/runtime state, removes `react-leaflet`, adds an admin surface, and moves the public portal to API-backed runtime data. It does **not** yet complete the long-term PostgreSQL + Blob Storage migration; the API currently uses file-backed state and seeded CSV source data as the transitional data plane.
 
-### What this application is
+## What This Product Is
 
-The NW Michigan Water Quality Database is a web application for exploring water quality data for lakes and streams in northern Michigan. It combines mapped site locations, historical measurements, charts, and downloadable data in one place.
+- A packaged, single-tenant watershed data portal for exploring published water-quality data.
+- A reusable platform core that can be licensed repeatedly with customer-specific branding, release state, and dataset packs layered on top.
+- A read-only public portal with a local/validation admin console for release control, customer profile changes, and audit visibility.
 
-### What people can do with it
+## What This Product Is Not
 
-- Find monitoring sites on a map or from a list
-- Select water-quality parameters and time ranges
-- View trend charts to see how measurements change over time
-- Compare conditions across multiple sites
-- Download data for offline review, reporting, or analysis
+- Not a multi-tenant SaaS.
+- Not a live field-entry system.
+- Not yet backed by PostgreSQL/Blob in this repo state.
+- Not designed for customers to manage infrastructure inside your personal Azure estate.
 
-### Why it matters
-
-- It gives partners a shared view of the same published dataset.
-- It makes long-term trends easier to understand without working directly in raw spreadsheets.
-- It helps discussions about watershed conditions, reporting, planning, and stakeholder communication start from the same information.
-
-### What this system is not
-
-- It is not a live field-data entry system.
-- It is not designed for clients to edit or manage records directly in the browser.
-- Data changes are published by the support team updating source files and redeploying the application.
-
-### Current support contact shown in the app
-
-- John Ransom
-- Benzie County Conservation District
-- 231-882-4391
-- john@benziecd.org
-
-## Technical Version for Operators, Developers, and Support
-
-### System summary
-
-- `client/` is a React single-page application.
-- `client/public/data/` contains the CSV files the live site reads at runtime.
-- `api/` is a managed Azure Functions API that issues short-lived Azure Maps SAS tokens.
-- Azure Static Web Apps hosts the client and the managed API together.
-- GitHub Actions deploys `dev` and `main` to separate Static Web Apps environments.
-
-### Repository layout
+## Workspace Layout
 
 | Path | Purpose |
 | --- | --- |
-| `client/` | React app, map UI, plots, static data assets, and client telemetry |
-| `api/` | Azure Functions managed API for Azure Maps token brokering |
-| `data/` | Reference material that is not read by the deployed app at runtime |
-| `infra/azuremaps/` | Bicep templates for Azure Maps, identity, and RBAC |
-| `scripts/` | PowerShell operator tooling for provisioning, validation, local setup, and GitHub configuration |
-| `.github/workflows/` | Dev and prod deployment pipelines |
+| `apps/portal-web` | Vite + React public portal |
+| `apps/admin-web` | Vite + React + TypeScript admin console |
+| `apps/platform-api` | Azure Functions API for bootstrap, reads, admin mutations, exports, health, and Azure Maps token brokering |
+| `packages/contracts` | Shared manifest, release, audit, and DTO contracts |
+| `packages/map-adapter` | Shared map viewport normalization utilities |
+| `docs/sales-ready` | Business transferability and provenance notes |
+| `scripts` | Provisioning, bootstrap, GitHub config sync, and local ops tooling |
+| `infra` | Infrastructure-related assets and environment support material |
+| `data` | Non-runtime reference material and runbooks |
 
-### How the app works
+## Current Runtime Model
 
-1. The browser loads the React app from Azure Static Web Apps.
-2. The client reads CSV data from `/data/...` under `client/public/data/`.
-3. The client caches CSV responses locally and revalidates them after the configured interval.
-4. When the basemap needs Azure Maps access, the client calls `/api/maps/token`.
-5. The managed API validates the request origin and returns a short-lived Azure Maps token bundle.
+### Public portal
 
-### Required local tooling
+1. `portal-web` loads runtime bootstrap from `GET /api/portal/bootstrap`.
+2. The portal then reads sites, parameters, and measurements from:
+   - `GET /api/sites`
+   - `GET /api/parameters`
+   - `GET /api/measurements`
+3. The map requests Azure Maps auth from `GET /api/maps/token`.
+4. Published release artifacts are exposed under `GET /api/exports/{releaseId}/{artifact}`.
+
+### Admin console
+
+`apps/admin-web` is not yet deployed as a separate production surface. It remains the local and CI validation shell for the protected admin API.
+
+In deployed environments, `/api/admin/*` requires Static Web Apps authentication plus the `admin` role. In local development, the sample settings and Azure Maps export script set `NWMIWS_ADMIN_AUTH_MODE=mock` so the console can run without Entra.
+
+The admin console currently uses the platform API for:
+
+- `GET /api/admin/bootstrap`
+- `GET/PUT /api/admin/customer-profile`
+- `PUT /api/admin/feature-flags/{flagKey}`
+- `GET /api/admin/audit-events`
+- `POST /api/admin/datasets/import`
+- `POST /api/admin/datasets/{versionId}/validate`
+- `POST /api/admin/datasets/{versionId}/publish`
+- `POST /api/admin/releases/{releaseId}/rollback`
+
+### Transitional data plane
+
+This repo currently stores platform runtime state and source CSVs under:
+
+- `apps/platform-api/data/platform-state.json`
+- `apps/platform-api/data/source-data/`
+
+That is deliberate for the current milestone. The next delivery phase should replace this file-backed state with PostgreSQL + Blob Storage without changing the public/admin contracts.
+
+## Business Packaging Model
+
+The intended commercial unit is:
+
+- Platform license
+- Customer pack
+  Branding, support contact, legal links, feature flags, auth mode, default release
+- Data pack
+  Dataset manifest, source files, checksum, provenance, publishability
+- Deployment package
+  Customer environment, config, secrets wiring, runbooks
+- Optional support / transition services
+
+See:
+
+- [docs/sales-ready/asset-inventory.md](docs/sales-ready/asset-inventory.md)
+- [docs/sales-ready/provenance-checklist.md](docs/sales-ready/provenance-checklist.md)
+
+## Local Development
+
+### Prerequisites
 
 - Node.js 20
 - npm
-- PowerShell for the repo's `.ps1` scripts (`pwsh` / PowerShell 7 on Linux and macOS; `powershell.exe` on Windows)
+- PowerShell
 - Azure Functions Core Tools
-- Azure CLI for provisioning and validation scripts
-- GitHub CLI for GitHub secret and variable sync
-- Optional: Static Web Apps CLI for production-like local validation
+- Azure CLI
+- GitHub CLI for repo secret/variable sync scripts
 
-### Runtime configuration
-
-#### Client build variables
-
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING` | Yes for deployed builds | Application Insights connection string for client telemetry |
-| `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` | No | CSV cache revalidation interval in milliseconds; defaults to `86400000` |
-| `REACT_APP_PRIMARY_DATA_BLOB` | No | Defaults to `NWMIWS_Site_Data_testing_varied.csv` |
-| `REACT_APP_INFO_DATA_BLOB` | No | Defaults to `info.csv` |
-| `REACT_APP_LOCATIONS_DATA_BLOB` | No | Defaults to `locations.csv` |
-
-#### Static Web Apps API settings
-
-| Setting | Required | Notes |
-| --- | --- | --- |
-| `AZURE_TENANT_ID` | Yes | Entra tenant used by the token broker |
-| `AZURE_CLIENT_ID` | Yes | Entra app client ID |
-| `AZURE_CLIENT_SECRET` | Yes | Entra app client secret |
-| `AZURE_MAPS_SUBSCRIPTION_ID` | Yes | Azure subscription containing the Maps account |
-| `AZURE_MAPS_RESOURCE_GROUP` | Yes | Resource group for the Maps account |
-| `AZURE_MAPS_ACCOUNT_NAME` | Yes | Azure Maps account name |
-| `AZURE_MAPS_ACCOUNT_CLIENT_ID` | Yes | Azure Maps account client ID |
-| `AZURE_MAPS_UAMI_PRINCIPAL_ID` | Yes | User-assigned managed identity principal ID |
-| `AZURE_MAPS_ALLOWED_ORIGINS` | Yes | Comma-separated allowed origins for token requests |
-| `AZURE_MAPS_SAS_TTL_MINUTES` | No | Defaults to `30` |
-| `AZURE_MAPS_SAS_MAX_RPS` | No | Defaults to `500` |
-| `AZURE_MAPS_SAS_SIGNING_KEY` | No | Defaults to `secondaryKey`; valid values are `primaryKey`, `secondaryKey`, or `managedIdentity` |
-
-#### GitHub Actions secrets used by deploy workflows
-
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_DEV`
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
-
-### Static data operations
-
-The deployed application currently reads these tracked files directly:
-
-- `client/public/data/NWMIWS_Site_Data_testing_varied.csv`
-- `client/public/data/info.csv`
-- `client/public/data/locations.csv`
-
-To publish a data refresh:
-
-1. Replace the relevant CSV files in `client/public/data/`.
-2. Commit the changes.
-3. Deploy through the normal branch or workflow path.
-
-If you redeploy the same filenames, browsers that already opened the site can continue serving cached CSV content from `localStorage` until `REACT_APP_PUBLIC_DATA_REVALIDATE_AFTER_MS` expires (`86400000` / 24 hours by default). For an immediate refresh, clear the site's stored data in the browser or publish new filenames via the `REACT_APP_*_DATA_BLOB` settings.
-
-The workbook and other materials under `data/` are reference-only and are not read by the live site at runtime.
-
-### Local development
-
-#### Install dependencies
+### Install workspace dependencies
 
 ```powershell
-cd client
-npm ci
-cd ..\api
 npm ci
 ```
 
-#### Client-only UI work
-
-Use this when you do not need the live Azure Maps basemap:
+### Run the platform API
 
 ```powershell
-cd client
+cd apps/platform-api
 npm start
 ```
 
-#### Full local app with Azure Maps basemap
-
-Export local settings, start the Functions host, then start the React dev server.
-
-Terminal 1:
+### Run the public portal
 
 ```powershell
-.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment dev
-cd api
-npm start
+cd apps/portal-web
+npm run dev
 ```
 
-Terminal 2:
+The portal runs on `http://localhost:3000` and proxies `/api` to the platform API on `http://localhost:9091`.
+
+### Run the admin console
 
 ```powershell
-cd client
-npm start
+cd apps/admin-web
+npm run dev
 ```
 
-The export script writes `api/local.settings.json` and adds `http://localhost:3000` and `http://localhost:4280` to the local allowed-origin list.
+The admin console runs on `http://localhost:4173` and also proxies `/api` to `http://localhost:9091`.
 
-#### Production-like local validation with Static Web Apps CLI
+### Export Azure Maps local settings
 
 ```powershell
-.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment dev
-cd client
-npm run build
-cd ..
-npx swa start client/build --api-location api
+.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment sbx
 ```
 
-### Local verification
+By default this writes:
 
-Run these checks before pushing changes:
+- `apps/platform-api/local.settings.json`
+
+and adds local origins for:
+
+- `http://localhost:3000`
+- `http://localhost:4173`
+- `http://localhost:4280`
+
+It also sets:
+
+- `NWMIWS_ADMIN_AUTH_MODE=mock`
+- `NWMIWS_ADMIN_REQUIRED_ROLES=admin`
+
+## Verification
+
+Run the main gates from the workspace root:
 
 ```powershell
-cd client
 npm run lint
-npm test -- --watchAll=false
+npm run test
 npm run build
-cd ..\api
-npm run lint
-npm test
 ```
 
-### Azure Maps provisioning and operator scripts
-
-Populate `scripts/environments/dev.psd1` and `scripts/environments/prod.psd1` with real subscription, resource, Static Web App, and Application Insights values before running the provisioning scripts.
-
-Provision or update the Azure Maps stack:
+Or per surface:
 
 ```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev
+npm run lint --workspace @nwmiws/portal-web
+npm run test --workspace @nwmiws/portal-web
+npm run build --workspace @nwmiws/portal-web
+
+npm run lint --workspace @nwmiws/admin-web
+npm run test --workspace @nwmiws/admin-web
+npm run build --workspace @nwmiws/admin-web
+
+npm run lint --workspace nwmiws-platform-api
+npm run test --workspace nwmiws-platform-api
+npm run build --workspace nwmiws-platform-api
 ```
 
-Preview the Azure Maps change set:
+## Deployment Notes
 
-```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -WhatIf
-```
+Current GitHub Actions workflows deploy the public portal static output from:
 
-Validate the deployed Azure Maps stack:
+- `apps/portal-web/dist`
 
-```powershell
-.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment dev
-```
+and deploy the managed API from:
 
-Rotate the Entra client secret and republish Static Web Apps settings:
+- `apps/platform-api`
 
-```powershell
-.\scripts\azuremaps\Deploy-AzureMapsStack.ps1 -Environment dev -RotateClientSecret
-```
+`apps/admin-web` is validated in its own CI workflow and is not part of the portal deployment lane.
 
-Remove Azure Maps-related resources and settings:
+The deployed admin API stays behind Static Web Apps auth and server-side role enforcement. Existing empty or malformed `platform-state.json` files now fail fast with `503` responses instead of silently falling back to seed data.
 
-```powershell
-.\scripts\azuremaps\Remove-AzureMapsStack.ps1 -Environment dev
-```
+Branch-to-environment mapping currently assumes:
 
-Bootstrap shared Azure prerequisites for both environments:
+- `sbx` -> sandbox / pre-dev
+- `dev` -> development
+- `main` -> production
 
-```powershell
-.\scripts\bootstrap\Provision-AzurePlatform.ps1
-```
+The admin console is not deployed by the existing Static Web Apps workflows as a separate production surface.
 
-Dry run the bootstrap:
+## Important Follow-On Work
 
-```powershell
-.\scripts\bootstrap\Provision-AzurePlatform.ps1 -WhatIf
-```
-
-Sync GitHub Actions secrets and repository variables from local config:
-
-```powershell
-.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1
-```
-
-Dry run the GitHub sync:
-
-```powershell
-.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1 -WhatIf
-```
-
-Before running the GitHub sync script, make sure `api/.env` contains these required values:
-
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_DEV`
-- `AZURE_STATIC_WEB_APPS_API_TOKEN_NWMIWS_PROD`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_DEV`
-- `REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING_PROD`
-
-Additional operator detail is documented in:
-
-- `scripts/README.md`
-- `scripts/ARCHITECTURE.md`
-
-### CI/CD
-
-The deployment pipelines are:
-
-- `.github/workflows/build-deploy-nwmiws-swa-dev.yml`
-- `.github/workflows/build-deploy-nwmiws-swa-prod.yml`
-
-Branch mapping:
-
-- `dev` deploys the dev environment
-- `main` deploys the prod environment
-
-Each workflow performs:
-
-- client dependency install
-- api dependency install
-- client lint
-- api lint
-- client unit tests
-- api unit tests
-- client production build
-- Azure Static Web Apps deployment
-
-### Support checklist
-
-If you are supporting the live system, start here:
-
-- Data looks outdated: verify the CSV files in `client/public/data/`, redeploy the client, and remember that browsers may keep serving cached CSV data from `localStorage` for up to 24 hours by default. If the update must appear immediately, clear the site's stored browser data or publish new blob filenames through the `REACT_APP_*_DATA_BLOB` settings.
-- The map is failing: validate Azure Maps settings and allowed origins with `.\scripts\azuremaps\Test-AzureMapsStack.ps1 -Environment <env>`.
-- Local map development is failing: rerun `.\scripts\azuremaps\Export-AzureMapsLocalSettings.ps1 -Environment <env>` and restart the API host.
-- Deployment secrets look wrong: rerun `.\scripts\bootstrap\Sync-GitHubActionsConfig.ps1` after updating `api/.env`.
-
-### VS Code shortcuts
-
-- The `start full application` task in `.vscode/tasks.json` starts the full local workflow.
-- The `Launch Full Application in Chrome` launch config in `.vscode/launch.json` exports local settings, starts the API and client, and opens the app.
+1. Replace file-backed API state with PostgreSQL + Blob Storage while preserving current contracts.
+2. Wire the admin console to real Entra/MSAL auth and role checks.
+3. Move customer-specific environment ownership fully into IaC + Key Vault-backed deployment inputs.
+4. Split customer/data pack bootstrap into a reproducible deployment workflow per customer.
+5. Add stronger contract/integration coverage around publish and rollback flows.

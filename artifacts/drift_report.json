@@ -1,0 +1,301 @@
+{
+  "auto_remediation": null,
+  "baseline": {
+    "ci_context": false,
+    "compare_from": "main",
+    "compare_to": "HEAD",
+    "reason": "default main",
+    "requested": null,
+    "resolved": "main"
+  },
+  "category_counts": {
+    "config_infra": 3
+  },
+  "category_scores": {
+    "config_infra": 45.0
+  },
+  "changed_files": [
+    ".codex/skills/business-partner-agent/SKILL.md",
+    ".codex/skills/business-partner-agent/agents/openai.yaml",
+    ".github/workflows/build-deploy-nwmiws-swa-dev.yml",
+    ".github/workflows/build-deploy-nwmiws-swa-prod.yml",
+    ".gitignore",
+    ".vscode/launch.json",
+    ".vscode/settings.json",
+    ".vscode/tasks.json",
+    "README.md",
+    "api/.eslintrc.json",
+    "api/host.json",
+    "api/local.settings.sample.json",
+    "api/package-lock.json",
+    "api/package.json",
+    "api/src/config.js",
+    "api/src/functions/mapsToken.js",
+    "api/src/index.js",
+    "api/src/mapsTokenService.js",
+    "api/src/origin.js",
+    "api/tests/config.test.js",
+    "api/tests/mapsTokenHandler.test.js",
+    "api/tests/origin.test.js",
+    "client/.eslintrc.json",
+    "client/__mocks__/fileMock.js",
+    "client/package-lock.json",
+    "client/package.json",
+    "client/public/data/NWMIWS_Site_Data_testing_varied.csv",
+    "client/public/data/info.csv",
+    "client/public/data/locations.csv",
+    "client/public/favicon.ico",
+    "client/public/index.html",
+    "client/public/logo.png",
+    "client/public/logo192.png",
+    "client/public/logo512.png",
+    "client/public/manifest.json",
+    "client/public/robots.txt",
+    "client/public/staticwebapp.config.json",
+    "client/public/sw.js",
+    "client/src/App.css",
+    "client/src/App.js",
+    "client/src/App.test.js",
+    "client/src/FiltersPanel.js",
+    "client/src/Header.js",
+    "client/src/Header.test.js",
+    "client/src/MapPanel.js",
+    "client/src/MapPanel.test.js",
+    "client/src/Plots.js",
+    "client/src/SearchableMultiselect.jsx",
+    "client/src/assets/map-marker-green.svg",
+    "client/src/assets/map-marker-red.svg",
+    "client/src/comparison_plot_icon.png",
+    "client/src/comparison_plot_screenshot.png",
+    "client/src/config/dataSources.js",
+    "client/src/config/dataSources.test.js",
+    "client/src/index.css",
+    "client/src/index.js",
+    "client/src/map/AzureMapsBaseLayer.jsx",
+    "client/src/map/AzureMapsBaseLayer.test.js",
+    "client/src/map/MapTileWarmController.jsx",
+    "client/src/map/MapTileWarmController.test.js",
+    "client/src/map/azureMapsTileWarm.js",
+    "client/src/map/azureMapsTileWarm.test.js",
+    "client/src/map/azureMapsTilesets.js",
+    "client/src/map/azureMapsToken.js",
+    "client/src/map/azureMapsToken.test.js",
+    "client/src/map/createAzureMapsTileLayer.js",
+    "client/src/map/mapViewport.js",
+    "client/src/map/mapViewport.test.js",
+    "client/src/map/popupLayout.js",
+    "client/src/map/popupLayout.test.js",
+    "client/src/map/registerMapTileServiceWorker.js",
+    "client/src/map/registerMapTileServiceWorker.test.js",
+    "client/src/map_screenshot.png",
+    "client/src/nwmiws_logo.png",
+    "client/src/plots/ChartPanel.jsx",
+    "client/src/plots/chartBuilders.js",
+    "client/src/plots/chartBuilders.test.js",
+    "client/src/plots/chartOptions.js",
+    "client/src/plots/download.js",
+    "client/src/plots/plotConfigs.js",
+    "client/src/plots/plotConfigs.test.js",
+    "client/src/reportWebVitals.js",
+    "client/src/setupProxy.js",
+    "client/src/setupTests.js",
+    "client/src/siteContent.js",
+    "client/src/trend_plot_icon.png",
+    "client/src/trend_plot_screenshot.png",
+    "client/src/utils/csvCache.js",
+    "client/src/utils/csvCache.test.js",
+    "client/src/utils/plotEmptyState.js",
+    "client/src/utils/plotEmptyState.test.js",
+    "client/src/utils/telemetry.js",
+    "client/src/utils/telemetry.test.js",
+    "scripts/ARCHITECTURE.md",
+    "scripts/README.md",
+    "scripts/azuremaps/Deploy-AzureMapsStack.ps1",
+    "scripts/azuremaps/Export-AzureMapsLocalSettings.ps1",
+    "scripts/azuremaps/Remove-AzureMapsStack.ps1",
+    "scripts/azuremaps/Test-AzureMapsStack.ps1",
+    "scripts/bootstrap/Provision-AzurePlatform.ps1",
+    "scripts/bootstrap/Sync-GitHubActionsConfig.ps1",
+    "scripts/environments/dev.psd1",
+    "scripts/environments/prod.psd1"
+  ],
+  "drift_score": 45.0,
+  "findings": [
+    {
+      "attribution": {
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml": [
+          "d6594016|koala-man-64|2026-03-21|Restrict prod workflow to main"
+        ],
+        ".github/workflows/build-deploy-nwmiws-swa-prod.yml": [
+          "d6594016|koala-man-64|2026-03-21|Restrict prod workflow to main"
+        ]
+      },
+      "category": "config_infra",
+      "confidence": 0.8,
+      "evidence": [
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -      - name: Lint Client",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -        run: npm run lint",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -      - name: Lint API",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -        run: npm run lint",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -      - name: Test Client",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -        run: npm test -- --watchAll=false",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -      - name: Test API",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml: -        run: npm test",
+        ".github/workflows/build-deploy-nwmiws-swa-prod.yml: -      - name: Lint Client",
+        ".github/workflows/build-deploy-nwmiws-swa-prod.yml: -        run: npm run lint"
+      ],
+      "expected": "Pipeline and infra changes should preserve or strengthen quality/safety gates.",
+      "files": [
+        ".codex/skills/business-partner-agent/agents/openai.yaml",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml",
+        ".github/workflows/build-deploy-nwmiws-swa-prod.yml"
+      ],
+      "observed": "CI/deploy/configuration files were modified.",
+      "remediation": "Review config deltas with release/security owners and validate gates remain enforced.",
+      "risk": "medium",
+      "score": 22.5,
+      "severity": "high",
+      "title": "Configuration/infra files changed",
+      "verification": [
+        "Run CI pipeline in branch",
+        "Validate deploy plans and policy checks"
+      ]
+    },
+    {
+      "attribution": {},
+      "category": "config_infra",
+      "confidence": 0.6,
+      "evidence": [
+        "Lookback config-touching commits: 12"
+      ],
+      "expected": "Configuration should remain stable and coordinated across contributors.",
+      "files": [],
+      "observed": "12 recent commits touched config/infra files in lookback window.",
+      "remediation": "Consolidate config ownership, batch related changes, and document rationale in PRs.",
+      "risk": "medium",
+      "score": 15.0,
+      "severity": "medium",
+      "title": "Recent config churn detected",
+      "verification": [
+        "Inspect recent config PRs",
+        "Audit gate consistency across workflows"
+      ]
+    },
+    {
+      "attribution": {},
+      "category": "config_infra",
+      "confidence": 1.0,
+      "evidence": [
+        "Configuration file missing: .codedrift.yml. Using built-in defaults."
+      ],
+      "expected": "A valid `.codedrift.yml` should be available and parse cleanly.",
+      "files": [
+        ".codedrift.yml"
+      ],
+      "observed": "Configuration was missing or partially invalid.",
+      "remediation": "Create or fix `.codedrift.yml` using the sample in this skill.",
+      "risk": "low",
+      "score": 7.5,
+      "severity": "low",
+      "title": "Configuration loading issues",
+      "verification": [
+        "Validate YAML syntax",
+        "Re-run drift audit"
+      ]
+    }
+  ],
+  "gate_result": "fail",
+  "generated_at": "2026-03-22T14:15:57.899972+00:00",
+  "hotspots": [
+    {
+      "findings": 1,
+      "path": "(command-output)",
+      "score": 15.0
+    },
+    {
+      "findings": 1,
+      "path": ".github/workflows/build-deploy-nwmiws-swa-dev.yml",
+      "score": 7.5
+    },
+    {
+      "findings": 1,
+      "path": ".github/workflows/build-deploy-nwmiws-swa-prod.yml",
+      "score": 7.5
+    },
+    {
+      "findings": 1,
+      "path": ".codex/skills/business-partner-agent/agents/openai.yaml",
+      "score": 7.5
+    },
+    {
+      "findings": 1,
+      "path": ".codedrift.yml",
+      "score": 7.5
+    }
+  ],
+  "mode": "audit",
+  "patch_preview": [],
+  "suggested_actions": [
+    {
+      "category": "config_infra",
+      "files": [
+        ".codex/skills/business-partner-agent/agents/openai.yaml",
+        ".github/workflows/build-deploy-nwmiws-swa-dev.yml",
+        ".github/workflows/build-deploy-nwmiws-swa-prod.yml"
+      ],
+      "patch_approach": "Apply deterministic fixes first (formatter/lint/rule-based edits), then targeted manual refactors.",
+      "risk_level": "medium",
+      "severity": "high",
+      "title": "Configuration/infra files changed",
+      "verification_steps": [
+        "Run CI pipeline in branch",
+        "Validate deploy plans and policy checks"
+      ],
+      "what_to_change": "Review config deltas with release/security owners and validate gates remain enforced.",
+      "why_it_is_drift": "Expected: Pipeline and infra changes should preserve or strengthen quality/safety gates. Observed: CI/deploy/configuration files were modified."
+    },
+    {
+      "category": "config_infra",
+      "files": [],
+      "patch_approach": "Apply deterministic fixes first (formatter/lint/rule-based edits), then targeted manual refactors.",
+      "risk_level": "medium",
+      "severity": "medium",
+      "title": "Recent config churn detected",
+      "verification_steps": [
+        "Inspect recent config PRs",
+        "Audit gate consistency across workflows"
+      ],
+      "what_to_change": "Consolidate config ownership, batch related changes, and document rationale in PRs.",
+      "why_it_is_drift": "Expected: Configuration should remain stable and coordinated across contributors. Observed: 12 recent commits touched config/infra files in lookback window."
+    },
+    {
+      "category": "config_infra",
+      "files": [
+        ".codedrift.yml"
+      ],
+      "patch_approach": "Apply deterministic fixes first (formatter/lint/rule-based edits), then targeted manual refactors.",
+      "risk_level": "low",
+      "severity": "low",
+      "title": "Configuration loading issues",
+      "verification_steps": [
+        "Validate YAML syntax",
+        "Re-run drift audit"
+      ],
+      "what_to_change": "Create or fix `.codedrift.yml` using the sample in this skill.",
+      "why_it_is_drift": "Expected: A valid `.codedrift.yml` should be available and parse cleanly. Observed: Configuration was missing or partially invalid."
+    }
+  ],
+  "thresholds": {
+    "drift_score_fail": 35.0
+  },
+  "tool_run_status": [
+    {
+      "command": "<none>",
+      "duration_sec": 0.0,
+      "exit_code": null,
+      "name": "quality-gates",
+      "output_excerpt": "No standards commands configured.",
+      "status": "unavailable"
+    }
+  ]
+}
