@@ -5,7 +5,12 @@ import MapPanel from "./MapPanel";
 import { fetchSites } from "./api/platformApi";
 
 vi.mock("./runtime/runtimeConfigContext", () => ({
-  useRuntimeConfig: () => ({
+  useRuntimeConfig: () => mocks.runtimeConfig,
+}));
+
+const mocks = vi.hoisted(() => {
+  const markerInstances = [];
+  const runtimeConfig = {
     appTitle: "NW Michigan Water Quality Database",
     bootstrapEndpoint: "/api/portal/bootstrap",
     endpoints: {
@@ -39,11 +44,7 @@ vi.mock("./runtime/runtimeConfigContext", () => ({
     telemetry: {
       connectionString: "",
     },
-  }),
-}));
-
-const mocks = vi.hoisted(() => {
-  const markerInstances = [];
+  };
   const mockMap = {
     invalidateSize: vi.fn(),
     remove: vi.fn(),
@@ -71,6 +72,7 @@ const mocks = vi.hoisted(() => {
     mockMap,
     mockMapContainer,
     mockMapTileWarmController,
+    runtimeConfig,
   };
 });
 
@@ -154,6 +156,14 @@ describe("MapPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.markerInstances.length = 0;
+    mocks.runtimeConfig.map = {
+      center: [44.75, -85.85],
+      zoom: 8,
+      minZoom: 7,
+      maxZoom: 16,
+      tilesetId: "microsoft.base.road",
+      tokenRoute: "/api/maps/token",
+    };
     fetchSites.mockResolvedValue([]);
   });
 
@@ -194,5 +204,29 @@ describe("MapPanel", () => {
         tilesetId: "microsoft.base.road",
       })
     );
+  });
+
+  test("does not recreate the Leaflet map when runtime config refreshes", async () => {
+    const { rerender } = render(<MapPanel selectedSites={[]} onMarkerClick={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(mocks.mockMapContainer).toHaveBeenCalledTimes(1);
+    });
+
+    mocks.runtimeConfig.map = {
+      ...mocks.runtimeConfig.map,
+      center: [44.75, -85.85],
+      zoom: 8,
+    };
+
+    rerender(<MapPanel selectedSites={[]} onMarkerClick={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(mocks.mockMap.setView).toHaveBeenLastCalledWith([44.75, -85.85], 8, {
+        animate: false,
+      });
+    });
+
+    expect(mocks.mockMapContainer).toHaveBeenCalledTimes(1);
   });
 });

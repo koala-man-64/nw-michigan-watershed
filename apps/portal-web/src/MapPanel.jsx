@@ -33,6 +33,14 @@ const redIcon = createMarkerIcon(MAP_MARKER_ASSETS.default);
 const greenIcon = createMarkerIcon(MAP_MARKER_ASSETS.selected);
 const POPUP_CLOSE_DELAY_MS = 220;
 
+function releaseLeafletContainer(containerElement) {
+  if (!containerElement || !Object.prototype.hasOwnProperty.call(containerElement, "_leaflet_id")) {
+    return;
+  }
+
+  delete containerElement._leaflet_id;
+}
+
 function normalizeLocation(row = {}) {
   const urlField = row.url || row.website || "";
 
@@ -113,24 +121,14 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
   };
 
   useEffect(() => {
-    return () => {
-      closeTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      closeTimeouts.current.clear();
-      popupCleanupRefs.current.forEach((cleanup) => cleanup?.());
-      popupCleanupRefs.current.clear();
-      resizeObserverRef.current?.disconnect?.();
-      resizeObserverRef.current = null;
-      mapRef.current?.remove();
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!containerRef.current || mapRef.current) {
       return undefined;
     }
 
-    const leafletMap = L.map(containerRef.current, {
+    const mapContainer = containerRef.current;
+    releaseLeafletContainer(mapContainer);
+
+    const leafletMap = L.map(mapContainer, {
       center: map.center,
       fadeAnimation: false,
       maxZoom: map.maxZoom,
@@ -150,7 +148,7 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
 
     if (typeof ResizeObserver === "function") {
       resizeObserverRef.current = new ResizeObserver(invalidateSize);
-      resizeObserverRef.current.observe(containerRef.current);
+      resizeObserverRef.current.observe(mapContainer);
     } else {
       window.addEventListener("resize", invalidateSize);
       resizeObserverRef.current = {
@@ -159,13 +157,19 @@ function MapPanel({ selectedSites = [], onMarkerClick }) {
     }
 
     return () => {
+      closeTimeouts.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      closeTimeouts.current.clear();
+      popupCleanupRefs.current.forEach((cleanup) => cleanup?.());
+      popupCleanupRefs.current.clear();
       resizeObserverRef.current?.disconnect?.();
       resizeObserverRef.current = null;
+      markerLayerRef.current?.clearLayers?.();
+      markerLayerRef.current = null;
       leafletMap.remove();
       mapRef.current = null;
-      markerLayerRef.current = null;
+      releaseLeafletContainer(mapContainer);
     };
-  }, [map.center, map.maxZoom, map.minZoom, map.zoom]);
+  }, []);
 
   useEffect(() => {
     if (!mapInstance) {
