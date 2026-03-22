@@ -1,22 +1,24 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import path from "node:path";
+import type {
+  AuditEvent,
+  CustomerManifest,
+  CustomerProfile,
+  DatasetManifest,
+  DatasetVersionRecord,
+  FeatureFlags,
+  PortalBootstrap,
+  PublishedRelease,
+} from "@nwmiws/contracts";
+import { getPlatformRuntimeConfig, type PlatformRuntimeConfig } from "../config";
 import {
   createEmptyCustomerManifest,
   createEmptyCustomerProfile,
   createEmptyDatasetManifest,
   createEmptyFeatureFlags,
   createEmptyPublishedRelease,
-  type AuditEvent,
-  type CustomerManifest,
-  type CustomerProfile,
-  type DatasetManifest,
-  type DatasetVersionRecord,
-  type FeatureFlags,
-  type PortalBootstrap,
-  type PublishedRelease,
-} from "@nwmiws/contracts";
-import { getPlatformRuntimeConfig, type PlatformRuntimeConfig } from "../config";
+} from "./contractDefaults";
 
 export type PlatformStateUnavailableReason = "empty" | "malformed";
 
