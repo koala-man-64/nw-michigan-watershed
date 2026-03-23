@@ -13,7 +13,12 @@
   ManagedIdentityName = "nwmiws-sbx-maps-uami"
   AppRegistrationDisplayName = "nwmiws-azure-maps-sbx"
   AllowedOrigins = @(
+    "http://localhost:3000"
+    "http://localhost:4173"
     "http://localhost:4280"
+    "http://127.0.0.1:3000"
+    "http://127.0.0.1:4173"
+    "http://127.0.0.1:4280"
   )
   SasTtlMinutes = 30
   SasMaxRps = 500

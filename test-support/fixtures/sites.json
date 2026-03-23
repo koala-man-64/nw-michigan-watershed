@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "name": "Bear Lake (Manistee)",
+      "latitude": 44.4455,
+      "longitude": -86.1304,
+      "surfaceAreaAcres": 1744,
+      "maxDepthFt": 47,
+      "avgDepthFt": 22,
+      "description": "Large inland lake in Manistee County used for public portal smoke and fixture tests."
+    },
+    {
+      "name": "North Lake Leelanau",
+      "latitude": 45.01968,
+      "longitude": -85.74183,
+      "surfaceAreaAcres": 2914,
+      "maxDepthFt": 121,
+      "avgDepthFt": 40,
+      "description": "Northern basin of Lake Leelanau; clear, deep glacial lake known for cold-water fish."
+    },
+    {
+      "name": "South Lake Leelanau",
+      "latitude": 44.87361,
+      "longitude": -85.71064,
+      "surfaceAreaAcres": 5693,
+      "maxDepthFt": 62,
+      "avgDepthFt": 24,
+      "description": "Southern basin of Lake Leelanau; shallower and more fertile."
+    }
+  ],
+  "count": 3
+}

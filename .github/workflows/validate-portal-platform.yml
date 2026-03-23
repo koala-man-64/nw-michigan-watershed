@@ -1,0 +1,99 @@
+name: NWMIWS Portal and Platform Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/platform-api/**"
+      - "apps/portal-web/**"
+      - "packages/contracts/**"
+      - "test-support/**"
+      - "tests/e2e/**"
+      - "playwright.config.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/**"
+
+jobs:
+  validate_portal_platform:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate portal and platform
+        run: npm run validate:portal-platform
+
+      - name: Upload portal coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portal-web-coverage
+          path: apps/portal-web/coverage
+
+      - name: Upload platform API coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: platform-api-coverage
+          path: apps/platform-api/coverage
+
+      - name: Upload Playwright artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report
+            test-results
+
+      - name: Write coverage summary
+        if: always()
+        run: |
+          node <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          function readSummary(relativePath) {
+            const absolutePath = path.join(process.cwd(), relativePath);
+            if (!fs.existsSync(absolutePath)) {
+              return null;
+            }
+
+            return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+          }
+
+          function formatLine(name, summary) {
+            if (!summary) {
+              return `- ${name}: coverage summary not found`;
+            }
+
+            const totals = summary.total;
+            return `- ${name}: lines ${totals.lines.pct}% | branches ${totals.branches.pct}% | functions ${totals.functions.pct}% | statements ${totals.statements.pct}%`;
+          }
+
+          const portal = readSummary("apps/portal-web/coverage/coverage-summary.json");
+          const api = readSummary("apps/platform-api/coverage/coverage-summary.json");
+
+          console.log("## Validation Summary");
+          console.log("");
+          console.log(formatLine("Portal Web", portal));
+          console.log(formatLine("Platform API", api));
+          console.log("- Playwright: executed via `npm run test:e2e`");
+          EOF

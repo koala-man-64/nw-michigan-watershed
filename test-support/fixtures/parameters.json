@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "parameter": "Chloro",
+      "contactInfo": "Contact: 321-654-9870",
+      "associationInfo": "Association: Chloro Lake Association",
+      "parameterInfo": "Chlorophyll-a concentration is a proxy for algae biomass."
+    },
+    {
+      "parameter": "Secchi",
+      "contactInfo": "Contact: 987-654-3210",
+      "associationInfo": "Association: Secchi Lake Association",
+      "parameterInfo": "Secchi depth indicates water clarity using a Secchi disk."
+    },
+    {
+      "parameter": "TP",
+      "contactInfo": "Contact: 123-456-7890",
+      "associationInfo": "Association: Example Lake Association",
+      "parameterInfo": "Total phosphorus measures the amount of phosphorus in water."
+    }
+  ],
+  "count": 3
+}

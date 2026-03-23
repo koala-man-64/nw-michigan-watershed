@@ -1,83 +1,31 @@
+const fixtureSupport = require("../../../test-support/fixtures/index.cjs");
+
 import { describe, expect, it, vi } from "vitest";
 import { createHttpAdminApi } from "./adminApi";
 
+function createJsonResponse(body, init = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+}
+
 describe("createHttpAdminApi", () => {
   it("maps bootstrap payloads into the admin shape", async () => {
-    const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          customerManifest: {
-            featureFlags: {
-              compareMode: true,
-              exports: true,
-              privatePortalMode: false,
-            },
-            legalLinks: [{ href: "https://example.org/legal" }],
-          },
-          customerProfile: {
-            customerId: "nwmiws",
-            displayName: "NW Michigan Water Quality Database",
-            organization: "Benzie County Conservation District",
-            supportContact: {
-              name: "Jane Doe",
-              email: "support@example.org",
-              phoneDisplay: "231-555-0100",
-            },
-          },
-          datasetManifest: {
-            datasetId: "dataset-2026-q2",
-          },
-          datasetVersions: [
-            {
-              versionId: "dataset-version-2026-q2",
-              datasetVersion: "2026.04",
-              status: "rolled-back",
-              sourceFiles: ["info.csv"],
-              importedAtUtc: "2026-03-22T00:00:00.000Z",
-            },
-          ],
-          publishedRelease: {
-            releaseId: "release-2026-q2",
-            datasetVersionId: "dataset-version-2026-q2",
-            publishedAtUtc: "2026-03-22T00:00:00.000Z",
-            rollbackTargetReleaseId: "release-2026-q1",
-            portalVisibleMetadata: {
-              summary: "Current published release",
-            },
-          },
-          auditEvents: [
-            {
-              auditEventId: "audit-1",
-              createdAtUtc: "2026-03-22T00:00:00.000Z",
-              actor: "admin@example.org",
-              eventType: "dataset.published",
-              customerId: "nwmiws",
-              details: {
-                flagKey: "compareMode",
-              },
-            },
-          ],
-          config: {
-            apiBaseUrl: "/api",
-            authMode: "entra",
-          },
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
-    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(createJsonResponse(fixtureSupport.readJsonFixture("admin-bootstrap.json")));
 
     const api = createHttpAdminApi(fetchImpl as unknown as typeof fetch);
     const bootstrap = await api.getBootstrap();
 
     expect(bootstrap.customerProfile.customerName).toBe("NW Michigan Water Quality Database");
-    expect(bootstrap.customerProfile.legalLink).toBe("https://example.org/legal");
-    expect(bootstrap.datasetVersions[0].status).toBe("rolled_back");
-    expect(bootstrap.currentRelease.rollbackTargetReleaseId).toBe("release-2026-q1");
-    expect(bootstrap.auditEvents[0].details).toBe("compareMode");
-    expect(bootstrap.config.authMode).toBe("entra");
+    expect(bootstrap.customerProfile.legalLink).toBe("/api/exports/release-seed-current/manifest.json");
+    expect(bootstrap.datasetVersions[0].status).toBe("published");
+    expect(bootstrap.currentRelease.releaseId).toBe("release-seed-current");
+    expect(bootstrap.auditEvents[0].details).toContain("datasetVersionId");
+    expect(bootstrap.config.authMode).toBe("mock");
   });
 
   it("surfaces HTTP error responses", async () => {
@@ -90,18 +38,12 @@ describe("createHttpAdminApi", () => {
 
   it("maps updated feature flags into the catalog shape", async () => {
     const fetchImpl = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          updatedFlag: {
-            key: "exports",
-            enabled: false,
-          },
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      )
+      createJsonResponse({
+        updatedFlag: {
+          key: "exports",
+          enabled: false,
+        },
+      })
     );
 
     const api = createHttpAdminApi(fetchImpl as unknown as typeof fetch);
@@ -113,5 +55,78 @@ describe("createHttpAdminApi", () => {
       description: "Allow published CSV and summary exports.",
       enabled: false,
     });
+  });
+
+  it("maps publish and rollback responses into the release summary shape", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          publishedRelease: {
+            releaseId: "release-2026-04",
+            datasetVersionId: "dataset-version-2026-04",
+            publishedAtUtc: "2026-04-15T10:00:00.000Z",
+            rollbackTargetReleaseId: "release-seed-current",
+            portalVisibleMetadata: {
+              summary: "Published fixture release",
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          publishedRelease: {
+            releaseId: "release-seed-current",
+            datasetVersionId: "dataset-version-seed-current",
+            publishedAtUtc: "2026-03-22T06:00:00.000Z",
+            rollbackTargetReleaseId: "release-2026-04",
+            portalVisibleMetadata: {
+              summary: "Rolled back to fixture seed release",
+            },
+          },
+        })
+      );
+
+    const api = createHttpAdminApi(fetchImpl as unknown as typeof fetch);
+    const published = await api.publishDataset("dataset-version-2026-04");
+    const rolledBack = await api.rollbackRelease("release-2026-04");
+
+    expect(published.summary).toBe("Published fixture release");
+    expect(published.rollbackTargetReleaseId).toBe("release-seed-current");
+    expect(rolledBack.releaseId).toBe("release-seed-current");
+    expect(rolledBack.rollbackTargetReleaseId).toBe("release-2026-04");
+  });
+
+  it("maps audit event list wrappers into the dashboard shape", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      createJsonResponse({
+        items: [
+          {
+            auditEventId: "audit-1",
+            createdAtUtc: "2026-03-22T00:00:00.000Z",
+            actor: "admin@example.org",
+            eventType: "feature-flag.updated",
+            customerId: "nwmiws",
+            details: {
+              message: "Feature flag updated.",
+            },
+          },
+        ],
+      })
+    );
+
+    const api = createHttpAdminApi(fetchImpl as unknown as typeof fetch);
+    const auditEvents = await api.getAuditEvents();
+
+    expect(auditEvents).toEqual([
+      {
+        eventId: "audit-1",
+        timestamp: "2026-03-22T00:00:00.000Z",
+        actor: "admin@example.org",
+        action: "feature-flag.updated",
+        resource: "nwmiws",
+        details: "Feature flag updated.",
+      },
+    ]);
   });
 });

@@ -2,28 +2,95 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Launch Full Application in Chrome",
+      "name": "Portal Web (SBX Local)",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}/apps/portal-web",
-      "preLaunchTask": "prepare full application"
+      "preLaunchTask": "prepare portal application (sbx)"
     },
     {
-      "name": "Launch Portal Only in Chrome",
+      "name": "Portal Web (Dev Local)",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}/apps/portal-web",
-      "preLaunchTask": "npm: start (portal-web)"
+      "preLaunchTask": "prepare portal application (dev)"
     },
     {
-      "name": "Launch Admin Console in Chrome",
+      "name": "Portal Web (Main / Prod Local)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/apps/portal-web",
+      "preLaunchTask": "prepare portal application (prod)"
+    },
+    {
+      "name": "Admin Web (SBX Local)",
       "type": "pwa-chrome",
       "request": "launch",
       "url": "http://localhost:4173",
       "webRoot": "${workspaceFolder}/apps/admin-web",
-      "preLaunchTask": "npm: start (admin-web)"
+      "preLaunchTask": "prepare admin application (sbx)"
+    },
+    {
+      "name": "Admin Web (Dev Local)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:4173",
+      "webRoot": "${workspaceFolder}/apps/admin-web",
+      "preLaunchTask": "prepare admin application (dev)"
+    },
+    {
+      "name": "Admin Web (Main / Prod Local)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:4173",
+      "webRoot": "${workspaceFolder}/apps/admin-web",
+      "preLaunchTask": "prepare admin application (prod)"
+    },
+    {
+      "name": "Portal Web (Running Servers)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/apps/portal-web"
+    },
+    {
+      "name": "Admin Web (Running Servers)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:4173",
+      "webRoot": "${workspaceFolder}/apps/admin-web"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Application (SBX)",
+      "preLaunchTask": "prepare full application (sbx)",
+      "configurations": [
+        "Portal Web (Running Servers)",
+        "Admin Web (Running Servers)"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "Full Application (Dev)",
+      "preLaunchTask": "prepare full application (dev)",
+      "configurations": [
+        "Portal Web (Running Servers)",
+        "Admin Web (Running Servers)"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "Full Application (Main / Prod)",
+      "preLaunchTask": "prepare full application (prod)",
+      "configurations": [
+        "Portal Web (Running Servers)",
+        "Admin Web (Running Servers)"
+      ],
+      "stopAll": true
     }
   ]
 }

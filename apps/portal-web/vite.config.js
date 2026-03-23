@@ -18,5 +18,16 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/vitest.setup.js"],
+    coverage: {
+      include: ["src/**/*.{js,jsx}"],
+      exclude: [
+        "src/**/*.test.{js,jsx}",
+        "src/main.jsx",
+        "src/index.js",
+        "src/reportWebVitals.js",
+        "src/setupProxy.js",
+        "src/setupTests.js",
+      ],
+    },
   },
 });

@@ -11,6 +11,7 @@ import {
   createAdminCustomerProfilePutHandler,
   createFeatureFlagPutHandler,
   createExportFileHandler,
+  createFaviconHandler,
   createHealthHandler,
   createImportDatasetHandler,
   createMeasurementsReadHandler,
@@ -218,6 +219,31 @@ test("export endpoint returns release-scoped artifacts", async () => {
   );
 });
 
+test("export endpoint rejects unknown releases and unsupported artifacts", async () => {
+  const handler = createExportFileHandler({ runtimeConfig: fixture.runtimeConfig });
+  const missingReleaseResponse = await handler(
+    createJsonRequest(null, {
+      params: {
+        releaseId: "missing-release",
+        artifact: "measurements.csv",
+      },
+    })
+  );
+  const unsupportedArtifactResponse = await handler(
+    createJsonRequest(null, {
+      params: {
+        releaseId: "release-seed-current",
+        artifact: "unknown.json",
+      },
+    })
+  );
+
+  assert.equal(missingReleaseResponse.status, 404);
+  assert.equal(missingReleaseResponse.jsonBody?.error, "Release not found.");
+  assert.equal(unsupportedArtifactResponse.status, 400);
+  assert.equal(unsupportedArtifactResponse.jsonBody?.error, "Unsupported export artifact.");
+});
+
 test("health endpoint reports service state", async () => {
   const response = await createHealthHandler({ runtimeConfig: fixture.runtimeConfig })();
 
@@ -225,6 +251,14 @@ test("health endpoint reports service state", async () => {
   assert.equal(response.jsonBody?.status, "ok");
   assert.equal(response.jsonBody?.service, "platform-api");
   assert.equal(response.jsonBody?.customerId, "nwmiws");
+});
+
+test("favicon endpoint serves the shared browser icon", async () => {
+  const response = await createFaviconHandler()();
+
+  assert.equal(response.status, 200);
+  assert.equal((response.headers as Record<string, string> | undefined)?.["Content-Type"], "image/svg+xml");
+  assert.match(String(response.body), /<svg/);
 });
 
 test("public routes remain accessible when admin auth mode is swa", async () => {
@@ -280,6 +314,19 @@ test("customer profile updates are persisted and audited", async () => {
   assert.equal(auditResponse.jsonBody?.items[0].correlationId, "corr-123");
 });
 
+test("customer profile updates require a JSON request body", async () => {
+  const response = await createAdminCustomerProfilePutHandler({ runtimeConfig: fixture.runtimeConfig })(
+    {
+      headers: new Headers({
+        "x-user-name": "operator@example.com",
+      }),
+    } as any
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.jsonBody?.error, "A JSON request body is required.");
+});
+
 test("feature flag updates are persisted and returned in the admin shape", async () => {
   const response = await createFeatureFlagPutHandler({ runtimeConfig: fixture.runtimeConfig })(
     createJsonRequest(
@@ -298,6 +345,36 @@ test("feature flag updates are persisted and returned in the admin shape", async
   assert.equal(response.jsonBody?.updatedFlag.key, "compareMode");
   assert.equal(response.jsonBody?.updatedFlag.enabled, false);
   assert.equal(loadState(fixture.runtimeConfig).customerManifest.featureFlags.compareMode, false);
+});
+
+test("feature flag updates validate route params and body shape", async () => {
+  const handler = createFeatureFlagPutHandler({ runtimeConfig: fixture.runtimeConfig });
+  const missingFlagKey = await handler(
+    createJsonRequest(
+      { enabled: true },
+      {
+        headers: {
+          "x-user-name": "operator@example.com",
+        },
+      }
+    )
+  );
+  const invalidBody = await handler(
+    createJsonRequest(
+      { enabled: "yes" },
+      {
+        params: { flagKey: "compareMode" },
+        headers: {
+          "x-user-name": "operator@example.com",
+        },
+      }
+    )
+  );
+
+  assert.equal(missingFlagKey.status, 400);
+  assert.equal(missingFlagKey.jsonBody?.error, "A flagKey route parameter is required.");
+  assert.equal(invalidBody.status, 400);
+  assert.equal(invalidBody.jsonBody?.error, "A boolean enabled property is required.");
 });
 
 test("dataset import, validate, publish, and rollback flow updates the file-backed state", async () => {
@@ -366,6 +443,124 @@ test("dataset import, validate, publish, and rollback flow updates the file-back
   assert.equal(rollbackResponse.status, 200);
   assert.equal(rollbackResponse.jsonBody?.publishedRelease.releaseId, "release-seed-current");
   assert.equal(loadState(fixture.runtimeConfig).activeReleaseId, "release-seed-current");
+});
+
+test("dataset validate, publish, and rollback handlers reject missing or unknown identifiers", async () => {
+  const validateHandler = createValidateDatasetHandler({ runtimeConfig: fixture.runtimeConfig });
+  const publishHandler = createPublishDatasetHandler({ runtimeConfig: fixture.runtimeConfig });
+  const rollbackHandler = createRollbackReleaseHandler({ runtimeConfig: fixture.runtimeConfig });
+
+  const missingValidateId = await validateHandler(
+    createJsonRequest(null, {
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+  const unknownValidateId = await validateHandler(
+    createJsonRequest(null, {
+      params: { versionId: "missing-version" },
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+  const missingPublishId = await publishHandler(
+    createJsonRequest(null, {
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+  const unknownPublishId = await publishHandler(
+    createJsonRequest(null, {
+      params: { versionId: "missing-version" },
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+  const missingRollbackId = await rollbackHandler(
+    createJsonRequest(null, {
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+  const unknownRollbackId = await rollbackHandler(
+    createJsonRequest(null, {
+      params: { releaseId: "missing-release" },
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+
+  assert.equal(missingValidateId.status, 400);
+  assert.equal(missingValidateId.jsonBody?.error, "A versionId route parameter is required.");
+  assert.equal(unknownValidateId.status, 404);
+  assert.equal(unknownValidateId.jsonBody?.error, "Dataset version not found.");
+  assert.equal(missingPublishId.status, 400);
+  assert.equal(missingPublishId.jsonBody?.error, "A versionId route parameter is required.");
+  assert.equal(unknownPublishId.status, 404);
+  assert.equal(unknownPublishId.jsonBody?.error, "Dataset version not found.");
+  assert.equal(missingRollbackId.status, 400);
+  assert.equal(missingRollbackId.jsonBody?.error, "A releaseId route parameter is required.");
+  assert.equal(unknownRollbackId.status, 404);
+  assert.equal(unknownRollbackId.jsonBody?.error, "Release not found.");
+});
+
+test("publish handler rejects datasets when publishing is disabled", async () => {
+  const imported = await createImportDatasetHandler({ runtimeConfig: fixture.runtimeConfig })(
+    createJsonRequest(
+      {
+        versionId: "dataset-version-disabled",
+        datasetManifestId: "dataset-manifest-seed-current",
+        datasetVersion: "2026.05",
+        checksum: "sha256:disabled",
+        sourceFiles: ["info.csv"],
+      },
+      {
+        headers: {
+          "x-user-name": "operator@example.com",
+        },
+      }
+    )
+  );
+
+  assert.equal(imported.status, 201);
+
+  const currentState = loadState(fixture.runtimeConfig);
+  writeFileSync(
+    fixture.runtimeConfig.stateFilePath,
+    JSON.stringify(
+      {
+        version: 1,
+        state: {
+          ...currentState,
+          datasetManifest: {
+            ...currentState.datasetManifest,
+            publishable: false,
+          },
+        },
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  const response = await createPublishDatasetHandler({ runtimeConfig: fixture.runtimeConfig })(
+    createJsonRequest(null, {
+      params: { versionId: "dataset-version-disabled" },
+      headers: {
+        "x-user-name": "operator@example.com",
+      },
+    })
+  );
+
+  assert.equal(response.status, 409);
+  assert.equal(response.jsonBody?.error, "Dataset publishing is disabled for this manifest.");
 });
 
 test("health endpoint returns 503 when the state file is empty", async () => {

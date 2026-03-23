@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NW Michigan Watershed">
+  <defs>
+    <linearGradient id="nwmiws-favicon-gradient" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b5f75" />
+      <stop offset="1" stop-color="#2ca59a" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#nwmiws-favicon-gradient)" />
+  <path
+    d="M32 13c-8.5 10.2-14 18.2-14 26.2C18 47.9 24.3 54 32 54s14-6.1 14-14.8C46 31.2 40.5 23.2 32 13Z"
+    fill="#fff"
+  />
+  <path
+    d="M23 39.5c2.8 2.5 5.8 3.7 9 3.7s6.2-1.2 9-3.7"
+    fill="none"
+    stroke="#0b5f75"
+    stroke-linecap="round"
+    stroke-width="3.2"
+  />
+  <circle cx="44.5" cy="18.5" r="4" fill="#b7f1ec" />
+</svg>

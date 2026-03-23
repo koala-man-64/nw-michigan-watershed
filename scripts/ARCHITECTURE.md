@@ -56,9 +56,9 @@ Local development export entrypoint.
 
 - Reads the current Azure Maps broker settings from the target Static Web App
 - Writes `apps/platform-api/local.settings.json`
-- Merges in local browser origins for `localhost:3000`, `localhost:4173`, and `localhost:4280`
+- Merges in local browser origins for `localhost:3000`, `localhost:4173`, `localhost:4280`, and the matching `127.0.0.1` loopback hosts
 
-This is the bridge between deployed cloud configuration and the local Functions host. It is what allows the basemap token broker to run locally with real Azure Maps settings.
+This is the bridge between deployed cloud configuration and the local Functions host. It allows the basemap token broker to run locally with real Azure Maps settings, but the Azure Maps account CORS rules still need to contain the same local origins for browser tile requests to succeed.
 
 ### `scripts/bootstrap/Provision-AzurePlatform.ps1`
 
@@ -143,7 +143,8 @@ This is the main delivery path for the Azure Maps feature.
 2. The script reads the live SWA application settings for the selected environment.
 3. The script writes `apps/platform-api/local.settings.json`.
 4. The local Functions host reads that file and can issue Azure Maps SAS tokens.
-5. The React dev server calls `/api/maps/token`, and the basemap works locally.
+5. The Azure Maps account already contains the same local origins through `scripts/azuremaps/Deploy-AzureMapsStack.ps1`.
+6. The React dev server calls `/api/maps/token`, and the basemap works locally.
 
 This is the only script flow that feeds the day-to-day local developer loop.
 

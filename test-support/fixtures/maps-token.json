@@ -1,0 +1,5 @@
+{
+  "token": "fixture-sas-token",
+  "clientId": "maps-client-id",
+  "expiresOnUtc": "2099-01-01T00:30:00.000Z"
+}

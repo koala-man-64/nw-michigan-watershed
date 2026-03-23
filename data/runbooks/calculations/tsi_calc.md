@@ -1,133 +1,121 @@
 # Trophic State Index (TSI)
 
-**TSI (Trophic State Index)** is a standardized scale used to estimate how nutrient-rich and biologically productive a lake is.  
-It converts several different water quality measurements into a **single comparable index**, typically ranging from **0 to 100+**.
+TSI (Trophic State Index) is a standardized scale used to estimate how nutrient-rich and biologically productive a lake is.
 
-The formulas in the spreadsheet follow the **Carlson Trophic State Index (CTSI)** approach.
+This note explains the Carlson Trophic State Index (CTSI) formulas commonly used in TSI calculation worksheets and reviews.
 
----
+## The Three TSI Components
 
-# The Three TSI Components
+TSI is calculated from three independent indicators of algal productivity:
 
-TSI is calculated using **three independent indicators of algal productivity**:
+1. Total Phosphorus (TP)
+2. Secchi Depth (SD)
+3. Chlorophyll-a (Chl-a)
 
-1. **Total Phosphorus (TP)**
-2. **Secchi Depth (SD)**
-3. **Chlorophyll-a (Chl-a)**
-
-Each one measures a different part of the same ecological process.
-
-| Measurement | What it Represents |
-|---|---|
+| Measurement | What it represents |
+| --- | --- |
 | Total Phosphorus | Nutrients available for algae growth |
 | Chlorophyll-a | Actual algae biomass |
-| Secchi Depth | Water clarity (impacted by algae and turbidity) |
+| Secchi Depth | Water clarity affected by algae and turbidity |
 
----
+## 1. TSI from Total Phosphorus
 
-# 1. TSI from Total Phosphorus
-
-Phosphorus is often the **limiting nutrient** that drives algae growth in freshwater lakes.
-
-Formula used in the spreadsheet:
-
-TSI(TP) = 14.42 × ln(TP) + 4.15
-
-Where:
-- **TP** = Total phosphorus concentration (typically µg/L)
-
-Interpretation:
-
-Higher phosphorus → more algae growth potential → **higher TSI**
-
----
-
-# 2. TSI from Secchi Depth
-
-Secchi depth measures **water clarity** using a black-and-white disk lowered into the water.
+Phosphorus is often the limiting nutrient that drives algae growth in freshwater lakes.
 
 Formula:
 
-TSI(SD) = 60 − 14.41 × ln(SD)
+```text
+TSI(TP) = 14.42 x ln(TP) + 4.15
+```
 
-In the spreadsheet the Secchi value is converted from **feet to meters**:
+Where:
 
-TSI(SD) = 60 − 14.41 × ln(SD_ft × 0.3048)
+- `TP` = total phosphorus concentration, typically in `ug/L`
 
 Interpretation:
 
-- Clear water → deeper Secchi reading → **lower TSI**
-- Murky water → shallow Secchi reading → **higher TSI**
+Higher phosphorus means more algae growth potential and therefore a higher TSI.
 
----
+## 2. TSI from Secchi Depth
 
-# 3. TSI from Chlorophyll-a
+Secchi depth measures water clarity using a black-and-white disk lowered into the water.
 
-Chlorophyll-a measures the **actual biomass of algae** in the water.
+Formula when depth is already in meters:
+
+```text
+TSI(SD) = 60 - 14.41 x ln(SD)
+```
+
+If a worksheet stores Secchi depth in feet, convert to meters first:
+
+```text
+TSI(SD) = 60 - 14.41 x ln(SD_ft x 0.3048)
+```
+
+Interpretation:
+
+- clearer water -> deeper Secchi reading -> lower TSI
+- murkier water -> shallower Secchi reading -> higher TSI
+
+## 3. TSI from Chlorophyll-a
+
+Chlorophyll-a measures the actual biomass of algae in the water.
 
 Formula:
 
-TSI(Chl) = 9.81 × ln(Chl) + 30.6
+```text
+TSI(Chl) = 9.81 x ln(Chl) + 30.6
+```
 
 Where:
-- **Chl** = Chlorophyll-a concentration (µg/L)
+
+- `Chl` = chlorophyll-a concentration, typically in `ug/L`
 
 Interpretation:
 
-More algae → more chlorophyll → **higher TSI**
+More algae means more chlorophyll and therefore a higher TSI.
 
----
+## Combined TSI Value
 
-# Final TSI Value in the Spreadsheet
+A common summary value is the average of the three component scores:
 
-The spreadsheet calculates a **combined index** by averaging the three TSI values:
-
+```text
 Avg(TSI) = average(TSI(TP), TSI(SD), TSI(Chl))
+```
 
-This provides a single indicator of overall lake productivity.
+This provides a single indicator of overall lake productivity, but the individual component scores still matter because differences between them can reveal ecological conditions.
 
-However, **the individual values are also important**, because differences between them reveal ecological conditions.
+## Why Three TSI Calculations Exist
 
----
-
-# Why Three TSI Calculations Exist
-
-Each measurement represents a different stage of the nutrient → algae → clarity chain.
-
-Nutrients → Algae Growth → Water Clarity
-
-Comparing the TSI values helps diagnose what is happening in the lake.
+Each measurement reflects a different part of the nutrient -> algae -> clarity chain.
 
 Example interpretations:
 
-| TSI(TP) | TSI(Chl) | TSI(Secchi) | Interpretation |
-|---|---|---|---|
-60 | 45 | 40 | Nutrients present but algae not fully responding |
-40 | 60 | 60 | Internal nutrient loading or bloom event |
-45 | 45 | 60 | Reduced clarity due to sediment or turbidity |
-50 | 50 | 50 | Balanced system behaving normally |
+| TSI(TP) | TSI(Chl) | TSI(SD) | Interpretation |
+| --- | --- | --- | --- |
+| 60 | 45 | 40 | Nutrients are present but algae are not fully responding |
+| 40 | 60 | 60 | Internal nutrient loading or a bloom event may be occurring |
+| 45 | 45 | 60 | Reduced clarity may be driven by sediment or turbidity |
+| 50 | 50 | 50 | The system is behaving consistently across indicators |
 
----
+## Interpreting the TSI Scale
 
-# Interpreting the TSI Scale
+| TSI Range | Lake classification | Typical characteristics |
+| --- | --- | --- |
+| < 30 | Oligotrophic | Very clear water, low nutrients |
+| 30-40 | Oligotrophic | Clear water, limited productivity |
+| 40-50 | Mesotrophic | Moderate productivity |
+| 50-60 | Eutrophic | High algae levels |
+| 60-70 | Very eutrophic | Frequent algal blooms |
+| 70+ | Hypereutrophic | Severe blooms and poor water quality |
 
-| TSI Range | Lake Classification | Typical Characteristics |
-|---|---|---|
-< 30 | Oligotrophic | Very clear water, low nutrients |
-30–40 | Oligotrophic | Clear water, limited productivity |
-40–50 | Mesotrophic | Moderate productivity |
-50–60 | Eutrophic | High algae levels |
-60–70 | Very Eutrophic | Frequent algal blooms |
-70+ | Hypereutrophic | Severe blooms and poor water quality |
+## Key Takeaway
 
----
+TSI is not just a combination of values. It is a standardized way to compare multiple water quality indicators on the same scale.
 
-# Key Takeaway
+Review both:
 
-TSI is **not just a combination of values**, but a **standardized way to compare multiple water quality indicators on the same scale**.
+- the average TSI
+- the differences between the individual TSI components
 
-By examining both:
-- the **average TSI**, and
-- the **differences between individual TSI components**
-
-scientists can diagnose the drivers of lake productivity and water quality changes.
+That combination is what helps explain the drivers of lake productivity and water quality change.

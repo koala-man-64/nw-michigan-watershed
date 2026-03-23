@@ -9,7 +9,17 @@ import {
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
-import { createAdminApi } from "./adminApi";
+import { createAdminApi, type AdminApi } from "./adminApi";
+import {
+  getErrorMessage,
+  importDatasetAction,
+  loadDashboardViewModel,
+  publishDatasetAction,
+  rollbackReleaseAction,
+  saveCustomerProfileAction,
+  toggleFeatureFlagAction,
+  validateDatasetAction,
+} from "./dashboardActions";
 import type {
   AdminBootstrap,
   AuditEvent,
@@ -19,8 +29,6 @@ import type {
   ImportDatasetRequest,
   PublishedRelease,
 } from "./types";
-
-const adminApi = createAdminApi();
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
@@ -84,7 +92,7 @@ function LoginPage() {
   );
 }
 
-function Dashboard() {
+function Dashboard({ adminApi }: { adminApi: AdminApi }) {
   const [bootstrap, setBootstrap] = useState<AdminBootstrap | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
@@ -92,6 +100,7 @@ function Dashboard() {
   const [currentRelease, setCurrentRelease] = useState<PublishedRelease | null>(null);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [importRequest, setImportRequest] = useState<ImportDatasetRequest>({
     datasetId: "dataset-2026-q2",
@@ -101,81 +110,91 @@ function Dashboard() {
 
   useEffect(() => {
     let mounted = true;
-    adminApi.getBootstrap().then((next) => {
-      if (!mounted) return;
-      setBootstrap(next);
-      setCustomerProfile(next.customerProfile);
-      setFeatureFlags(next.featureFlags);
-      setDatasetVersions(next.datasetVersions);
-      setCurrentRelease(next.currentRelease);
-      setAuditEvents(next.auditEvents);
-    });
+    void loadDashboardViewModel(adminApi)
+      .then((next) => {
+        if (!mounted) return;
+        setBootstrap(next.bootstrap);
+        setCustomerProfile(next.customerProfile);
+        setFeatureFlags(next.featureFlags);
+        setDatasetVersions(next.datasetVersions);
+        setCurrentRelease(next.currentRelease);
+        setAuditEvents(next.auditEvents);
+        setErrorMessage("");
+      })
+      .catch((error) => {
+        if (!mounted) return;
+        setErrorMessage(getErrorMessage(error, "Admin bootstrap could not be loaded."));
+      });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [adminApi]);
 
-  async function refreshAudit() {
-    setAuditEvents(await adminApi.getAuditEvents());
+  async function runMutation(action: () => Promise<void>) {
+    setBusy(true);
+    setErrorMessage("");
+    try {
+      await action();
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSaveProfile() {
-    if (!customerProfile) return;
-    setBusy(true);
-    setMessage("");
-    const saved = await adminApi.updateCustomerProfile(customerProfile);
-    setCustomerProfile(saved);
-    await refreshAudit();
-    setMessage("Customer profile saved.");
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await saveCustomerProfileAction(adminApi, customerProfile);
+      setCustomerProfile(result.customerProfile);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   async function handleToggleFlag(flag: FeatureFlag) {
-    setBusy(true);
-    const updated = await adminApi.updateFeatureFlag(flag.key, !flag.enabled);
-    setFeatureFlags((prev) => prev.map((item) => (item.key === updated.key ? updated : item)));
-    await refreshAudit();
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await toggleFeatureFlagAction(adminApi, featureFlags, flag);
+      setFeatureFlags(result.featureFlags);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   async function handleImport() {
-    setBusy(true);
-    const nextVersion = await adminApi.importDataset(importRequest);
-    setDatasetVersions((prev) => [nextVersion, ...prev]);
-    await refreshAudit();
-    setMessage(`Imported dataset version ${nextVersion.versionId}.`);
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await importDatasetAction(adminApi, datasetVersions, importRequest);
+      setDatasetVersions(result.datasetVersions);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   async function handleValidate(versionId: string) {
-    setBusy(true);
-    const nextVersion = await adminApi.validateDataset(versionId);
-    setDatasetVersions((prev) => prev.map((item) => (item.versionId === versionId ? nextVersion : item)));
-    await refreshAudit();
-    setMessage(`Validated ${versionId}.`);
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await validateDatasetAction(adminApi, datasetVersions, versionId);
+      setDatasetVersions(result.datasetVersions);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   async function handlePublish(versionId: string) {
-    setBusy(true);
-    const release = await adminApi.publishDataset(versionId);
-    setDatasetVersions((prev) =>
-      prev.map((item) => (item.versionId === versionId ? { ...item, status: "published" } : item))
-    );
-    setCurrentRelease(release);
-    await refreshAudit();
-    setMessage(`Published release ${release.releaseId}.`);
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await publishDatasetAction(adminApi, datasetVersions, versionId);
+      setDatasetVersions(result.datasetVersions);
+      setCurrentRelease(result.currentRelease);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   async function handleRollback() {
-    if (!currentRelease) return;
-    setBusy(true);
-    const release = await adminApi.rollbackRelease(currentRelease.releaseId);
-    setCurrentRelease(release);
-    await refreshAudit();
-    setMessage(`Rolled back from ${currentRelease.releaseId}.`);
-    setBusy(false);
+    await runMutation(async () => {
+      const result = await rollbackReleaseAction(adminApi, currentRelease);
+      setCurrentRelease(result.currentRelease);
+      setAuditEvents(result.auditEvents);
+      setMessage(result.message);
+    });
   }
 
   const latestDraft = useMemo(
@@ -184,6 +203,9 @@ function Dashboard() {
       null,
     [datasetVersions]
   );
+  const isReady = bootstrap !== null;
+  const currentStatusMessage =
+    message || (!isReady && !errorMessage ? "Loading admin bootstrap..." : "Ready for customer profile and dataset actions.");
 
   return (
     <AppShell>
@@ -198,9 +220,17 @@ function Dashboard() {
         </div>
         <div className="status-card">
           <span className="label">System message</span>
-          <strong>{message || "Ready for customer profile and dataset actions."}</strong>
+          <strong role="status" aria-live="polite">
+            {currentStatusMessage}
+          </strong>
         </div>
       </section>
+
+      {errorMessage ? (
+        <div className="status-alert" role="alert">
+          <strong>Request failed.</strong> {errorMessage}
+        </div>
+      ) : null}
 
       <section className="grid">
         <article className="panel" id="customer-profile">
@@ -209,7 +239,7 @@ function Dashboard() {
               <span className="panel-kicker">Customer profile</span>
               <h3>Branding and support metadata</h3>
             </div>
-            <button type="button" className="primary-button" onClick={handleSaveProfile} disabled={busy}>
+            <button type="button" className="primary-button" onClick={handleSaveProfile} disabled={busy || !customerProfile}>
               Save profile
             </button>
           </header>
@@ -253,7 +283,7 @@ function Dashboard() {
                 type="button"
                 className={`flag-row ${flag.enabled ? "is-on" : ""}`}
                 onClick={() => handleToggleFlag(flag)}
-                disabled={busy}
+                disabled={busy || !isReady}
               >
                 <span>
                   <strong>{flag.label}</strong>
@@ -302,14 +332,14 @@ function Dashboard() {
             </label>
           </div>
           <div className="action-row">
-            <button type="button" className="ghost-button" onClick={handleImport} disabled={busy}>
+            <button type="button" className="ghost-button" onClick={handleImport} disabled={busy || !isReady}>
               Import dataset
             </button>
             <button
               type="button"
               className="ghost-button"
               onClick={() => latestDraft && handleValidate(latestDraft.versionId)}
-              disabled={busy || !latestDraft}
+              disabled={busy || !latestDraft || !isReady}
             >
               Validate latest draft
             </button>
@@ -317,11 +347,11 @@ function Dashboard() {
               type="button"
               className="primary-button"
               onClick={() => latestDraft && handlePublish(latestDraft.versionId)}
-              disabled={busy || !latestDraft}
+              disabled={busy || !latestDraft || !isReady}
             >
               Publish latest draft
             </button>
-            <button type="button" className="ghost-button" onClick={handleRollback} disabled={busy}>
+            <button type="button" className="ghost-button" onClick={handleRollback} disabled={busy || !currentRelease}>
               Roll back current release
             </button>
           </div>
@@ -335,10 +365,10 @@ function Dashboard() {
                   </small>
                 </div>
                 <div className="row-actions">
-                  <button type="button" onClick={() => handleValidate(version.versionId)} disabled={busy}>
+                  <button type="button" onClick={() => handleValidate(version.versionId)} disabled={busy || !isReady}>
                     Validate
                   </button>
-                  <button type="button" onClick={() => handlePublish(version.versionId)} disabled={busy}>
+                  <button type="button" onClick={() => handlePublish(version.versionId)} disabled={busy || !isReady}>
                     Publish
                   </button>
                 </div>
@@ -371,7 +401,9 @@ function Dashboard() {
   );
 }
 
-export function App() {
+export function App({ adminApi }: { adminApi?: AdminApi }) {
+  const resolvedAdminApi = useMemo(() => adminApi ?? createAdminApi(), [adminApi]);
+
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -381,7 +413,7 @@ export function App() {
             path="/"
             element={
               <RequireAuth>
-                <Dashboard />
+                <Dashboard adminApi={resolvedAdminApi} />
               </RequireAuth>
             }
           />

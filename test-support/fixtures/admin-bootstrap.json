@@ -1,0 +1,144 @@
+{
+  "customerManifest": {
+    "customerId": "nwmiws",
+    "slug": "nw-michigan-watershed",
+    "displayName": "NW Michigan Water Quality Database",
+    "description": "Public water quality portal for Northwest Michigan watershed data.",
+    "authMode": "anonymous",
+    "branding": {
+      "title": "NW Michigan Water Quality Database",
+      "subtitle": "Read-only water quality atlas and release portal",
+      "colorPrimary": "#0f766e",
+      "colorSecondary": "#134e4a"
+    },
+    "supportContact": {
+      "name": "John Ransom",
+      "organization": "Benzie County Conservation District",
+      "phoneDisplay": "231-882-4391",
+      "phoneHref": "tel:+12318824391",
+      "email": "john@benziecd.org"
+    },
+    "legalLinks": [
+      {
+        "label": "Data provenance",
+        "href": "/api/exports/release-seed-current/manifest.json"
+      }
+    ],
+    "featureFlags": {
+      "compareMode": true,
+      "exports": true,
+      "mapLayers": true,
+      "privatePortalMode": false,
+      "adminMode": true,
+      "datasetPublishing": true
+    },
+    "mapProvider": {
+      "provider": "azure-maps",
+      "tokenRoute": "/api/maps/token",
+      "tilesetId": "microsoft.base.road",
+      "allowedOrigins": [
+        "https://portal.example.com"
+      ]
+    },
+    "mapDefaults": {
+      "center": [
+        44.75,
+        -85.85
+      ],
+      "zoom": 8,
+      "minZoom": 7,
+      "maxZoom": 16
+    },
+    "defaultDatasetManifestId": "dataset-manifest-seed-current",
+    "defaultReleaseId": "release-seed-current"
+  },
+  "customerProfile": {
+    "customerId": "nwmiws",
+    "displayName": "NW Michigan Water Quality Database",
+    "organization": "Benzie County Conservation District",
+    "supportContact": {
+      "name": "John Ransom",
+      "organization": "Benzie County Conservation District",
+      "phoneDisplay": "231-882-4391",
+      "phoneHref": "tel:+12318824391",
+      "email": "john@benziecd.org"
+    },
+    "website": "https://www.benziecd.org",
+    "supportHours": "Mon-Fri 8:00 AM to 4:30 PM",
+    "updatedAtUtc": "2026-03-22T06:00:00.000Z"
+  },
+  "datasetManifest": {
+    "datasetManifestId": "dataset-manifest-seed-current",
+    "datasetId": "nwmiws-water-quality",
+    "version": "2026.03.22",
+    "schemaVersion": "1.0.0",
+    "owner": "Benzie County Conservation District",
+    "allowedUse": "Internal and public read-only portal distribution.",
+    "checksum": "sha256:seed-csv-snapshot",
+    "provenance": {
+      "sourceSystem": "portal-web-public-data",
+      "sourceFiles": [
+        "info.csv",
+        "locations.csv",
+        "NWMIWS_Site_Data_testing_varied.csv"
+      ],
+      "notes": "Seeded from the current portal CSV assets."
+    },
+    "sourceFiles": [
+      "info.csv",
+      "locations.csv",
+      "NWMIWS_Site_Data_testing_varied.csv"
+    ],
+    "publishable": true
+  },
+  "datasetVersions": [
+    {
+      "versionId": "dataset-version-seed-current",
+      "datasetManifestId": "dataset-manifest-seed-current",
+      "datasetVersion": "2026.03.22",
+      "checksum": "sha256:seed-csv-snapshot",
+      "sourceFiles": [
+        "info.csv",
+        "locations.csv",
+        "NWMIWS_Site_Data_testing_varied.csv"
+      ],
+      "status": "published",
+      "importedAtUtc": "2026-03-22T06:00:00.000Z",
+      "validatedAtUtc": "2026-03-22T06:00:00.000Z",
+      "publishedAtUtc": "2026-03-22T06:00:00.000Z",
+      "notes": "Seed dataset imported from the current portal CSV source files."
+    }
+  ],
+  "publishedRelease": {
+    "releaseId": "release-seed-current",
+    "customerId": "nwmiws",
+    "datasetManifestId": "dataset-manifest-seed-current",
+    "datasetVersionId": "dataset-version-seed-current",
+    "status": "active",
+    "publishedAtUtc": "2026-03-22T06:00:00.000Z",
+    "rollbackTargetReleaseId": null,
+    "portalVisibleMetadata": {
+      "title": "Current published dataset",
+      "summary": "Seed release reflecting the current portal CSV contents.",
+      "notes": "Acts as the initial active portal release."
+    }
+  },
+  "auditEvents": [
+    {
+      "auditEventId": "a35f7b8d-39ef-4d89-9b8e-91fd7c7a0b56",
+      "eventType": "state.seeded",
+      "actor": "system",
+      "customerId": "nwmiws",
+      "releaseId": "release-seed-current",
+      "createdAtUtc": "2026-03-22T06:00:00.000Z",
+      "details": {
+        "datasetManifestId": "dataset-manifest-seed-current",
+        "datasetVersionId": "dataset-version-seed-current"
+      }
+    }
+  ],
+  "config": {
+    "apiBaseUrl": "/api",
+    "authMode": "mock"
+  }
+}

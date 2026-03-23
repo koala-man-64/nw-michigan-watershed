@@ -1,11 +1,9 @@
 {
-    "debug.internalConsoleOptions": "neverOpen",
-    "jest.rootPath": "apps/portal-web",
-    "jest.jestCommandLine": "npm test --",
-    "jest.runMode": "on-demand",
-    "python.testing.pytestArgs": [
-        "apps/platform-api"
-    ],
-    "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+  "debug.internalConsoleOptions": "neverOpen",
+  "npm.packageManager": "npm",
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "azureFunctions.projectSubpath": "apps/platform-api",
+  "azureFunctions.deploySubpath": "apps/platform-api",
+  "azureFunctions.projectLanguage": "TypeScript",
+  "azureFunctions.projectRuntime": "~4"
 }

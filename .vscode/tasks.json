@@ -2,6 +2,56 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "npm: start (azurite)",
+      "type": "process",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\scripts\\local\\Ensure-Azurite.ps1"
+        ]
+      },
+      "linux": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/local/Ensure-Azurite.ps1"
+        ]
+      },
+      "osx": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/local/Ensure-Azurite.ps1"
+        ]
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Ensuring Azurite.*|.*Starting Azurite with workspace.*|.*Azurite Blob service.*|.*Azurite Queue service.*|.*Azurite Table service.*|.*Azurite services already listening.*",
+          "endsPattern": ".*Azurite Table service is successfully listening at.*10002.*|.*Azurite services already listening at.*"
+        }
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "local-services"
+      }
+    },
+    {
       "label": "npm: start (portal-web)",
       "type": "process",
       "windows": {
@@ -32,8 +82,8 @@
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": ".*Starting the development server.*",
-          "endsPattern": ".*Compiled successfully.*"
+          "beginsPattern": ".*VITE.*|.*Local:.*",
+          "endsPattern": ".*Local:.*3000.*|.*ready in.*"
         }
       },
       "options": {
@@ -87,16 +137,11 @@
         "reveal": "always",
         "panel": "dedicated",
         "group": "full-application"
-      }
-    },
-    {
-      "label": "start full application",
+      },
       "dependsOn": [
-        "npm: start (platform-api)",
-        "npm: start (portal-web)"
+        "npm: start (azurite)"
       ],
-      "dependsOrder": "parallel",
-      "problemMatcher": []
+      "dependsOrder": "sequence"
     },
     {
       "label": "npm: start (admin-web)",
@@ -145,6 +190,34 @@
       }
     },
     {
+      "label": "start portal application",
+      "dependsOn": [
+        "npm: start (platform-api)",
+        "npm: start (portal-web)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "start admin application",
+      "dependsOn": [
+        "npm: start (platform-api)",
+        "npm: start (admin-web)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "start full application",
+      "dependsOn": [
+        "npm: start (platform-api)",
+        "npm: start (portal-web)",
+        "npm: start (admin-web)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
       "label": "export azure maps local settings (dev)",
       "type": "process",
       "windows": {
@@ -187,9 +260,165 @@
       }
     },
     {
-      "label": "prepare full application",
+      "label": "export azure maps local settings (sbx)",
+      "type": "process",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\scripts\\azuremaps\\Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "sbx"
+        ]
+      },
+      "linux": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/azuremaps/Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "sbx"
+        ]
+      },
+      "osx": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/azuremaps/Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "sbx"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
+      }
+    },
+    {
+      "label": "export azure maps local settings (prod)",
+      "type": "process",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\scripts\\azuremaps\\Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "prod"
+        ]
+      },
+      "linux": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/azuremaps/Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "prod"
+        ]
+      },
+      "osx": {
+        "command": "pwsh",
+        "args": [
+          "-NoProfile",
+          "-File",
+          "${workspaceFolder}/scripts/azuremaps/Export-AzureMapsLocalSettings.ps1",
+          "-Environment",
+          "prod"
+        ]
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "full-application"
+      }
+    },
+    {
+      "label": "prepare portal application (dev)",
       "dependsOn": [
         "export azure maps local settings (dev)",
+        "start portal application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare portal application (sbx)",
+      "dependsOn": [
+        "export azure maps local settings (sbx)",
+        "start portal application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare admin application (dev)",
+      "dependsOn": [
+        "export azure maps local settings (dev)",
+        "start admin application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare admin application (sbx)",
+      "dependsOn": [
+        "export azure maps local settings (sbx)",
+        "start admin application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare portal application (prod)",
+      "dependsOn": [
+        "export azure maps local settings (prod)",
+        "start portal application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare admin application (prod)",
+      "dependsOn": [
+        "export azure maps local settings (prod)",
+        "start admin application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare full application (dev)",
+      "dependsOn": [
+        "export azure maps local settings (dev)",
+        "start full application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare full application (sbx)",
+      "dependsOn": [
+        "export azure maps local settings (sbx)",
+        "start full application"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "prepare full application (prod)",
+      "dependsOn": [
+        "export azure maps local settings (prod)",
         "start full application"
       ],
       "dependsOrder": "sequence",

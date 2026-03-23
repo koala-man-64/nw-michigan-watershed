@@ -137,3 +137,43 @@ test("maps token handler returns 503 when configuration is invalid", async () =>
     error: "Azure Maps API is not configured correctly.",
   });
 });
+
+test("maps token handler returns 500 when token issuance fails", async () => {
+  const handler = createMapsTokenHandler({
+    getAzureMapsConfig: () => ({
+      isValid: true,
+      allowedOrigins: ["https://app.example.com"],
+      azureMapsSasTtlMinutes: 30,
+      azureMapsSasMaxRps: 500,
+      azureMapsSasSigningKey: "secondaryKey",
+      azureTenantId: "tenant-id",
+      azureClientId: "client-id",
+      azureClientSecret: "client-secret",
+      azureMapsSubscriptionId: "subscription-id",
+      azureMapsResourceGroup: "rg-name",
+      azureMapsAccountName: "maps-name",
+      azureMapsAccountClientId: "maps-client-id",
+      azureMapsUamiPrincipalId: "uami-principal-id",
+      missingSettings: [],
+      invalidSettings: [],
+      invalidOrigins: [],
+    }),
+    issueMapsToken: async () => {
+      throw new Error("token broker unavailable");
+    },
+  });
+
+  const response = await handler(
+    {
+      headers: new Headers({
+        origin: "https://app.example.com",
+      }),
+    },
+    createContext()
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.jsonBody, {
+    error: "Failed to issue Azure Maps token.",
+  });
+});

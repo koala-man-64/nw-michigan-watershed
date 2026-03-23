@@ -1,0 +1,46 @@
+{
+  "items": [
+    {
+      "site": "Bear Lake (Manistee)",
+      "siteType": "Lake",
+      "year": 2000,
+      "parameter": "Chloro",
+      "max": 7.613469575626834,
+      "min": 6.4450922832102115,
+      "avg": 6.964926148764145,
+      "count": 18
+    },
+    {
+      "site": "Bear Lake (Manistee)",
+      "siteType": "Lake",
+      "year": 2001,
+      "parameter": "Chloro",
+      "max": 7.8819003139725865,
+      "min": 6.346988242870287,
+      "avg": 7.397397299995757,
+      "count": 19
+    },
+    {
+      "site": "North Lake Leelanau",
+      "siteType": "Lake",
+      "year": 2000,
+      "parameter": "TP",
+      "max": 11.4,
+      "min": 7.1,
+      "avg": 9.4,
+      "count": 12
+    },
+    {
+      "site": "South Lake Leelanau",
+      "siteType": "Lake",
+      "year": 2001,
+      "parameter": "Secchi",
+      "max": 5.6,
+      "min": 4.8,
+      "avg": 5.2,
+      "count": 10
+    }
+  ],
+  "count": 4,
+  "appliedFilters": {}
+}

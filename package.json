@@ -11,8 +11,19 @@
     "node": "20.x"
   },
   "scripts": {
+    "azurite": "azurite --location .azurite --blobHost 127.0.0.1 --queueHost 127.0.0.1 --tableHost 127.0.0.1",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage:admin-web && npm run test:coverage:platform-api && npm run test:coverage:portal-web",
+    "test:coverage:admin-web": "npm run test:coverage --workspace @nwmiws/admin-web",
+    "test:coverage:platform-api": "npm run test:coverage --workspace nwmiws-platform-api",
+    "test:coverage:portal-web": "npm run test:coverage --workspace @nwmiws/portal-web",
+    "test:e2e": "npm run build --workspace @nwmiws/portal-web && playwright test",
+    "validate:portal-platform": "npm run lint --workspace @nwmiws/portal-web && npm run lint --workspace nwmiws-platform-api && npm run test:coverage:portal-web && npm run test:coverage:platform-api && npm run build --workspace nwmiws-platform-api && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "azurite": "^3.35.0"
   }
 }

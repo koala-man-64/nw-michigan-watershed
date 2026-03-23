@@ -16,7 +16,7 @@
     "AZURE_MAPS_ACCOUNT_NAME": "<maps-account-name>",
     "AZURE_MAPS_ACCOUNT_CLIENT_ID": "<maps-account-unique-id>",
     "AZURE_MAPS_UAMI_PRINCIPAL_ID": "<maps-uami-principal-id>",
-    "AZURE_MAPS_ALLOWED_ORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:4280",
+    "AZURE_MAPS_ALLOWED_ORIGINS": "http://localhost:3000,http://localhost:4173,http://localhost:4280,http://127.0.0.1:3000,http://127.0.0.1:4173,http://127.0.0.1:4280",
     "AZURE_MAPS_SAS_TTL_MINUTES": "30",
     "AZURE_MAPS_SAS_MAX_RPS": "500",
     "AZURE_MAPS_SAS_SIGNING_KEY": "secondaryKey"
